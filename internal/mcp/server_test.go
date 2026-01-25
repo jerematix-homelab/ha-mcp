@@ -183,6 +183,26 @@ func (m *mockHAClient) GetScheduleConfig(_ context.Context, _ string) (map[strin
 	return nil, nil
 }
 
+func (m *mockHAClient) GetServices(_ context.Context) ([]homeassistant.Service, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) GetConfig(_ context.Context) (*homeassistant.Config, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) RenderTemplate(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
+func (m *mockHAClient) GetLogbook(_ context.Context, _, _, _ string) ([]homeassistant.LogbookEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) CheckConfig(_ context.Context) (*homeassistant.ConfigCheckResult, error) {
+	return nil, nil
+}
+
 func TestNewServer(t *testing.T) {
 	t.Parallel()
 

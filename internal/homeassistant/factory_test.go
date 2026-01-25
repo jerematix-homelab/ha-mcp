@@ -281,6 +281,24 @@ func (m *mockNonCloserClient) ExtractFromTarget(_ context.Context, _ Target, _ *
 func (m *mockNonCloserClient) GetScheduleConfig(_ context.Context, _ string) (map[string]any, error) {
 	return map[string]any{}, nil
 }
+func (m *mockNonCloserClient) GetServices(_ context.Context) ([]Service, error) {
+	return []Service{}, nil
+}
+func (m *mockNonCloserClient) GetConfig(_ context.Context) (*Config, error) {
+	return &Config{}, nil
+}
+
+func (m *mockNonCloserClient) RenderTemplate(_ context.Context, _ string) (string, error) {
+	return "", nil
+}
+
+func (m *mockNonCloserClient) GetLogbook(_ context.Context, _, _, _ string) ([]LogbookEntry, error) {
+	return []LogbookEntry{}, nil
+}
+
+func (m *mockNonCloserClient) CheckConfig(_ context.Context) (*ConfigCheckResult, error) {
+	return &ConfigCheckResult{Result: "valid"}, nil
+}
 
 // Ensure mockNonCloserClient implements Client but NOT ClientCloser
 var _ Client = (*mockNonCloserClient)(nil)

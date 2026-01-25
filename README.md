@@ -544,6 +544,24 @@ ha-mcp provides comprehensive support for all 14 Home Assistant helper types. Ea
 |------|-------------|
 | `get_lovelace_config` | Get the Lovelace dashboard configuration |
 
+#### Template Tools
+
+| Tool | Description |
+|------|-------------|
+| `render_template` | Render a Jinja2 template using current Home Assistant state |
+
+#### Logbook Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_logbook` | Get logbook entries showing what happened in Home Assistant |
+
+#### Configuration Tools
+
+| Tool | Description |
+|------|-------------|
+| `validate_config` | Validate Home Assistant configuration.yaml for syntax errors |
+
 #### Target Tools
 
 | Tool | Description |
@@ -558,6 +576,13 @@ ha-mcp provides comprehensive support for all 14 Home Assistant helper types. Ea
 | Tool | Description |
 |------|-------------|
 | `call_service` | Call any Home Assistant service |
+| `list_services` | List all available services with descriptions (optional domain filter) |
+
+#### System Tools
+
+| Tool | Description |
+|------|-------------|
+| `get_system_info` | Get Home Assistant system configuration (version, timezone, units, etc.) |
 
 ### Example Requests
 
@@ -858,6 +883,11 @@ ha-mcp/
 │   │   ├── statistics.go        # Statistics tool handler
 │   │   ├── lovelace.go          # Lovelace tool handler
 │   │   ├── targets.go           # Target tool handlers
+│   │   ├── services.go          # Service discovery handler
+│   │   ├── system.go            # System info handler
+│   │   ├── templates.go         # Template rendering handler
+│   │   ├── logbook.go           # Logbook access handler
+│   │   ├── config.go            # Configuration validation handler
 │   │   └── register.go          # Handler registration
 │   └── logging/
 │       └── logger.go            # Structured logging
