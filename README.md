@@ -1007,7 +1007,7 @@ Some Home Assistant operations have limitations:
 
 - **Scripts**: REST API works, but `script.reload` service call is needed after create/update for entity to appear immediately
 - **Automations/Scenes**: REST API stores config, but entity may not appear until Home Assistant restart or reload
-- **YAML-only helpers**: Template, threshold, derivative, integration, and group helpers require YAML configuration and cannot be created via API
+- **Config Entry helpers**: Template, threshold, derivative, integration, and group helpers use HTTP-based Config Entry Flow (automatically handled by ha-mcp)
 
 ## License
 
