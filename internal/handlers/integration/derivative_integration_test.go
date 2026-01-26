@@ -10,6 +10,9 @@ import (
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 )
 
+var _ = time.Second        // silence unused import
+var _ homeassistant.Client // silence unused import
+
 type DerivativeIntegrationTestSuite struct {
 	HelperTestSuite
 }
@@ -187,6 +190,7 @@ func (s *DerivativeIntegrationTestSuite) TestDerivativeWithUnitPrefix() {
 			"source":      sourceEntityID,
 			"unit_prefix": "k",
 			"unit_time":   "h",
+			"time_window": "00:05:00", // Required by Config Entry Flow
 		},
 	}
 
