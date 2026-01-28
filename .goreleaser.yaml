@@ -96,20 +96,24 @@ nfpms:
       pkgbase: ha-mcp
       packager: zorak1103
 
-# Docker builds disabled for now (can be re-enabled later)
-# dockers:
-#   - image_templates:
-#       - "ghcr.io/zorak1103/ha-mcp:{{ .Tag }}"
-#       - "ghcr.io/zorak1103/ha-mcp:latest"
-#     dockerfile: Dockerfile
-#     build_flag_templates:
-#       - "--pull"
-#       - "--label=org.opencontainers.image.created={{.Date}}"
-#       - "--label=org.opencontainers.image.title={{.ProjectName}}"
-#       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-#       - "--label=org.opencontainers.image.version={{.Version}}"
-#     goos: linux
-#     goarch: amd64
+# Docker images - multi-arch builds for Docker Hub (v2 format)
+dockers_v2:
+  - images:
+      - "zorak1103/ha-mcp"
+    tags:
+      - "{{ .Version }}"
+      - "latest"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.title": "{{ .ProjectName }}"
+      "org.opencontainers.image.description": "MCP Server for Home Assistant - AI agent integration"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.source": "https://github.com/zorak1103/ha-mcp"
+      "org.opencontainers.image.licenses": "GPL-3.0"
 
 release:
   github:
