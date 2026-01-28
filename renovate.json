@@ -8,9 +8,8 @@
     "group:allNonMajor"
   ],
   "timezone": "Europe/Berlin",
-  "schedule": [
-    "before 6am on monday"
-  ],
+  "schedule": ["at any time"],
+  "prConcurrentLimit": 5,
   "labels": [
     "dependencies"
   ],
