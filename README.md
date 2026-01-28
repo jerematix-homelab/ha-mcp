@@ -8,6 +8,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/zorak1103/ha-mcp.svg)](https://pkg.go.dev/github.com/zorak1103/ha-mcp)
 [![License](https://img.shields.io/github/license/zorak1103/ha-mcp)](LICENSE)
 [![GitHub release](https://img.shields.io/github/v/release/zorak1103/ha-mcp)](https://github.com/zorak1103/ha-mcp/releases/latest)
+[![Docker Hub](https://img.shields.io/docker/v/zorak1103/ha-mcp?label=Docker%20Hub&logo=docker)](https://hub.docker.com/r/zorak1103/ha-mcp)
 
 A Model Context Protocol (MCP) server that provides AI assistants with access to Home Assistant, enabling smart home control and automation management.
 
@@ -55,18 +56,18 @@ go build -o ha-mcp ./cmd/ha-mcp
 
 ### Using Docker
 
-> **Note:** Docker images are currently not published. Build locally using the Dockerfile.
+Multi-arch Docker images (amd64/arm64) are published to Docker Hub on each release.
 
 ```bash
-# Build Docker image locally
-docker build -t ha-mcp:latest .
+# Pull the latest image
+docker pull zorak1103/ha-mcp:latest
 
 # Run container (token provided by clients via Authorization header)
 docker run -d \
   --name ha-mcp \
   -p 8080:8080 \
   -e HA_URL=http://homeassistant.local:8123 \
-  ha-mcp:latest
+  zorak1103/ha-mcp:latest
 
 # Or with default token for development (optional)
 docker run -d \
@@ -74,8 +75,15 @@ docker run -d \
   -p 8080:8080 \
   -e HA_URL=http://homeassistant.local:8123 \
   -e HA_TOKEN=your-long-lived-access-token \
-  ha-mcp:latest
+  zorak1103/ha-mcp:latest
+
+# Use a specific version
+docker pull zorak1103/ha-mcp:v0.8.0
 ```
+
+Available tags:
+- `zorak1103/ha-mcp:latest` - Latest release (multi-arch)
+- `zorak1103/ha-mcp:vX.Y.Z` - Specific version (multi-arch)
 
 ### Linux Packages
 

@@ -1,37 +1,21 @@
-# Build stage
-FROM golang:1.25-alpine AS builder
+# GoReleaser v2 multi-arch Dockerfile
+# Binary is pre-built by GoReleaser and placed in platform-specific directories
+FROM alpine:3.23
 
-# Install build dependencies
-RUN apk add --no-cache git ca-certificates
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -g 1000 hamcp \
+    && adduser -D -u 1000 -G hamcp hamcp
 
-# Set working directory
-WORKDIR /build
+# Copy pre-built binary from GoReleaser (platform-specific path)
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/ha-mcp /usr/local/bin/ha-mcp
 
-# Copy go mod files first for better caching
-COPY go.mod go.sum* ./
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o ha-mcp ./cmd/ha-mcp
-
-# Final stage - minimal image
-FROM scratch
-
-# Import CA certificates for HTTPS
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
-# Copy binary
-COPY --from=builder /build/ha-mcp /ha-mcp
+# Use non-root user for security
+USER hamcp
 
 # Expose MCP server port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/ha-mcp", "--health-check"]
-
-# Run the binary
-ENTRYPOINT ["/ha-mcp"]
+ENTRYPOINT ["ha-mcp"]
+CMD ["--help"]
