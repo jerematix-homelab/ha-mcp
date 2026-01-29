@@ -55,6 +55,7 @@
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["major"],
       "automerge": false,
+      "dependencyDashboardApproval": false,
       "labels": ["dependencies", "github-actions", "major"]
     },
     {
