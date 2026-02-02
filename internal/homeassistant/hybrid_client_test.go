@@ -457,6 +457,8 @@ type mockWSOperations struct {
 	getServicesForTargetFunc   func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
 	extractFromTargetFunc      func(ctx context.Context, target Target, expandGroup *bool) (*ExtractFromTargetResult, error)
 	getScheduleConfigFunc      func(ctx context.Context, scheduleID string) (map[string]any, error)
+	getConfigEntriesFunc       func(ctx context.Context, domain string) ([]ConfigEntryFull, error)
+	getConfigEntryFunc         func(ctx context.Context, entryID string) (*ConfigEntryFull, error)
 }
 
 func (m *mockWSOperations) GetStates(ctx context.Context) ([]Entity, error) {
@@ -700,6 +702,20 @@ func (m *mockWSOperations) ExtractFromTarget(ctx context.Context, target Target,
 func (m *mockWSOperations) GetScheduleConfig(ctx context.Context, scheduleID string) (map[string]any, error) {
 	if m.getScheduleConfigFunc != nil {
 		return m.getScheduleConfigFunc(ctx, scheduleID)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error) {
+	if m.getConfigEntriesFunc != nil {
+		return m.getConfigEntriesFunc(ctx, domain)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
+	if m.getConfigEntryFunc != nil {
+		return m.getConfigEntryFunc(ctx, entryID)
 	}
 	return nil, nil
 }

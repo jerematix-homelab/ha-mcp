@@ -161,6 +161,12 @@ func (m *mockClient) GetLogbook(ctx context.Context, startTime, endTime, entityI
 	return nil, nil
 }
 func (m *mockClient) CheckConfig(ctx context.Context) (*ConfigCheckResult, error) { return nil, nil }
+func (m *mockClient) GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error) {
+	return nil, nil
+}
+func (m *mockClient) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
+	return nil, nil
+}
 
 func TestCachedClient_CacheHit(t *testing.T) {
 	mock := &mockClient{}

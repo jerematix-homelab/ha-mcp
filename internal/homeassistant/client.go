@@ -81,6 +81,10 @@ type Client interface {
 	// Config operations - get full configuration for helpers
 	GetScheduleConfig(ctx context.Context, scheduleID string) (map[string]any, error)
 
+	// Config entry operations - get config entries with full details
+	GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error)
+	GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error)
+
 	// Service discovery operations
 	GetServices(ctx context.Context) ([]Service, error)
 

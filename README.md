@@ -409,6 +409,8 @@ Authorization: Bearer <your-ha-access-token>
 | `list_entity_registry` | List all entities in the registry with metadata |
 | `list_device_registry` | List all devices with manufacturer, model info |
 | `list_area_registry` | List all areas/rooms defined in Home Assistant |
+| `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain |
+| `get_config_entry` | Get a single config entry by entry ID |
 
 #### Automation Tools
 

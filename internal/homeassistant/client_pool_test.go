@@ -222,6 +222,12 @@ func (m *mockClientForPool) GetLogbook(_ context.Context, _, _, _ string) ([]Log
 func (m *mockClientForPool) CheckConfig(_ context.Context) (*ConfigCheckResult, error) {
 	return nil, nil
 }
+func (m *mockClientForPool) GetConfigEntries(_ context.Context, _ string) ([]ConfigEntryFull, error) {
+	return nil, nil
+}
+func (m *mockClientForPool) GetConfigEntry(_ context.Context, _ string) (*ConfigEntryFull, error) {
+	return nil, nil
+}
 
 // Ensure mockClientForPool implements Client and ClientCloser.
 var (
