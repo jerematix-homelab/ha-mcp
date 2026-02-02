@@ -89,6 +89,8 @@ type WSOperations interface {
 	GetServicesForTarget(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
 	ExtractFromTarget(ctx context.Context, target Target, expandGroup *bool) (*ExtractFromTargetResult, error)
 	GetScheduleConfig(ctx context.Context, scheduleID string) (map[string]any, error)
+	GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error)
+	GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error)
 }
 
 // RESTOperations is an interface for REST client operations.
@@ -608,6 +610,20 @@ func (c *HybridClient) ExtractFromTarget(ctx context.Context, target Target, exp
 // GetScheduleConfig retrieves the full configuration of a schedule helper.
 func (c *HybridClient) GetScheduleConfig(ctx context.Context, scheduleID string) (map[string]any, error) {
 	return c.ws.GetScheduleConfig(ctx, scheduleID)
+}
+
+// =============================================================================
+// Config Entry Operations (delegated to WebSocket)
+// =============================================================================
+
+// GetConfigEntries retrieves config entries, optionally filtered by domain.
+func (c *HybridClient) GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error) {
+	return c.ws.GetConfigEntries(ctx, domain)
+}
+
+// GetConfigEntry retrieves a single config entry by its entry ID.
+func (c *HybridClient) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
+	return c.ws.GetConfigEntry(ctx, entryID)
 }
 
 // =============================================================================

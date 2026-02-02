@@ -994,3 +994,47 @@ func (c *wsClientImpl) GetLogbook(_ context.Context, _, _, _ string) ([]LogbookE
 func (c *wsClientImpl) CheckConfig(_ context.Context) (*ConfigCheckResult, error) {
 	return nil, fmt.Errorf("CheckConfig not supported via WebSocket API, use REST API or HybridClient")
 }
+
+// =============================================================================
+// Config Entry Operations (WebSocket-only)
+// =============================================================================
+
+// GetConfigEntries retrieves config entries, optionally filtered by domain.
+// Uses the config_entries/get WebSocket command.
+// Note: The options field is not populated by this API - it returns metadata only.
+func (c *wsClientImpl) GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error) {
+	payload := map[string]any{}
+	if domain != "" {
+		payload["domain"] = domain
+	}
+	result, err := c.ws.SendCommand(ctx, "config_entries/get", payload)
+	if err != nil {
+		return nil, fmt.Errorf("get config entries failed: %w", err)
+	}
+	var entries []ConfigEntryFull
+	if err := json.Unmarshal(result.Result, &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config entries: %w", err)
+	}
+	return entries, nil
+}
+
+// GetConfigEntry retrieves a single config entry by its entry ID.
+// Uses the config_entries/get_single WebSocket command.
+// Note: The options field is not populated by this API - use GetConfigEntries for listing.
+func (c *wsClientImpl) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
+	result, err := c.ws.SendCommand(ctx, "config_entries/get_single", map[string]any{
+		"entry_id": entryID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get config entry failed: %w", err)
+	}
+
+	// Home Assistant wraps the response in a "config_entry" key
+	var wrapper struct {
+		ConfigEntry ConfigEntryFull `json:"config_entry"`
+	}
+	if err := json.Unmarshal(result.Result, &wrapper); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config entry: %w", err)
+	}
+	return &wrapper.ConfigEntry, nil
+}

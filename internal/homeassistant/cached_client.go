@@ -459,6 +459,16 @@ func (c *CachedClient) CheckConfig(ctx context.Context) (*ConfigCheckResult, err
 	return c.client.CheckConfig(ctx)
 }
 
+//nolint:revive // Delegated method
+func (c *CachedClient) GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error) {
+	return c.client.GetConfigEntries(ctx, domain)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
+	return c.client.GetConfigEntry(ctx, entryID)
+}
+
 // Close implements ClientCloser interface.
 func (c *CachedClient) Close() error {
 	return CloseClient(c.client)

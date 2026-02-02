@@ -162,6 +162,12 @@ func RegisterConfigTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
+// RegisterConfigEntryTools registers all config entry tools with the registry.
+func RegisterConfigEntryTools(registry *mcp.Registry) {
+	h := NewConfigEntryHandlers()
+	h.RegisterTools(registry)
+}
+
 // RegisterAllTools registers all available tool handlers with the registry.
 // All handlers use the WebSocket API for communication with Home Assistant.
 func RegisterAllTools(registry *mcp.Registry) {
@@ -214,4 +220,7 @@ func RegisterAllTools(registry *mcp.Registry) {
 	RegisterTemplateTools(registry)
 	RegisterLogbookTools(registry)
 	RegisterConfigTools(registry)
+
+	// Config entry tools (for accessing full config including template definitions)
+	RegisterConfigEntryTools(registry)
 }

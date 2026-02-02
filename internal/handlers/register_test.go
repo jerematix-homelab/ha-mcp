@@ -307,6 +307,9 @@ func TestRegisterAllTools(t *testing.T) {
 		"get_lovelace_config",
 		// Targets
 		"get_triggers_for_target",
+		// Config entries
+		"list_config_entries",
+		"get_config_entry",
 	}
 
 	toolMap := make(map[string]bool)

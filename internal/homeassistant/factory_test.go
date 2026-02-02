@@ -300,6 +300,14 @@ func (m *mockNonCloserClient) CheckConfig(_ context.Context) (*ConfigCheckResult
 	return &ConfigCheckResult{Result: "valid"}, nil
 }
 
+func (m *mockNonCloserClient) GetConfigEntries(_ context.Context, _ string) ([]ConfigEntryFull, error) {
+	return []ConfigEntryFull{}, nil
+}
+
+func (m *mockNonCloserClient) GetConfigEntry(_ context.Context, _ string) (*ConfigEntryFull, error) {
+	return &ConfigEntryFull{}, nil
+}
+
 // Ensure mockNonCloserClient implements Client but NOT ClientCloser
 var _ Client = (*mockNonCloserClient)(nil)
 

@@ -203,6 +203,14 @@ func (m *mockHAClient) CheckConfig(_ context.Context) (*homeassistant.ConfigChec
 	return nil, nil
 }
 
+func (m *mockHAClient) GetConfigEntries(_ context.Context, _ string) ([]homeassistant.ConfigEntryFull, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) GetConfigEntry(_ context.Context, _ string) (*homeassistant.ConfigEntryFull, error) {
+	return nil, nil
+}
+
 func TestNewServer(t *testing.T) {
 	t.Parallel()
 

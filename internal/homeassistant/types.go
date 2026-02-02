@@ -458,3 +458,21 @@ type ConfigEntry struct {
 	Domain  string `json:"domain"`
 	Title   string `json:"title"`
 }
+
+// ConfigEntryFull represents a Home Assistant config entry with full details.
+// This is returned by the config_entries/get and config_entries/get_single WebSocket commands.
+type ConfigEntryFull struct {
+	EntryID                string         `json:"entry_id"`
+	Domain                 string         `json:"domain"`
+	Title                  string         `json:"title"`
+	Source                 string         `json:"source"`
+	State                  string         `json:"state"`
+	DisabledBy             string         `json:"disabled_by,omitempty"`
+	Options                map[string]any `json:"options,omitempty"`
+	PrefDisableNewEntities bool           `json:"pref_disable_new_entities,omitempty"`
+	PrefDisablePolling     bool           `json:"pref_disable_polling,omitempty"`
+	SupportsOptions        bool           `json:"supports_options,omitempty"`
+	SupportsReconfigure    bool           `json:"supports_reconfigure,omitempty"`
+	SupportsUnload         bool           `json:"supports_unload,omitempty"`
+	SupportsRemoveDevice   bool           `json:"supports_remove_device,omitempty"`
+}
