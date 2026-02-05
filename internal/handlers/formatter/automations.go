@@ -283,12 +283,13 @@ func (f *NaturalAutomationFormatter) writeAutomationLine(
 	verbose bool,
 ) {
 	name := f.getDisplayName(auto)
+	autoID := strings.TrimPrefix(auto.EntityID, "automation.")
 	state := "enabled"
 	if auto.State == stateOff {
 		state = "disabled"
 	}
 
-	fmt.Fprintf(result, "- %s (%s)", name, state)
+	fmt.Fprintf(result, "- %s [%s] (%s)", name, autoID, state)
 
 	// Add last triggered time
 	if auto.LastTriggered != "" {
@@ -338,14 +339,17 @@ func (f *NaturalAutomationFormatter) formatTrigger(trigger any) string {
 
 	entityID, _ := triggerMap["entity_id"].(string)
 
+	if result := f.formatKnownTrigger(platform, entityID, triggerMap); result != "" {
+		return result
+	}
+
+	return f.formatUnknownTrigger(platform, entityID, triggerMap)
+}
+
+func (f *NaturalAutomationFormatter) formatKnownTrigger(platform, entityID string, triggerMap map[string]any) string {
 	switch platform {
 	case "state":
-		from, _ := triggerMap["from"].(string)
-		to, _ := triggerMap["to"].(string)
-		if from != "" && to != "" {
-			return fmt.Sprintf("state: %s (%s -> %s)", entityID, from, to)
-		}
-		return fmt.Sprintf("state: %s", entityID)
+		return f.formatStateTrigger(entityID, triggerMap)
 	case "time":
 		at, _ := triggerMap["at"].(string)
 		return fmt.Sprintf("time: %s", at)
@@ -355,12 +359,67 @@ func (f *NaturalAutomationFormatter) formatTrigger(trigger any) string {
 	case "device":
 		deviceID, _ := triggerMap["device_id"].(string)
 		return fmt.Sprintf("device: %s", deviceID)
+	case "numeric_state":
+		return f.formatNumericStateTrigger(entityID, triggerMap)
+	case "zone":
+		return f.formatZoneTrigger(entityID, triggerMap)
+	case "event":
+		eventType, _ := triggerMap["event_type"].(string)
+		return fmt.Sprintf("event: %s", eventType)
+	case "template":
+		return "template trigger"
+	case "homeassistant":
+		event, _ := triggerMap["event"].(string)
+		return fmt.Sprintf("homeassistant: %s", event)
+	case "mqtt":
+		topic, _ := triggerMap["topic"].(string)
+		return fmt.Sprintf("mqtt: %s", topic)
+	case "webhook":
+		webhookID, _ := triggerMap["webhook_id"].(string)
+		return fmt.Sprintf("webhook: %s", webhookID)
 	default:
-		if entityID != "" {
-			return fmt.Sprintf("%s: %s", platform, entityID)
-		}
+		return ""
+	}
+}
+
+func (f *NaturalAutomationFormatter) formatStateTrigger(entityID string, triggerMap map[string]any) string {
+	from, _ := triggerMap["from"].(string)
+	to, _ := triggerMap["to"].(string)
+	if from != "" && to != "" {
+		return fmt.Sprintf("state: %s (%s -> %s)", entityID, from, to)
+	}
+	return fmt.Sprintf("state: %s", entityID)
+}
+
+func (f *NaturalAutomationFormatter) formatNumericStateTrigger(entityID string, triggerMap map[string]any) string {
+	above, _ := triggerMap["above"].(float64)
+	below, _ := triggerMap["below"].(float64)
+	if above > 0 || below > 0 {
+		return fmt.Sprintf("numeric_state: %s (above: %.1f, below: %.1f)", entityID, above, below)
+	}
+	return fmt.Sprintf("numeric_state: %s", entityID)
+}
+
+func (f *NaturalAutomationFormatter) formatZoneTrigger(entityID string, triggerMap map[string]any) string {
+	zone, _ := triggerMap["zone"].(string)
+	event, _ := triggerMap["event"].(string)
+	return fmt.Sprintf("zone: %s %s %s", entityID, event, zone)
+}
+
+func (f *NaturalAutomationFormatter) formatUnknownTrigger(platform, entityID string, triggerMap map[string]any) string {
+	if entityID != "" {
+		return fmt.Sprintf("%s: %s", platform, entityID)
+	}
+	if platform != "" {
 		return platform
 	}
+	// Fallback: show available keys
+	var keys []string
+	for k := range triggerMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return fmt.Sprintf("trigger (%s)", strings.Join(keys, ", "))
 }
 
 func (f *NaturalAutomationFormatter) writeConditionsSection(result *strings.Builder, conditions []any) {
@@ -424,44 +483,96 @@ func (f *NaturalAutomationFormatter) formatAction(action any) string {
 
 	service, _ := actionMap["service"].(string)
 	if service == "" {
-		// Check for action key
-		actionType, _ := actionMap["action"].(string)
-		if actionType != "" {
-			return actionType
-		}
-		return "unknown action"
+		return f.formatNonServiceAction(actionMap)
 	}
 
-	// Extract target entity
-	target := ""
-	if targetMap, ok := actionMap["target"].(map[string]any); ok {
-		if entityID, ok := targetMap["entity_id"].(string); ok {
-			target = entityID
-		} else if entityIDs, ok := targetMap["entity_id"].([]any); ok && len(entityIDs) > 0 {
-			if eid, ok := entityIDs[0].(string); ok {
-				target = eid
-				if len(entityIDs) > 1 {
-					target += fmt.Sprintf(" (+%d more)", len(entityIDs)-1)
-				}
-			}
-		}
+	return f.formatServiceAction(service, actionMap)
+}
+
+func (f *NaturalAutomationFormatter) formatNonServiceAction(actionMap map[string]any) string {
+	// Check for action key
+	if actionType, ok := actionMap["action"].(string); ok && actionType != "" {
+		return actionType
 	}
 
-	// Extract data attributes
-	dataInfo := ""
-	if data, ok := actionMap["data"].(map[string]any); ok && len(data) > 0 {
-		var attrs []string
-		for k, v := range data {
-			attrs = append(attrs, fmt.Sprintf("%s: %v", k, v))
-		}
-		sort.Strings(attrs)
-		dataInfo = " (" + strings.Join(attrs, ", ") + ")"
+	// Check for complex action types
+	if result := f.formatComplexAction(actionMap); result != "" {
+		return result
 	}
+
+	// Fallback: show available keys
+	return formatMapKeys(actionMap, "action")
+}
+
+func (f *NaturalAutomationFormatter) formatComplexAction(actionMap map[string]any) string {
+	if _, hasChoose := actionMap["choose"]; hasChoose {
+		choices, _ := actionMap["choose"].([]any)
+		return fmt.Sprintf("choose: %d option(s)", len(choices))
+	}
+	if _, hasIf := actionMap["if"]; hasIf {
+		return "conditional: if/then/else"
+	}
+	if _, hasRepeat := actionMap["repeat"]; hasRepeat {
+		return "repeat action"
+	}
+	if _, hasParallel := actionMap["parallel"]; hasParallel {
+		return "parallel actions"
+	}
+	return ""
+}
+
+func (f *NaturalAutomationFormatter) formatServiceAction(service string, actionMap map[string]any) string {
+	target := f.extractActionTarget(actionMap)
+	dataInfo := f.extractDataInfo(actionMap)
 
 	if target != "" {
 		return fmt.Sprintf("%s: %s%s", service, target, dataInfo)
 	}
 	return service + dataInfo
+}
+
+func (f *NaturalAutomationFormatter) extractActionTarget(actionMap map[string]any) string {
+	targetMap, ok := actionMap["target"].(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	if entityID, ok := targetMap["entity_id"].(string); ok {
+		return entityID
+	}
+
+	if entityIDs, ok := targetMap["entity_id"].([]any); ok && len(entityIDs) > 0 {
+		if eid, ok := entityIDs[0].(string); ok {
+			if len(entityIDs) > 1 {
+				return eid + fmt.Sprintf(" (+%d more)", len(entityIDs)-1)
+			}
+			return eid
+		}
+	}
+	return ""
+}
+
+func (f *NaturalAutomationFormatter) extractDataInfo(actionMap map[string]any) string {
+	data, ok := actionMap["data"].(map[string]any)
+	if !ok || len(data) == 0 {
+		return ""
+	}
+
+	var attrs []string
+	for k, v := range data {
+		attrs = append(attrs, fmt.Sprintf("%s: %v", k, v))
+	}
+	sort.Strings(attrs)
+	return " (" + strings.Join(attrs, ", ") + ")"
+}
+
+func formatMapKeys(m map[string]any, prefix string) string {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return fmt.Sprintf("%s (%s)", prefix, strings.Join(keys, ", "))
 }
 
 // =============================================================================
