@@ -65,7 +65,7 @@ Actions:
 				},
 				"automation_id": {
 					Type:        "string",
-					Description: "Automation ID (required for get/update/delete/toggle)",
+					Description: "Automation identifier. Accepts: entity_id (automation.xyz), config.id (UUID), or alias/friendly_name (case-insensitive partial match). Required for get/update/delete/toggle.",
 				},
 				"alias": {
 					Type:        "string",
@@ -418,12 +418,14 @@ type paginatedAutomationResponse struct {
 // =============================================================================
 
 // findAutomationByID searches for an automation by various ID formats.
+// Search order: entity_id, config.id (UUID), alias, friendly_name (case-insensitive partial match).
 func (h *AutomationHandlers) findAutomationByID(ctx context.Context, client homeassistant.Client, searchID string) (*homeassistant.Automation, error) {
 	automations, err := client.ListAutomations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list automations: %w", err)
 	}
 
+	// 1. Try as entity_id (automation.xyz)
 	if strings.HasPrefix(searchID, "automation.") {
 		entityID := searchID
 		for _, auto := range automations {
@@ -434,6 +436,7 @@ func (h *AutomationHandlers) findAutomationByID(ctx context.Context, client home
 		}
 	}
 
+	// 2. Try as config.id (UUID)
 	for _, auto := range automations {
 		autoID := strings.TrimPrefix(auto.EntityID, "automation.")
 		fullAuto, getErr := client.GetAutomation(ctx, autoID)
@@ -446,7 +449,28 @@ func (h *AutomationHandlers) findAutomationByID(ctx context.Context, client home
 		}
 	}
 
-	return nil, fmt.Errorf("automation not found with ID: %s (tried as automation_id, entity_id, and config.id)", searchID)
+	// 3. Search by alias/friendly_name (case-insensitive partial match)
+	searchLower := strings.ToLower(searchID)
+	for _, auto := range automations {
+		autoID := strings.TrimPrefix(auto.EntityID, "automation.")
+		fullAuto, getErr := client.GetAutomation(ctx, autoID)
+		if getErr != nil {
+			continue
+		}
+
+		// Check Config.Alias
+		if fullAuto.Config != nil &&
+			strings.Contains(strings.ToLower(fullAuto.Config.Alias), searchLower) {
+			return fullAuto, nil
+		}
+
+		// Check FriendlyName
+		if strings.Contains(strings.ToLower(fullAuto.FriendlyName), searchLower) {
+			return fullAuto, nil
+		}
+	}
+
+	return nil, fmt.Errorf("automation not found: %s (tried as automation_id, entity_id, config.id, and alias/friendly_name)", searchID)
 }
 
 // parseAutomationFilters extracts filter parameters from args.

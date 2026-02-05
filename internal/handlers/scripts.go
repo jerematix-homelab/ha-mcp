@@ -64,7 +64,7 @@ Actions:
 				},
 				"script_id": {
 					Type:        "string",
-					Description: "Script ID without 'script.' prefix (required for get/create/update/delete/execute)",
+					Description: "Script identifier. Accepts: entity_id (script.xyz) or alias/friendly_name (case-insensitive partial match). Required for get/create/update/delete/execute.",
 				},
 				"alias": {
 					Type:        "string",
@@ -223,7 +223,11 @@ func (h *ScriptHandlers) handleGet(ctx context.Context, client homeassistant.Cli
 
 	script, err := client.GetScript(ctx, scriptID)
 	if err != nil {
-		return errorResult(fmt.Sprintf("Error getting script: %v", err)), nil
+		// Fallback: search by alias/friendly_name
+		script, err = h.findScriptByID(ctx, client, scriptID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("Error getting script: %v", err)), nil
+		}
 	}
 
 	formatStr, _ := args["format"].(string)
@@ -236,6 +240,48 @@ func (h *ScriptHandlers) handleGet(ctx context.Context, client homeassistant.Cli
 	}
 
 	return successResult(output), nil
+}
+
+// findScriptByID searches for a script by various ID formats.
+// Search order: entity_id (script.xyz), alias, friendly_name (case-insensitive partial match).
+func (h *ScriptHandlers) findScriptByID(ctx context.Context, client homeassistant.Client, searchID string) (*homeassistant.Script, error) {
+	scripts, err := client.ListScripts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list scripts: %w", err)
+	}
+
+	// 1. Try as entity_id (script.xyz)
+	if strings.HasPrefix(searchID, "script.") {
+		for _, s := range scripts {
+			if s.EntityID == searchID {
+				scriptID := strings.TrimPrefix(s.EntityID, "script.")
+				return client.GetScript(ctx, scriptID)
+			}
+		}
+	}
+
+	// 2. Search by alias/friendly_name (case-insensitive partial match)
+	searchLower := strings.ToLower(searchID)
+	for _, s := range scripts {
+		scriptID := strings.TrimPrefix(s.EntityID, "script.")
+		fullScript, getErr := client.GetScript(ctx, scriptID)
+		if getErr != nil {
+			continue
+		}
+
+		// Check Config.Alias
+		if fullScript.Config != nil &&
+			strings.Contains(strings.ToLower(fullScript.Config.Alias), searchLower) {
+			return fullScript, nil
+		}
+
+		// Check FriendlyName
+		if strings.Contains(strings.ToLower(fullScript.FriendlyName), searchLower) {
+			return fullScript, nil
+		}
+	}
+
+	return nil, fmt.Errorf("script not found: %s (tried as entity_id and alias/friendly_name)", searchID)
 }
 
 func (h *ScriptHandlers) handleCreate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {

@@ -839,3 +839,207 @@ func TestSceneHandlers_ManageScene_InvalidAction(t *testing.T) {
 		t.Errorf("Expected 'invalid action' error, got: %s", result.Content[0].Text)
 	}
 }
+
+func TestFindSceneByID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		searchID     string
+		scenes       []homeassistant.Entity
+		stateMap     map[string]*homeassistant.Entity
+		wantFound    bool
+		wantEntityID string
+	}{
+		{
+			name:     "find by entity_id",
+			searchID: "scene.movie_time",
+			scenes: []homeassistant.Entity{
+				{EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			stateMap: map[string]*homeassistant.Entity{
+				"scene.movie_time": {EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			wantFound:    true,
+			wantEntityID: "scene.movie_time",
+		},
+		{
+			name:     "find by friendly_name - partial match",
+			searchID: "movie time",
+			scenes: []homeassistant.Entity{
+				{EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			stateMap: map[string]*homeassistant.Entity{
+				"scene.movie_time": {EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			wantFound:    true,
+			wantEntityID: "scene.movie_time",
+		},
+		{
+			name:     "find by friendly_name - case insensitive",
+			searchID: "MOVIE TIME",
+			scenes: []homeassistant.Entity{
+				{EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			stateMap: map[string]*homeassistant.Entity{
+				"scene.movie_time": {EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			wantFound:    true,
+			wantEntityID: "scene.movie_time",
+		},
+		{
+			name:     "find by friendly_name - partial match with 'Scene' suffix",
+			searchID: "Scene",
+			scenes: []homeassistant.Entity{
+				{EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			stateMap: map[string]*homeassistant.Entity{
+				"scene.movie_time": {EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			wantFound:    true,
+			wantEntityID: "scene.movie_time",
+		},
+		{
+			name:     "not found - no matching friendly_name",
+			searchID: "nonexistent",
+			scenes: []homeassistant.Entity{
+				{EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			stateMap: map[string]*homeassistant.Entity{
+				"scene.movie_time": {EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+			},
+			wantFound: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockSceneClient{
+				listScenesFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+					return tt.scenes, nil
+				},
+				getStateFn: func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					if e, ok := tt.stateMap[entityID]; ok {
+						return e, nil
+					}
+					return nil, errors.New("not found")
+				},
+			}
+
+			h := &SceneHandlers{}
+			result, err := h.findSceneByID(context.Background(), client, tt.searchID)
+
+			if tt.wantFound {
+				if err != nil {
+					t.Errorf("findSceneByID() unexpected error = %v", err)
+					return
+				}
+				if result == nil {
+					t.Error("findSceneByID() returned nil, want scene")
+					return
+				}
+				if result.EntityID != tt.wantEntityID {
+					t.Errorf("findSceneByID() EntityID = %q, want %q", result.EntityID, tt.wantEntityID)
+				}
+			} else {
+				if err == nil {
+					t.Error("findSceneByID() expected error, got nil")
+				}
+			}
+		})
+	}
+}
+
+func TestManageScene_GetByFriendlyName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		args         map[string]any
+		setupClient  func() *mockSceneClient
+		wantError    bool
+		wantContains string
+	}{
+		{
+			name: "get by friendly_name - partial match",
+			args: map[string]any{"action": "get", "scene_id": "movie time"},
+			setupClient: func() *mockSceneClient {
+				return &mockSceneClient{
+					getStateFn: func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+						if entityID == "scene.movie time" {
+							return nil, errors.New("not found")
+						}
+						if entityID == "scene.movie_time" {
+							return &homeassistant.Entity{
+								EntityID: "scene.movie_time",
+								State:    "scening",
+								Attributes: map[string]any{
+									"friendly_name": "Movie Time Scene",
+								},
+							}, nil
+						}
+						return nil, errors.New("not found")
+					},
+					listScenesFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+						return []homeassistant.Entity{
+							{EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+						}, nil
+					},
+				}
+			},
+			wantContains: "Movie Time Scene",
+		},
+		{
+			name: "get by friendly_name - case insensitive",
+			args: map[string]any{"action": "get", "scene_id": "MOVIE"},
+			setupClient: func() *mockSceneClient {
+				return &mockSceneClient{
+					getStateFn: func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+						if entityID == "scene.MOVIE" {
+							return nil, errors.New("not found")
+						}
+						if entityID == "scene.movie_time" {
+							return &homeassistant.Entity{
+								EntityID: "scene.movie_time",
+								State:    "scening",
+								Attributes: map[string]any{
+									"friendly_name": "Movie Time Scene",
+								},
+							}, nil
+						}
+						return nil, errors.New("not found")
+					},
+					listScenesFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+						return []homeassistant.Entity{
+							{EntityID: "scene.movie_time", State: "scening", Attributes: map[string]any{"friendly_name": "Movie Time Scene"}},
+						}, nil
+					},
+				}
+			},
+			wantContains: "Movie Time Scene",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := NewSceneHandlers()
+			result, err := h.handleManageScene(context.Background(), tt.setupClient(), tt.args)
+			if err != nil {
+				t.Fatalf("handleManageScene() unexpected error = %v", err)
+			}
+
+			if result.IsError != tt.wantError {
+				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantError)
+			}
+
+			content := result.Content[0].Text
+			if tt.wantContains != "" && !strings.Contains(content, tt.wantContains) {
+				t.Errorf("Expected content to contain %q, got: %s", tt.wantContains, content)
+			}
+		})
+	}
+}

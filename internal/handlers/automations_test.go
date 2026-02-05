@@ -50,6 +50,8 @@ func (m *mockAutomationClient) GetAutomation(_ context.Context, automationID str
 		if auto, ok := m.automationMap[automationID]; ok {
 			return auto, nil
 		}
+		// If map exists but key not found, return not found error
+		return nil, errors.New("automation not found")
 	}
 	return m.automation, nil
 }
@@ -864,5 +866,198 @@ func TestCompactAutomationEntryJSON(t *testing.T) {
 		if !strings.Contains(result, expected) {
 			t.Errorf("Expected output to contain %q", expected)
 		}
+	}
+}
+
+func TestFindAutomationByAlias(t *testing.T) {
+	t.Parallel()
+
+	automationWithAlias := &homeassistant.Automation{
+		EntityID:     "automation.morning_lights",
+		State:        "on",
+		FriendlyName: "Morning Lights Routine",
+		Config: &homeassistant.AutomationConfig{
+			ID:    "morning_lights",
+			Alias: "Morning Lights Routine",
+		},
+	}
+
+	tests := []struct {
+		name          string
+		searchID      string
+		automations   []homeassistant.Automation
+		automationMap map[string]*homeassistant.Automation
+		wantFound     bool
+		wantEntityID  string
+	}{
+		{
+			name:     "find by alias - exact match",
+			searchID: "Morning Lights Routine",
+			automations: []homeassistant.Automation{
+				{EntityID: "automation.morning_lights", State: "on", FriendlyName: "Morning Lights Routine"},
+			},
+			automationMap: map[string]*homeassistant.Automation{
+				"morning_lights": automationWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "automation.morning_lights",
+		},
+		{
+			name:     "find by alias - partial match",
+			searchID: "morning lights",
+			automations: []homeassistant.Automation{
+				{EntityID: "automation.morning_lights", State: "on", FriendlyName: "Morning Lights Routine"},
+			},
+			automationMap: map[string]*homeassistant.Automation{
+				"morning_lights": automationWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "automation.morning_lights",
+		},
+		{
+			name:     "find by alias - case insensitive",
+			searchID: "MORNING LIGHTS",
+			automations: []homeassistant.Automation{
+				{EntityID: "automation.morning_lights", State: "on", FriendlyName: "Morning Lights Routine"},
+			},
+			automationMap: map[string]*homeassistant.Automation{
+				"morning_lights": automationWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "automation.morning_lights",
+		},
+		{
+			name:     "find by friendly_name - partial match",
+			searchID: "Routine",
+			automations: []homeassistant.Automation{
+				{EntityID: "automation.morning_lights", State: "on", FriendlyName: "Morning Lights Routine"},
+			},
+			automationMap: map[string]*homeassistant.Automation{
+				"morning_lights": automationWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "automation.morning_lights",
+		},
+		{
+			name:     "not found - no matching alias or friendly_name",
+			searchID: "nonexistent",
+			automations: []homeassistant.Automation{
+				{EntityID: "automation.morning_lights", State: "on", FriendlyName: "Morning Lights Routine"},
+			},
+			automationMap: map[string]*homeassistant.Automation{
+				"morning_lights": automationWithAlias,
+			},
+			wantFound: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockAutomationClient{
+				automations:   tt.automations,
+				automationMap: tt.automationMap,
+			}
+
+			h := &AutomationHandlers{}
+			result, err := h.findAutomationByID(context.Background(), client, tt.searchID)
+
+			if tt.wantFound {
+				if err != nil {
+					t.Errorf("findAutomationByID() unexpected error = %v", err)
+					return
+				}
+				if result == nil {
+					t.Error("findAutomationByID() returned nil, want automation")
+					return
+				}
+				if result.EntityID != tt.wantEntityID {
+					t.Errorf("findAutomationByID() EntityID = %q, want %q", result.EntityID, tt.wantEntityID)
+				}
+			} else {
+				if err == nil {
+					t.Error("findAutomationByID() expected error, got nil")
+				}
+			}
+		})
+	}
+}
+
+func TestManageAutomation_GetByFriendlyName(t *testing.T) {
+	t.Parallel()
+
+	testAutomation := &homeassistant.Automation{
+		EntityID:     "automation.test_automation",
+		State:        "on",
+		FriendlyName: "Test Morning Routine",
+		Config: &homeassistant.AutomationConfig{
+			ID:    "test_automation",
+			Alias: "Test Morning Routine",
+		},
+	}
+
+	tests := []struct {
+		name         string
+		args         map[string]any
+		setupClient  func() *mockAutomationClient
+		wantError    bool
+		wantContains []string
+	}{
+		{
+			name: "get by alias - partial match",
+			args: map[string]any{"action": "get", "automation_id": "morning routine"},
+			setupClient: func() *mockAutomationClient {
+				// Don't set automationErr - use automationMap only to return proper results for valid IDs
+				return &mockAutomationClient{
+					automations: []homeassistant.Automation{
+						{EntityID: "automation.test_automation", State: "on", FriendlyName: "Test Morning Routine"},
+					},
+					automationMap: map[string]*homeassistant.Automation{
+						"test_automation": testAutomation,
+					},
+				}
+			},
+			wantContains: []string{"Test Morning Routine"},
+		},
+		{
+			name: "get by friendly_name - case insensitive",
+			args: map[string]any{"action": "get", "automation_id": "TEST MORNING"},
+			setupClient: func() *mockAutomationClient {
+				// Don't set automationErr - use automationMap only
+				return &mockAutomationClient{
+					automations: []homeassistant.Automation{
+						{EntityID: "automation.test_automation", State: "on", FriendlyName: "Test Morning Routine"},
+					},
+					automationMap: map[string]*homeassistant.Automation{
+						"test_automation": testAutomation,
+					},
+				}
+			},
+			wantContains: []string{"Test Morning Routine"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := &AutomationHandlers{}
+			result, err := h.handleManageAutomation(context.Background(), tt.setupClient(), tt.args)
+			if err != nil {
+				t.Fatalf("handleManageAutomation() unexpected error = %v", err)
+			}
+
+			if result.IsError != tt.wantError {
+				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantError)
+			}
+
+			content := result.Content[0].Text
+			for _, want := range tt.wantContains {
+				if !strings.Contains(content, want) {
+					t.Errorf("Expected content to contain %q", want)
+				}
+			}
+		})
 	}
 }

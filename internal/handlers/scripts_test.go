@@ -915,3 +915,214 @@ func TestScriptHandlers_CallService(t *testing.T) {
 		})
 	}
 }
+
+func TestFindScriptByID(t *testing.T) {
+	t.Parallel()
+
+	scriptWithAlias := &homeassistant.Script{
+		EntityID:     "script.morning_routine",
+		State:        "off",
+		FriendlyName: "Morning Routine Script",
+		Config: &homeassistant.ScriptConfig{
+			Alias: "Morning Routine Script",
+		},
+	}
+
+	tests := []struct {
+		name         string
+		searchID     string
+		scripts      []homeassistant.Entity
+		scriptMap    map[string]*homeassistant.Script
+		wantFound    bool
+		wantEntityID string
+	}{
+		{
+			name:     "find by entity_id",
+			searchID: "script.morning_routine",
+			scripts: []homeassistant.Entity{
+				{EntityID: "script.morning_routine", State: "off", Attributes: map[string]any{"friendly_name": "Morning Routine Script"}},
+			},
+			scriptMap: map[string]*homeassistant.Script{
+				"morning_routine": scriptWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "script.morning_routine",
+		},
+		{
+			name:     "find by alias - partial match",
+			searchID: "morning routine",
+			scripts: []homeassistant.Entity{
+				{EntityID: "script.morning_routine", State: "off", Attributes: map[string]any{"friendly_name": "Morning Routine Script"}},
+			},
+			scriptMap: map[string]*homeassistant.Script{
+				"morning_routine": scriptWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "script.morning_routine",
+		},
+		{
+			name:     "find by alias - case insensitive",
+			searchID: "MORNING ROUTINE",
+			scripts: []homeassistant.Entity{
+				{EntityID: "script.morning_routine", State: "off", Attributes: map[string]any{"friendly_name": "Morning Routine Script"}},
+			},
+			scriptMap: map[string]*homeassistant.Script{
+				"morning_routine": scriptWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "script.morning_routine",
+		},
+		{
+			name:     "find by friendly_name - partial match",
+			searchID: "Script",
+			scripts: []homeassistant.Entity{
+				{EntityID: "script.morning_routine", State: "off", Attributes: map[string]any{"friendly_name": "Morning Routine Script"}},
+			},
+			scriptMap: map[string]*homeassistant.Script{
+				"morning_routine": scriptWithAlias,
+			},
+			wantFound:    true,
+			wantEntityID: "script.morning_routine",
+		},
+		{
+			name:     "not found - no matching alias or friendly_name",
+			searchID: "nonexistent",
+			scripts: []homeassistant.Entity{
+				{EntityID: "script.morning_routine", State: "off", Attributes: map[string]any{"friendly_name": "Morning Routine Script"}},
+			},
+			scriptMap: map[string]*homeassistant.Script{
+				"morning_routine": scriptWithAlias,
+			},
+			wantFound: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockScriptClient{
+				listScriptsFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+					return tt.scripts, nil
+				},
+				getScriptFn: func(_ context.Context, scriptID string) (*homeassistant.Script, error) {
+					if s, ok := tt.scriptMap[scriptID]; ok {
+						return s, nil
+					}
+					return nil, errors.New("not found")
+				},
+			}
+
+			h := &ScriptHandlers{}
+			result, err := h.findScriptByID(context.Background(), client, tt.searchID)
+
+			if tt.wantFound {
+				if err != nil {
+					t.Errorf("findScriptByID() unexpected error = %v", err)
+					return
+				}
+				if result == nil {
+					t.Error("findScriptByID() returned nil, want script")
+					return
+				}
+				if result.EntityID != tt.wantEntityID {
+					t.Errorf("findScriptByID() EntityID = %q, want %q", result.EntityID, tt.wantEntityID)
+				}
+			} else {
+				if err == nil {
+					t.Error("findScriptByID() expected error, got nil")
+				}
+			}
+		})
+	}
+}
+
+func TestManageScript_GetByFriendlyName(t *testing.T) {
+	t.Parallel()
+
+	scriptWithAlias := &homeassistant.Script{
+		EntityID:     "script.morning_routine",
+		State:        "off",
+		FriendlyName: "Morning Routine Script",
+		Config: &homeassistant.ScriptConfig{
+			Alias:    "Morning Routine Script",
+			Sequence: []any{map[string]any{"service": "light.turn_on"}},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		args         map[string]any
+		setupClient  func() *mockScriptClient
+		wantError    bool
+		wantContains string
+	}{
+		{
+			name: "get by alias - partial match",
+			args: map[string]any{"action": "get", "script_id": "morning routine"},
+			setupClient: func() *mockScriptClient {
+				return &mockScriptClient{
+					getScriptFn: func(_ context.Context, scriptID string) (*homeassistant.Script, error) {
+						if scriptID == "morning routine" {
+							return nil, errors.New("not found")
+						}
+						if scriptID == "morning_routine" {
+							return scriptWithAlias, nil
+						}
+						return nil, errors.New("not found")
+					},
+					listScriptsFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+						return []homeassistant.Entity{
+							{EntityID: "script.morning_routine", State: "off", Attributes: map[string]any{"friendly_name": "Morning Routine Script"}},
+						}, nil
+					},
+				}
+			},
+			wantContains: "Morning Routine Script",
+		},
+		{
+			name: "get by friendly_name - case insensitive",
+			args: map[string]any{"action": "get", "script_id": "MORNING"},
+			setupClient: func() *mockScriptClient {
+				return &mockScriptClient{
+					getScriptFn: func(_ context.Context, scriptID string) (*homeassistant.Script, error) {
+						if scriptID == "MORNING" {
+							return nil, errors.New("not found")
+						}
+						if scriptID == "morning_routine" {
+							return scriptWithAlias, nil
+						}
+						return nil, errors.New("not found")
+					},
+					listScriptsFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+						return []homeassistant.Entity{
+							{EntityID: "script.morning_routine", State: "off", Attributes: map[string]any{"friendly_name": "Morning Routine Script"}},
+						}, nil
+					},
+				}
+			},
+			wantContains: "Morning Routine Script",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := NewScriptHandlers()
+			result, err := h.handleManageScript(context.Background(), tt.setupClient(), tt.args)
+			if err != nil {
+				t.Fatalf("handleManageScript() unexpected error = %v", err)
+			}
+
+			if result.IsError != tt.wantError {
+				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantError)
+			}
+
+			content := result.Content[0].Text
+			if tt.wantContains != "" && !strings.Contains(content, tt.wantContains) {
+				t.Errorf("Expected content to contain %q, got: %s", tt.wantContains, content)
+			}
+		})
+	}
+}
