@@ -250,7 +250,7 @@ func formatNaturalPaginationNote(paginated PaginatedResponse[homeassistant.Autom
 func (h *AutomationHandlers) handleGet(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
 	automationID, ok := args["automation_id"].(string)
 	if !ok || automationID == "" {
-		return errorResult("automation_id is required for get action"), nil
+		return errorResult("automation_id is required for get action. Use 'list' action to find IDs (shown in [brackets])"), nil
 	}
 
 	normalizedID := strings.TrimPrefix(automationID, "automation.")
@@ -317,7 +317,7 @@ func (h *AutomationHandlers) handleCreate(ctx context.Context, client homeassist
 func (h *AutomationHandlers) handleUpdate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
 	automationID, ok := args["automation_id"].(string)
 	if !ok || automationID == "" {
-		return errorResult("automation_id is required for update action"), nil
+		return errorResult("automation_id is required for update action. Use 'list' action to find IDs (shown in [brackets])"), nil
 	}
 
 	current, err := client.GetAutomation(ctx, automationID)
@@ -340,7 +340,7 @@ func (h *AutomationHandlers) handleUpdate(ctx context.Context, client homeassist
 func (h *AutomationHandlers) handleDelete(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
 	automationID, ok := args["automation_id"].(string)
 	if !ok || automationID == "" {
-		return errorResult("automation_id is required for delete action"), nil
+		return errorResult("automation_id is required for delete action. Use 'list' action to find IDs (shown in [brackets])"), nil
 	}
 
 	if err := client.DeleteAutomation(ctx, automationID); err != nil {
@@ -353,7 +353,7 @@ func (h *AutomationHandlers) handleDelete(ctx context.Context, client homeassist
 func (h *AutomationHandlers) handleToggle(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
 	automationID, ok := args["automation_id"].(string)
 	if !ok || automationID == "" {
-		return errorResult("automation_id is required for " + automationActionToggle + " action"), nil
+		return errorResult("automation_id is required for toggle action. Use 'list' action to find IDs (shown in [brackets])"), nil
 	}
 
 	enabled, ok := args["enabled"].(bool)
