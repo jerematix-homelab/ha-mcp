@@ -61,7 +61,7 @@ Actions:
 				},
 				"scene_id": {
 					Type:        "string",
-					Description: "Scene ID without 'scene.' prefix (required for get/create/update/delete/activate)",
+					Description: "Scene identifier. Accepts: entity_id (scene.xyz) or friendly_name (case-insensitive partial match). Required for get/create/update/delete/activate.",
 				},
 				"name": {
 					Type:        "string",
@@ -191,7 +191,11 @@ func (h *SceneHandlers) handleGet(ctx context.Context, client homeassistant.Clie
 	entityID := "scene." + sceneID
 	state, err := client.GetState(ctx, entityID)
 	if err != nil {
-		return errorResult(fmt.Sprintf("Error getting scene: %v", err)), nil
+		// Fallback: search by friendly_name
+		state, err = h.findSceneByID(ctx, client, sceneID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("Error getting scene: %v", err)), nil
+		}
 	}
 
 	formatStr, _ := args["format"].(string)
@@ -204,6 +208,35 @@ func (h *SceneHandlers) handleGet(ctx context.Context, client homeassistant.Clie
 	}
 
 	return successResult(output), nil
+}
+
+// findSceneByID searches for a scene by various ID formats.
+// Search order: entity_id (scene.xyz), friendly_name (case-insensitive partial match).
+func (h *SceneHandlers) findSceneByID(ctx context.Context, client homeassistant.Client, searchID string) (*homeassistant.Entity, error) {
+	scenes, err := client.ListScenes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list scenes: %w", err)
+	}
+
+	// 1. Try as entity_id (scene.xyz)
+	if strings.HasPrefix(searchID, "scene.") {
+		for _, s := range scenes {
+			if s.EntityID == searchID {
+				return client.GetState(ctx, s.EntityID)
+			}
+		}
+	}
+
+	// 2. Search by friendly_name (case-insensitive partial match)
+	searchLower := strings.ToLower(searchID)
+	for _, s := range scenes {
+		friendlyName, _ := s.Attributes["friendly_name"].(string)
+		if strings.Contains(strings.ToLower(friendlyName), searchLower) {
+			return client.GetState(ctx, s.EntityID)
+		}
+	}
+
+	return nil, fmt.Errorf("scene not found: %s (tried as entity_id and friendly_name)", searchID)
 }
 
 func (h *SceneHandlers) handleCreate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {

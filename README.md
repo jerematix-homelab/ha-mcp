@@ -17,9 +17,9 @@ A Model Context Protocol (MCP) server that provides AI assistants with access to
 - **Hybrid Architecture**: Primary WebSocket communication with REST API for automation/script/scene CRUD operations
 - **Entity Management**: Read and control all Home Assistant entities
 - **Registry Access**: Query entity, device, and area registries
-- **Automation CRUD**: Create, read, update, and delete automations (via REST API)
+- **Automation CRUD**: Create, read, update, and delete automations (via REST API) with flexible ID lookup (entity_id, config.id, or friendly name)
 - **Helper Management**: Full support for all 14 helper types via consolidated `manage_helper` and `helper_action` tools
-- **Script & Scene Control**: Full CRUD operations for scripts and scenes (via REST API)
+- **Script & Scene Control**: Full CRUD operations for scripts and scenes (via REST API) with flexible ID lookup (entity_id or friendly name)
 - **Service Calls**: Execute any Home Assistant service
 - **History & Statistics**: Query entity state history and recorder statistics
 - **Media Browser**: Browse media sources and get camera streams
@@ -416,6 +416,11 @@ Authorization: Bearer <your-ha-access-token>
 |------|-------------|
 | `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle) |
 
+**Flexible ID Lookup**: The `automation_id` parameter accepts multiple formats:
+- Entity ID: `automation.morning_lights`
+- Config ID (UUID): `abc123-def456-...`
+- Alias or friendly name: `morning lights` (case-insensitive partial match)
+
 #### Helper Tools
 
 ha-mcp provides comprehensive support for all 14 Home Assistant helper types through two consolidated tools.
@@ -468,11 +473,19 @@ Universal tool for runtime helper operations:
 |------|-------------|
 | `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute) |
 
+**Flexible ID Lookup**: The `script_id` parameter accepts multiple formats:
+- Entity ID: `script.morning_routine`
+- Alias or friendly name: `morning routine` (case-insensitive partial match)
+
 #### Scene Tools
 
 | Tool | Description |
 |------|-------------|
 | `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate) |
+
+**Flexible ID Lookup**: The `scene_id` parameter accepts multiple formats:
+- Entity ID: `scene.movie_time`
+- Friendly name: `movie time` (case-insensitive partial match)
 
 #### Media Tools
 
