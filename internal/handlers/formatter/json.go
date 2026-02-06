@@ -56,12 +56,13 @@ func (f *JSONFormatter) FormatHistory(_ context.Context, _ string, entries []hom
 // FormatServiceSuccess formats a successful service call as JSON.
 func (f *JSONFormatter) FormatServiceSuccess(_ context.Context, domain, service string, targets []string, data map[string]any) (string, error) {
 	result := map[string]any{
-		"success": true,
-		"domain":  domain,
-		"service": service,
+		"success":           true,
+		"domain":            domain,
+		"service":           service,
+		"affected_entities": len(targets),
 	}
 	if len(targets) > 0 {
-		result["targets"] = targets
+		result["entity_ids"] = targets
 	}
 	if len(data) > 0 {
 		result["data"] = data

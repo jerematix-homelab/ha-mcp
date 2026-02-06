@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type** | Standalone Go binary (external server) | HA integration (built-in) |
 | **Transport** | HTTP JSON-RPC | Streamable HTTP |
 | **HA Communication** | WebSocket + REST API (Hybrid) | Direct Python API (internal) |
-| **Tool Design** | 24 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
+| **Tool Design** | 26 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
 | **Authentication** | Long-Lived Access Token | OAuth (IndieAuth) + Long-Lived Token |
 | **Entity Access** | All entities (no filtering) | Only explicitly exposed entities (Voice Assistant Exposure) |
 
