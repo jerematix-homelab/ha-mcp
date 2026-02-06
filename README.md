@@ -28,6 +28,45 @@ A Model Context Protocol (MCP) server that provides AI assistants with access to
 - **Request Retries**: Automatic retries with exponential backoff for transient failures (5xx, 429, network errors)
 - **Optional Caching**: TTL-based caching for static data (services, config, registries) to reduce API calls
 
+## Comparison with Official Home Assistant MCP Server
+
+Home Assistant provides an [official MCP integration](https://www.home-assistant.io/integrations/mcp_server) starting with version 2025.1. While both enable AI control of Home Assistant, they differ significantly in scope and approach:
+
+### ha-mcp Advantages
+
+- **Power User Focus**: 27 specialized tools for advanced automation, scripts, scenes, and helpers
+- **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
+- **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
+- **Flexible Output**: Natural language (LLM-optimized) and JSON formats
+- **No Setup Required**: Works with any Home Assistant installation, no integration needed
+
+### Official Integration Advantages
+
+- **Simplicity**: Intent-based approach, fewer tools, easier for basic scenarios
+- **Built-in**: No external server needed, runs inside Home Assistant
+- **Security**: Entity exposure control (only whitelisted entities visible)
+- **Calendar & Todos**: Dedicated calendar and todo list tools
+
+### When to Use ha-mcp
+
+Choose ha-mcp if you need:
+- Full automation/script/scene lifecycle management (create, edit, delete)
+- Advanced analysis (dependencies, cross-references, automation targets)
+- System administration (registry queries, config validation)
+- Historical data (entity history, logbook, statistics)
+- Media management (browser, camera streams)
+- Template rendering and Lovelace config access
+
+### When to Use Official Integration
+
+Choose the official integration if you need:
+- Simple entity control and status queries
+- Calendar and todo list management
+- Tighter security with entity exposure control
+- No external infrastructure
+
+**Full comparison:** See [docs/feature-comparison.md](docs/feature-comparison.md) for detailed feature matrices and architectural differences.
+
 ## Installation
 
 ### From Binary
