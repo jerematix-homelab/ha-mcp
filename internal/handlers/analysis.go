@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
@@ -43,6 +44,11 @@ func (h *AnalysisHandlers) analyzeEntityTool() mcp.Tool {
 					Type:        "boolean",
 					Description: "If true, include recent state history (last 24 hours). Default: false",
 				},
+				"format": {
+					Type:        "string",
+					Enum:        []string{"natural", "json"},
+					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
+				},
 			},
 			Required: []string{"entity_id"},
 		},
@@ -60,6 +66,11 @@ func (h *AnalysisHandlers) getEntityDependenciesTool() mcp.Tool {
 				"entity_id": {
 					Type:        "string",
 					Description: "The automation or script entity ID (e.g., 'automation.my_automation', 'script.my_script')",
+				},
+				"format": {
+					Type:        "string",
+					Enum:        []string{"natural", "json"},
+					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
 				},
 			},
 			Required: []string{"entity_id"},
@@ -173,6 +184,12 @@ func (h *AnalysisHandlers) handleAnalyzeEntity(ctx context.Context, client homea
 		}, nil
 	}
 
+	format := formatter.ParseFormat(getStringArg(args, "format"))
+	if format == formatter.FormatNatural {
+		return successResult(h.formatAnalysisNatural(analysis)), nil
+	}
+
+	// JSON format
 	output, err := json.MarshalIndent(analysis, "", "  ")
 	if err != nil {
 		return &mcp.ToolsCallResult{
@@ -554,6 +571,12 @@ func (h *AnalysisHandlers) handleGetEntityDependencies(ctx context.Context, clie
 		}, nil
 	}
 
+	format := formatter.ParseFormat(getStringArg(args, "format"))
+	if format == formatter.FormatNatural {
+		return successResult(h.formatDependenciesNatural(deps)), nil
+	}
+
+	// JSON format
 	output, err := json.MarshalIndent(deps, "", "  ")
 	if err != nil {
 		return &mcp.ToolsCallResult{
@@ -1053,6 +1076,163 @@ func (h *AnalysisHandlers) generateDependencySummary(deps *EntityDependencies) s
 	}
 
 	return strings.Join(parts, " ")
+}
+
+// formatAnalysisNatural formats an EntityAnalysis in natural language.
+func (h *AnalysisHandlers) formatAnalysisNatural(analysis *EntityAnalysis) string {
+	var parts []string
+
+	// Entity info with friendly name
+	name := analysis.FriendlyName
+	if name == "" {
+		name = analysis.EntityID
+	}
+	parts = append(parts,
+		fmt.Sprintf("%s (%s) is %s", analysis.EntityID, name, analysis.State),
+		fmt.Sprintf("Domain: %s | Last changed: %s", analysis.Domain, analysis.LastChanged),
+	)
+
+	// References section
+	if analysis.References.TotalReferences == 0 {
+		parts = append(parts, "\nNo references found.")
+	} else {
+		parts = h.formatReferences(parts, analysis.References)
+	}
+
+	// History
+	if len(analysis.History) > 0 {
+		parts = h.formatHistory(parts, analysis.History)
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func (h *AnalysisHandlers) formatReferences(parts []string, refs *EntityReferences) []string {
+	parts = append(parts, fmt.Sprintf("\nReferences (%d total):", refs.TotalReferences))
+
+	// Automations
+	if len(refs.Automations) > 0 {
+		parts = append(parts, fmt.Sprintf("- %d automations:", len(refs.Automations)))
+		for _, auto := range refs.Automations {
+			autoName := auto.Alias
+			if autoName == "" {
+				autoName = auto.EntityID
+			}
+			parts = append(parts, fmt.Sprintf("  • %s (%s, %s)", autoName, auto.State, strings.Join(auto.UsedIn, "+")))
+		}
+	}
+
+	// Scripts
+	if len(refs.Scripts) > 0 {
+		parts = append(parts, fmt.Sprintf("- %d scripts:", len(refs.Scripts)))
+		for _, script := range refs.Scripts {
+			scriptName := script.FriendlyName
+			if scriptName == "" {
+				scriptName = script.EntityID
+			}
+			parts = append(parts, fmt.Sprintf("  • %s (%s)", scriptName, script.UsedIn))
+		}
+	}
+
+	// Scenes
+	if len(refs.Scenes) > 0 {
+		parts = append(parts, fmt.Sprintf("- %d scenes:", len(refs.Scenes)))
+		for _, scene := range refs.Scenes {
+			parts = append(parts, fmt.Sprintf("  • %s", scene.EntityID))
+		}
+	}
+
+	// Groups
+	if len(refs.Groups) > 0 {
+		parts = append(parts, fmt.Sprintf("- %d groups:", len(refs.Groups)))
+		for _, group := range refs.Groups {
+			parts = append(parts, fmt.Sprintf("  • %s", group))
+		}
+	}
+
+	// Area references
+	if len(refs.AreaReferences) > 0 {
+		parts = append(parts, fmt.Sprintf("- Area references: %d", len(refs.AreaReferences)))
+	}
+
+	return parts
+}
+
+func (h *AnalysisHandlers) formatHistory(parts []string, history []HistoryEntry) []string {
+	parts = append(parts, fmt.Sprintf("\nHistory (last 24h): %d state changes", len(history)))
+	// Show up to 3 most recent changes
+	count := len(history)
+	if count > 3 {
+		count = 3
+	}
+	for i := 0; i < count; i++ {
+		entry := history[i]
+		parts = append(parts, fmt.Sprintf("- State: %s at %s", entry.State, entry.LastChanged))
+	}
+	return parts
+}
+
+// formatDependenciesNatural formats EntityDependencies in natural language.
+func (h *AnalysisHandlers) formatDependenciesNatural(deps *EntityDependencies) string {
+	var parts []string
+
+	// Entity info
+	name := deps.FriendlyName
+	if name == "" {
+		name = deps.EntityID
+	}
+	parts = append(parts, fmt.Sprintf("%s (%s) - %s", deps.EntityID, name, deps.Type))
+
+	// Dependencies section
+	totalDeps := len(deps.Dependencies.Triggers) + len(deps.Dependencies.Conditions) + len(deps.Dependencies.Actions)
+	if totalDeps == 0 {
+		parts = append(parts, "\nNo entity dependencies found.")
+		return strings.Join(parts, "\n")
+	}
+
+	parts = append(parts, "\nDependencies:")
+
+	// Triggers
+	if len(deps.Dependencies.Triggers) > 0 {
+		triggerIDs := make([]string, 0, len(deps.Dependencies.Triggers))
+		for _, t := range deps.Dependencies.Triggers {
+			triggerIDs = append(triggerIDs, t.EntityID)
+		}
+		parts = append(parts, fmt.Sprintf("- Triggers (%d): %s", len(deps.Dependencies.Triggers), strings.Join(triggerIDs, ", ")))
+	}
+
+	// Conditions
+	if len(deps.Dependencies.Conditions) > 0 {
+		conditionIDs := make([]string, 0, len(deps.Dependencies.Conditions))
+		for _, c := range deps.Dependencies.Conditions {
+			conditionIDs = append(conditionIDs, c.EntityID)
+		}
+		parts = append(parts, fmt.Sprintf("- Conditions (%d): %s", len(deps.Dependencies.Conditions), strings.Join(conditionIDs, ", ")))
+	}
+
+	// Actions
+	if len(deps.Dependencies.Actions) > 0 {
+		actionIDs := make([]string, 0, len(deps.Dependencies.Actions))
+		for _, a := range deps.Dependencies.Actions {
+			actionIDs = append(actionIDs, a.EntityID)
+		}
+		parts = append(parts, fmt.Sprintf("- Actions (%d): %s", len(deps.Dependencies.Actions), strings.Join(actionIDs, ", ")))
+	}
+
+	// Services
+	if len(deps.Dependencies.Services) > 0 {
+		parts = append(parts, fmt.Sprintf("- Services: %s", strings.Join(deps.Dependencies.Services, ", ")))
+	}
+
+	// Areas
+	if len(deps.Dependencies.Areas) > 0 {
+		parts = append(parts, fmt.Sprintf("- Areas: %s", strings.Join(deps.Dependencies.Areas, ", ")))
+	}
+
+	// Summary
+	parts = append(parts, fmt.Sprintf("\nSummary: Uses %d entities across triggers, conditions, and actions.", totalDeps))
+
+	return strings.Join(parts, "\n")
 }
 
 // RegisterAnalysisTools registers all analysis-related tools with the registry.

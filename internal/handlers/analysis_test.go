@@ -274,9 +274,10 @@ func TestAnalysisHandlers_handleAnalyzeEntity(t *testing.T) {
 		wantError    bool
 	}{
 		{
-			name: "success",
+			name: "success json format",
 			args: map[string]any{
 				"entity_id": "light.living_room",
+				"format":    "json",
 			},
 			client: &mockAnalysisClient{
 				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
@@ -291,10 +292,11 @@ func TestAnalysisHandlers_handleAnalyzeEntity(t *testing.T) {
 			wantError:    false,
 		},
 		{
-			name: "success with history",
+			name: "success with history json format",
 			args: map[string]any{
 				"entity_id":       "light.living_room",
 				"include_history": true,
+				"format":          "json",
 			},
 			client: &mockAnalysisClient{
 				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
@@ -317,8 +319,94 @@ func TestAnalysisHandlers_handleAnalyzeEntity(t *testing.T) {
 			wantError:    false,
 		},
 		{
+			name: "success natural format default",
+			args: map[string]any{
+				"entity_id": "light.living_room",
+			},
+			client: &mockAnalysisClient{
+				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID:   "light.living_room",
+						State:      "on",
+						Attributes: map[string]any{"friendly_name": "Living Room Light"},
+					}, nil
+				},
+			},
+			wantContains: "light.living_room",
+			wantError:    false,
+		},
+		{
+			name: "success natural format explicit",
+			args: map[string]any{
+				"entity_id": "light.living_room",
+				"format":    "natural",
+			},
+			client: &mockAnalysisClient{
+				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID:   "light.living_room",
+						State:      "on",
+						Attributes: map[string]any{"friendly_name": "Living Room Light"},
+					}, nil
+				},
+			},
+			wantContains: "Living Room Light",
+			wantError:    false,
+		},
+		{
+			name: "success natural with references",
+			args: map[string]any{
+				"entity_id": "light.kitchen",
+				"format":    "natural",
+			},
+			client: &mockAnalysisClient{
+				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID:   "light.kitchen",
+						State:      "off",
+						Attributes: map[string]any{"friendly_name": "Kitchen Light"},
+					}, nil
+				},
+				ListAutomationsFn: func(_ context.Context) ([]homeassistant.Automation, error) {
+					return []homeassistant.Automation{
+						{
+							EntityID:     "automation.kitchen_motion",
+							FriendlyName: "Kitchen Motion",
+							State:        "on",
+						},
+					}, nil
+				},
+				GetAutomationFn: func(_ context.Context, automationID string) (*homeassistant.Automation, error) {
+					if automationID == "kitchen_motion" {
+						return &homeassistant.Automation{
+							EntityID:     "automation.kitchen_motion",
+							FriendlyName: "Kitchen Motion",
+							State:        "on",
+							Config: &homeassistant.AutomationConfig{
+								Triggers: []any{
+									map[string]any{"entity_id": "light.kitchen"},
+								},
+							},
+						}, nil
+					}
+					return nil, errors.New("not found")
+				},
+				ListScriptsFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{}, nil
+				},
+				ListScenesFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{}, nil
+				},
+				GetStatesFn: func(_ context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{}, nil
+				},
+			},
+			wantContains: "References",
+			wantError:    false,
+		},
+		{
 			name:         "missing entity_id",
-			args:         map[string]any{},
+			args:         map[string]any{"format": "json"},
 			client:       &mockAnalysisClient{},
 			wantContains: "entity_id is required",
 			wantError:    true,
@@ -327,6 +415,7 @@ func TestAnalysisHandlers_handleAnalyzeEntity(t *testing.T) {
 			name: "empty entity_id",
 			args: map[string]any{
 				"entity_id": "",
+				"format":    "json",
 			},
 			client:       &mockAnalysisClient{},
 			wantContains: "entity_id is required",
@@ -336,6 +425,7 @@ func TestAnalysisHandlers_handleAnalyzeEntity(t *testing.T) {
 			name: "client error",
 			args: map[string]any{
 				"entity_id": "light.living_room",
+				"format":    "json",
 			},
 			client: &mockAnalysisClient{
 				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
@@ -390,9 +480,10 @@ func TestAnalysisHandlers_handleGetEntityDependencies(t *testing.T) {
 		wantError    bool
 	}{
 		{
-			name: "success automation",
+			name: "success automation json format",
 			args: map[string]any{
 				"entity_id": "automation.test_automation",
+				"format":    "json",
 			},
 			client: &mockAnalysisClient{
 				GetAutomationFn: func(_ context.Context, _ string) (*homeassistant.Automation, error) {
@@ -414,9 +505,10 @@ func TestAnalysisHandlers_handleGetEntityDependencies(t *testing.T) {
 			wantError:    false,
 		},
 		{
-			name: "success script",
+			name: "success script json format",
 			args: map[string]any{
 				"entity_id": "script.test_script",
+				"format":    "json",
 			},
 			client: &mockAnalysisClient{
 				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
@@ -436,8 +528,57 @@ func TestAnalysisHandlers_handleGetEntityDependencies(t *testing.T) {
 			wantError:    false,
 		},
 		{
+			name: "success automation natural format default",
+			args: map[string]any{
+				"entity_id": "automation.kitchen_lights",
+			},
+			client: &mockAnalysisClient{
+				GetAutomationFn: func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					return &homeassistant.Automation{
+						EntityID:     "automation.kitchen_lights",
+						FriendlyName: "Kitchen Lights",
+						Config: &homeassistant.AutomationConfig{
+							Triggers: []any{
+								map[string]any{"platform": "state", "entity_id": "binary_sensor.motion_kitchen"},
+							},
+							Conditions: []any{
+								map[string]any{"condition": "state", "entity_id": "input_boolean.guest_mode"},
+							},
+							Actions: []any{
+								map[string]any{"service": "light.turn_on", "target": map[string]any{"entity_id": "light.kitchen"}},
+							},
+						},
+					}, nil
+				},
+			},
+			wantContains: "Dependencies",
+			wantError:    false,
+		},
+		{
+			name: "success automation natural format explicit",
+			args: map[string]any{
+				"entity_id": "automation.kitchen_lights",
+				"format":    "natural",
+			},
+			client: &mockAnalysisClient{
+				GetAutomationFn: func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					return &homeassistant.Automation{
+						EntityID:     "automation.kitchen_lights",
+						FriendlyName: "Kitchen Lights",
+						Config: &homeassistant.AutomationConfig{
+							Triggers: []any{
+								map[string]any{"platform": "state", "entity_id": "binary_sensor.motion_kitchen"},
+							},
+						},
+					}, nil
+				},
+			},
+			wantContains: "automation",
+			wantError:    false,
+		},
+		{
 			name:         "missing entity_id",
-			args:         map[string]any{},
+			args:         map[string]any{"format": "json"},
 			client:       &mockAnalysisClient{},
 			wantContains: "entity_id is required",
 			wantError:    true,
@@ -446,6 +587,7 @@ func TestAnalysisHandlers_handleGetEntityDependencies(t *testing.T) {
 			name: "invalid entity_id",
 			args: map[string]any{
 				"entity_id": "light.living_room",
+				"format":    "json",
 			},
 			client:       &mockAnalysisClient{},
 			wantContains: "must be an automation or script",
@@ -455,6 +597,7 @@ func TestAnalysisHandlers_handleGetEntityDependencies(t *testing.T) {
 			name: "automation not found",
 			args: map[string]any{
 				"entity_id": "automation.nonexistent",
+				"format":    "json",
 			},
 			client: &mockAnalysisClient{
 				GetAutomationFn: func(_ context.Context, _ string) (*homeassistant.Automation, error) {

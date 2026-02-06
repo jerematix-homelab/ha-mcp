@@ -808,19 +808,21 @@ func TestScriptHandlers_CallService(t *testing.T) {
 		wantContains   string
 	}{
 		{
-			name: "success",
+			name: "success json format",
 			args: map[string]any{
 				"domain":  "light",
 				"service": "turn_on",
+				"format":  "json",
 			},
 			wantError:    false,
 			wantContains: "success",
 		},
 		{
-			name: "success with data",
+			name: "success with data json format",
 			args: map[string]any{
 				"domain":  "light",
 				"service": "turn_on",
+				"format":  "json",
 				"data": map[string]any{
 					"entity_id":  "light.living_room",
 					"brightness": 255,
@@ -833,9 +835,56 @@ func TestScriptHandlers_CallService(t *testing.T) {
 			wantContains: "success",
 		},
 		{
+			name: "success natural format default",
+			args: map[string]any{
+				"domain":  "light",
+				"service": "turn_on",
+			},
+			wantError:    false,
+			wantContains: "OK Turned on",
+		},
+		{
+			name: "success natural format explicit",
+			args: map[string]any{
+				"domain":  "light",
+				"service": "turn_on",
+				"format":  "natural",
+			},
+			wantError:    false,
+			wantContains: "OK Turned on",
+		},
+		{
+			name: "success natural with single entity",
+			args: map[string]any{
+				"domain":  "light",
+				"service": "turn_off",
+				"format":  "natural",
+			},
+			callServiceRes: []homeassistant.Entity{
+				{EntityID: "light.bedroom", State: "off"},
+			},
+			wantError:    false,
+			wantContains: "OK Turned off light.bedroom",
+		},
+		{
+			name: "success natural with multiple entities",
+			args: map[string]any{
+				"domain":  "light",
+				"service": "toggle",
+				"format":  "natural",
+			},
+			callServiceRes: []homeassistant.Entity{
+				{EntityID: "light.bedroom", State: "off"},
+				{EntityID: "light.kitchen", State: "on"},
+			},
+			wantError:    false,
+			wantContains: "OK Toggled 2 entities",
+		},
+		{
 			name: "missing domain",
 			args: map[string]any{
 				"service": "turn_on",
+				"format":  "json",
 			},
 			wantError:    true,
 			wantContains: "domain is required",
@@ -845,6 +894,7 @@ func TestScriptHandlers_CallService(t *testing.T) {
 			args: map[string]any{
 				"domain":  "",
 				"service": "turn_on",
+				"format":  "json",
 			},
 			wantError:    true,
 			wantContains: "domain is required",
@@ -853,6 +903,7 @@ func TestScriptHandlers_CallService(t *testing.T) {
 			name: "missing service",
 			args: map[string]any{
 				"domain": "light",
+				"format": "json",
 			},
 			wantError:    true,
 			wantContains: "service is required",
@@ -862,6 +913,7 @@ func TestScriptHandlers_CallService(t *testing.T) {
 			args: map[string]any{
 				"domain":  "light",
 				"service": "",
+				"format":  "json",
 			},
 			wantError:    true,
 			wantContains: "service is required",
@@ -871,6 +923,7 @@ func TestScriptHandlers_CallService(t *testing.T) {
 			args: map[string]any{
 				"domain":  "light",
 				"service": "turn_on",
+				"format":  "json",
 			},
 			callServiceErr: errors.New("service call failed"),
 			wantError:      true,

@@ -3,7 +3,6 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -129,6 +128,11 @@ func (h *ScriptHandlers) callServiceTool() mcp.Tool {
 				"data": {
 					Type:        "object",
 					Description: "Service data including entity_id and other parameters",
+				},
+				"format": {
+					Type:        "string",
+					Enum:        []string{"natural", "json"},
+					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
 				},
 			},
 			Required: []string{"domain", "service"},
@@ -434,24 +438,18 @@ func (h *ScriptHandlers) handleCallService(ctx context.Context, client homeassis
 		return errorResult(fmt.Sprintf("Error calling service: %v", err)), nil
 	}
 
-	result := map[string]any{
-		"success":           true,
-		"affected_entities": len(entities),
+	format := formatter.ParseFormat(getStringArg(args, "format"))
+	f := formatter.New(format)
+
+	targets := make([]string, 0, len(entities))
+	for _, e := range entities {
+		targets = append(targets, e.EntityID)
 	}
 
-	if len(entities) > 0 {
-		entityIDs := make([]string, 0, len(entities))
-		for _, e := range entities {
-			entityIDs = append(entityIDs, e.EntityID)
-		}
-		result["entity_ids"] = entityIDs
+	output, err := f.FormatServiceSuccess(ctx, domain, service, targets, data)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error formatting result: %v", err)), nil
 	}
 
-	// Try to marshal result to JSON, fall back to simple message if it fails
-	if jsonBytes, marshalErr := json.MarshalIndent(result, "", "  "); marshalErr == nil {
-		return successResult(string(jsonBytes)), nil
-	}
-
-	// Fallback if JSON marshaling fails
-	return successResult(fmt.Sprintf("Service called successfully, affected %d entities", len(entities))), nil
+	return successResult(output), nil
 }

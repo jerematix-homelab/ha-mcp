@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 24 specialized tools for advanced automation, scripts, scenes, and helpers
+- **Power User Focus**: 26 specialized tools for advanced automation, scripts, scenes, and helpers
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -438,7 +438,8 @@ Authorization: Bearer <your-ha-access-token>
 |------|-------------|
 | `query_entities` | Consolidated entity queries (mode: current, history, statistics, domains; format: natural/json) |
 | `get_state` | Get state of a specific entity (format: natural/json) |
-| `get_entity_dependencies` | Find all automations that use a specific entity |
+| `analyze_entity` | Analyze entity usage in automations, scripts, and scenes (format: natural/json) |
+| `get_entity_dependencies` | Find all entities an automation/script depends on (format: natural/json) |
 
 #### Registry Tools
 
@@ -452,7 +453,7 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool | Description |
 |------|-------------|
-| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle) |
+| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle; format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `automation_id` parameter accepts multiple formats:
 - Entity ID: `automation.morning_lights`
@@ -509,7 +510,7 @@ Universal tool for runtime helper operations:
 
 | Tool | Description |
 |------|-------------|
-| `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute) |
+| `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute; format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `script_id` parameter accepts multiple formats:
 - Entity ID: `script.morning_routine`
@@ -519,7 +520,7 @@ Universal tool for runtime helper operations:
 
 | Tool | Description |
 |------|-------------|
-| `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate) |
+| `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate; format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `scene_id` parameter accepts multiple formats:
 - Entity ID: `scene.movie_time`
@@ -567,7 +568,7 @@ Universal tool for runtime helper operations:
 
 | Tool | Description |
 |------|-------------|
-| `call_service` | Call any Home Assistant service |
+| `call_service` | Call any Home Assistant service (format: natural/json) |
 | `list_services` | List all available services with descriptions (optional domain filter) |
 
 #### System Tools
@@ -576,6 +577,18 @@ Universal tool for runtime helper operations:
 |------|-------------|
 | `get_system_info` | Get Home Assistant system configuration (version, timezone, units, etc.) |
 | `get_datetime` | Get current date/time in Home Assistant's configured timezone (optional timezone override) |
+
+### Output Formats
+
+Most tools support two output formats via the `format` parameter:
+
+- **`natural` (default)**: LLM-optimized natural language output for better readability and reduced token usage
+  - Example: `"Living Room Light is on at 80% brightness. Changed 2h ago."`
+
+- **`json`**: Structured JSON output for backward compatibility and programmatic access
+  - Example: `{"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 204, ...}}`
+
+**Tools with format support**: `query_entities`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_helper`, `helper_action`
 
 ### Example Requests
 
@@ -921,7 +934,8 @@ ha-mcp/
 │   │   │   ├── suite_test.go    # Base test suite
 │   │   │   └── *_integration_test.go  # Domain-specific tests
 │   │   ├── analysis_snapshot.go # Parallel data fetching for analysis
-│   │   ├── entities.go          # Entity tool handlers (get_state, get_entity_dependencies)
+│   │   ├── entities.go          # Entity tool handlers (get_state)
+│   │   ├── analysis.go          # Analysis tool handlers (analyze_entity, get_entity_dependencies)
 │   │   ├── entities_consolidated.go # Consolidated query_entities tool (current/history/statistics/domains)
 │   │   ├── automations.go       # Consolidated manage_automation tool
 │   │   ├── helpers.go           # list_helpers tool handler
