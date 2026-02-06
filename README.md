@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 27 specialized tools for advanced automation, scripts, scenes, and helpers
+- **Power User Focus**: 28 specialized tools for advanced automation, scripts, scenes, and helpers
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -582,6 +582,7 @@ Universal tool for runtime helper operations:
 | Tool | Description |
 |------|-------------|
 | `get_system_info` | Get Home Assistant system configuration (version, timezone, units, etc.) |
+| `get_datetime` | Get current date/time in Home Assistant's configured timezone (optional timezone override) |
 
 ### Example Requests
 
@@ -939,6 +940,7 @@ ha-mcp/
 │   │   ├── targets_consolidated.go  # Consolidated analyze_target tool
 │   │   ├── services.go          # Service discovery handler
 │   │   ├── system.go            # System info handler
+│   │   ├── datetime.go          # Date/time handler
 │   │   ├── templates.go         # Template rendering handler
 │   │   ├── logbook.go           # Logbook access handler
 │   │   ├── config.go            # Configuration validation handler

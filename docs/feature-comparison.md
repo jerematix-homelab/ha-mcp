@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type** | Standalone Go binary (external server) | HA integration (built-in) |
 | **Transport** | HTTP JSON-RPC | Streamable HTTP |
 | **HA Communication** | WebSocket + REST API (Hybrid) | Direct Python API (internal) |
-| **Tool Design** | 27 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
+| **Tool Design** | 28 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
 | **Authentication** | Long-Lived Access Token | OAuth (IndieAuth) + Long-Lived Token |
 | **Entity Access** | All entities (no filtering) | Only explicitly exposed entities (Voice Assistant Exposure) |
 
@@ -32,7 +32,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | List domains | `list_domains` | -- |
 | Entity history | `get_history` (time range, filter, pagination) | -- |
 | Cover control | `call_service` (domain=cover) | `HassOpenCover`, `HassCloseCover` |
-| Date/Time | -- | `GetDateTime` |
+| Date/Time | `get_datetime` | `GetDateTime` |
 
 ### Automations
 
@@ -139,13 +139,11 @@ This document compares the features of `ha-mcp` (this project) with the official
 - **Security**: Entity exposure control (only whitelisted entities visible)
 - **No Infrastructure**: Runs inside HA itself, no external server needed
 - **OAuth Support**: Standards-compliant authentication
-- **Date/Time**: Dedicated `GetDateTime` tool
 
 ### Feature Gaps in ha-mcp:
 1. **Calendar Events** retrieval (`CalendarGetEvents` equivalent)
 2. **Todo Lists** management (`TodoGetItems` equivalent)
-3. **Date/Time Tool** (trivial but helpful for LLMs)
-4. **Entity Exposure Filter** (security feature)
+3. **Entity Exposure Filter** (security feature)
 
 ### Feature Gaps in Official HA MCP:
 1. No CRUD for automations/scripts/scenes/helpers
