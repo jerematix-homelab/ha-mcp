@@ -79,15 +79,20 @@ func TestRegisterMediaTools(t *testing.T) {
 	}
 }
 
-func TestRegisterStatisticsTools(t *testing.T) {
+func TestRegisterConsolidatedEntityQueryTools(t *testing.T) {
 	t.Parallel()
 
 	registry := mcp.NewRegistry()
-	RegisterStatisticsTools(registry)
+	RegisterConsolidatedEntityQueryTools(registry)
 
 	tools := registry.ListTools()
-	if len(tools) == 0 {
-		t.Error("RegisterStatisticsTools() registered no tools")
+	if len(tools) != 1 {
+		t.Errorf("RegisterConsolidatedEntityQueryTools() registered %d tools, want 1", len(tools))
+	}
+
+	// Verify query_entities is registered
+	if len(tools) > 0 && tools[0].Name != "query_entities" {
+		t.Errorf("RegisterConsolidatedEntityQueryTools() registered %q, want %q", tools[0].Name, "query_entities")
 	}
 }
 
@@ -159,8 +164,8 @@ func TestRegisterAllTools(t *testing.T) {
 		"get_registry",
 		// Media
 		"browse_media",
-		// Statistics
-		"get_statistics",
+		// Consolidated entity query tools (query_entities replaces get_states/get_history/get_statistics/list_domains)
+		"query_entities",
 		// Lovelace
 		"get_lovelace_config",
 		// Consolidated target tools (analyze_target replaces get_triggers/conditions/services_for_target)

@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type** | Standalone Go binary (external server) | HA integration (built-in) |
 | **Transport** | HTTP JSON-RPC | Streamable HTTP |
 | **HA Communication** | WebSocket + REST API (Hybrid) | Direct Python API (internal) |
-| **Tool Design** | 28 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
+| **Tool Design** | 24 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
 | **Authentication** | Long-Lived Access Token | OAuth (IndieAuth) + Long-Lived Token |
 | **Entity Access** | All entities (no filtering) | Only explicitly exposed entities (Voice Assistant Exposure) |
 
@@ -25,12 +25,14 @@ This document compares the features of `ha-mcp` (this project) with the official
 
 | Function | ha-mcp | Official HA MCP |
 |----------|--------|-----------------|
-| Query entity state | `get_state`, `get_states` (Filter, Pagination, natural/json format) | `HassGetState`, `GetLiveContext` (all exposed entities) |
+| Query entity states | `query_entities` mode=current (Filter, Pagination, natural/json format) | `HassGetState`, `GetLiveContext` (all exposed entities) |
+| Query single entity | `get_state` (natural/json format) | `HassGetState` |
 | Entity on/off/toggle | `call_service` (any service) | `HassTurnOn`, `HassTurnOff`, `HassTurnToggle` |
 | Query temperature | via `get_state` | `HassGetTemperature` (specialized) |
 | Query weather | via `get_state` | `HassGetWeather` (specialized) |
-| List domains | `list_domains` | -- |
-| Entity history | `get_history` (time range, filter, pagination) | -- |
+| List domains | `query_entities` mode=domains | -- |
+| Entity history | `query_entities` mode=history (time range, filter, pagination, natural/json) | -- |
+| Entity statistics | `query_entities` mode=statistics (long-term data, pagination, natural/json) | -- |
 | Cover control | `call_service` (domain=cover) | `HassOpenCover`, `HassCloseCover` |
 | Date/Time | `get_datetime` | `GetDateTime` |
 
