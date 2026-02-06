@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 28 specialized tools for advanced automation, scripts, scenes, and helpers
+- **Power User Focus**: 24 specialized tools for advanced automation, scripts, scenes, and helpers
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -436,10 +436,9 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool | Description |
 |------|-------------|
-| `get_states` | List all entity states (format: natural/json) |
+| `query_entities` | Consolidated entity queries (mode: current, history, statistics, domains; format: natural/json) |
 | `get_state` | Get state of a specific entity (format: natural/json) |
-| `get_history` | Get historical states of an entity (format: natural/json) |
-| `list_domains` | List available domains |
+| `get_entity_dependencies` | Find all automations that use a specific entity |
 
 #### Registry Tools
 
@@ -534,12 +533,6 @@ Universal tool for runtime helper operations:
 | `get_camera_stream` | Get camera stream URL for an entity |
 | `sign_media_path` | Sign a media path for authenticated access |
 
-#### Statistics Tools
-
-| Tool | Description |
-|------|-------------|
-| `get_statistics` | Get recorder statistics for entities |
-
 #### Lovelace Tools
 
 | Tool | Description |
@@ -586,7 +579,7 @@ Universal tool for runtime helper operations:
 
 ### Example Requests
 
-#### Get All Entity States
+#### Query All Entity States
 
 ```json
 {
@@ -594,8 +587,10 @@ Universal tool for runtime helper operations:
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "get_states",
-    "arguments": {}
+    "name": "query_entities",
+    "arguments": {
+      "mode": "current"
+    }
   }
 }
 ```
@@ -926,7 +921,8 @@ ha-mcp/
 │   │   │   ├── suite_test.go    # Base test suite
 │   │   │   └── *_integration_test.go  # Domain-specific tests
 │   │   ├── analysis_snapshot.go # Parallel data fetching for analysis
-│   │   ├── entities.go          # Entity tool handlers
+│   │   ├── entities.go          # Entity tool handlers (get_state, get_entity_dependencies)
+│   │   ├── entities_consolidated.go # Consolidated query_entities tool (current/history/statistics/domains)
 │   │   ├── automations.go       # Consolidated manage_automation tool
 │   │   ├── helpers.go           # list_helpers tool handler
 │   │   ├── helpers_consolidated.go  # manage_helper and helper_action tools
@@ -935,7 +931,6 @@ ha-mcp/
 │   │   ├── registry.go          # Registry helper functions
 │   │   ├── registry_consolidated.go # Consolidated get_registry tool
 │   │   ├── media.go             # Media tool handlers
-│   │   ├── statistics.go        # Statistics tool handler
 │   │   ├── lovelace.go          # Lovelace tool handler
 │   │   ├── targets_consolidated.go  # Consolidated analyze_target tool
 │   │   ├── services.go          # Service discovery handler

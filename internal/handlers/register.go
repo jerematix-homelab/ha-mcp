@@ -35,12 +35,6 @@ func RegisterMediaTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
-// RegisterStatisticsTools registers all statistics-related tools with the registry.
-func RegisterStatisticsTools(registry *mcp.Registry) {
-	h := NewStatisticsHandlers()
-	h.RegisterTools(registry)
-}
-
 // RegisterLovelaceTools registers all Lovelace dashboard-related tools with the registry.
 func RegisterLovelaceTools(registry *mcp.Registry) {
 	h := NewLovelaceHandlers()
@@ -110,9 +104,11 @@ func RegisterAllTools(registry *mcp.Registry) {
 	// Registry tools (consolidated: get_registry replaces list_entity/device/area_registry)
 	RegisterConsolidatedRegistryTools(registry)
 
+	// Entity query tools (consolidated: query_entities replaces get_states/get_history/get_statistics/list_domains)
+	RegisterConsolidatedEntityQueryTools(registry)
+
 	// Media and advanced handlers
 	RegisterMediaTools(registry)
-	RegisterStatisticsTools(registry)
 	RegisterLovelaceTools(registry)
 
 	// Target tools (consolidated: analyze_target replaces get_triggers/conditions/services/extract_for_target)
