@@ -103,6 +103,28 @@ func TestRegisterLovelaceTools(t *testing.T) {
 	}
 }
 
+func TestRegisterDatetimeTools(t *testing.T) {
+	t.Parallel()
+
+	registry := mcp.NewRegistry()
+	RegisterDatetimeTools(registry)
+
+	tools := registry.ListTools()
+	if len(tools) != 1 {
+		t.Errorf("RegisterDatetimeTools() registered %d tools, want 1", len(tools))
+	}
+
+	// Verify get_datetime is registered
+	toolMap := make(map[string]bool)
+	for _, tool := range tools {
+		toolMap[tool.Name] = true
+	}
+
+	if !toolMap["get_datetime"] {
+		t.Error("RegisterDatetimeTools() did not register get_datetime")
+	}
+}
+
 func TestRegisterAllTools(t *testing.T) {
 	t.Parallel()
 
@@ -143,6 +165,8 @@ func TestRegisterAllTools(t *testing.T) {
 		"get_lovelace_config",
 		// Consolidated target tools (analyze_target replaces get_triggers/conditions/services_for_target)
 		"analyze_target",
+		// Date/Time
+		"get_datetime",
 		// Config entries
 		"list_config_entries",
 		"get_config_entry",

@@ -61,6 +61,12 @@ func RegisterSystemTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
+// RegisterDatetimeTools registers all date/time tools with the registry.
+func RegisterDatetimeTools(registry *mcp.Registry) {
+	h := NewDatetimeHandlers()
+	h.RegisterTools(registry)
+}
+
 // RegisterTemplateTools registers all template rendering tools with the registry.
 func RegisterTemplateTools(registry *mcp.Registry) {
 	h := NewTemplateHandlers()
@@ -118,6 +124,7 @@ func RegisterAllTools(registry *mcp.Registry) {
 	// Service discovery and system information
 	RegisterServiceTools(registry)
 	RegisterSystemTools(registry)
+	RegisterDatetimeTools(registry)
 
 	// Template, logbook, and configuration tools
 	RegisterTemplateTools(registry)
