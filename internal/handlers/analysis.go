@@ -1159,16 +1159,28 @@ func (h *AnalysisHandlers) formatReferences(parts []string, refs *EntityReferenc
 }
 
 func (h *AnalysisHandlers) formatHistory(parts []string, history []HistoryEntry) []string {
-	parts = append(parts, fmt.Sprintf("\nHistory (last 24h): %d state changes", len(history)))
-	// Show up to 3 most recent changes
-	count := len(history)
-	if count > 3 {
-		count = 3
+	totalCount := len(history)
+	parts = append(parts, fmt.Sprintf("\nHistory (last 24h): %d state changes", totalCount))
+
+	// Show up to 10 most recent changes
+	const maxEntries = 10
+	showCount := totalCount
+	if showCount > maxEntries {
+		showCount = maxEntries
 	}
-	for i := 0; i < count; i++ {
+
+	// Start from the end to show newest entries first
+	startIdx := totalCount - showCount
+	for i := startIdx; i < totalCount; i++ {
 		entry := history[i]
 		parts = append(parts, fmt.Sprintf("- State: %s at %s", entry.State, entry.LastChanged))
 	}
+
+	// Add truncation message if we're showing a subset
+	if totalCount > maxEntries {
+		parts = append(parts, fmt.Sprintf("(Showing %d of %d changes)", showCount, totalCount))
+	}
+
 	return parts
 }
 
