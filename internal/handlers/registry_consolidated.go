@@ -215,6 +215,27 @@ func (h *ConsolidatedRegistryHandlers) handleEntities(
 	}, nil
 }
 
+// buildDeviceEntityMap loads entity registry and groups entities by device_id.
+func buildDeviceEntityMap(ctx context.Context, client homeassistant.Client) (map[string][]formatter.EntityInfo, error) {
+	entities, err := client.GetEntityRegistry(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	entityMap := make(map[string][]formatter.EntityInfo)
+	for _, entity := range entities {
+		if entity.DeviceID == "" {
+			continue // Skip entities without a device
+		}
+		entityMap[entity.DeviceID] = append(entityMap[entity.DeviceID], formatter.EntityInfo{
+			EntityID:     entity.EntityID,
+			FriendlyName: entity.Name,
+		})
+	}
+
+	return entityMap, nil
+}
+
 // handleDevices handles type=devices requests.
 func (h *ConsolidatedRegistryHandlers) handleDevices(
 	ctx context.Context,
@@ -242,10 +263,20 @@ func (h *ConsolidatedRegistryHandlers) handleDevices(
 	paginated := ApplyPagination(filtered, paginationParams)
 	verbose, _ := args["verbose"].(bool)
 	includeDisabled, _ := args["include_disabled"].(bool)
+	includeEntities, _ := args["include_entities"].(bool)
 
 	// Parse format parameter
 	formatStr, _ := args["format"].(string)
 	format := formatter.ParseFormat(formatStr)
+
+	// Build entity map if requested
+	var entityMap map[string][]formatter.EntityInfo
+	if includeEntities {
+		entityMap, err = buildDeviceEntityMap(ctx, client)
+		if err != nil {
+			return errorResult(fmt.Sprintf("Error loading entities: %v", err)), nil
+		}
+	}
 
 	// Use formatter
 	f := formatter.NewRegistryFormatter(format)
@@ -253,33 +284,36 @@ func (h *ConsolidatedRegistryHandlers) handleDevices(
 		Verbose:         verbose,
 		IncludeDisabled: includeDisabled,
 		Limit:           paginationParams.Limit,
+		EntityMap:       entityMap,
 	}
 	output, err := f.FormatDeviceRegistry(ctx, paginated.Items, opts)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error formatting response: %v", err)), nil
 	}
 
-	// Add pagination summary for natural format only
-	var response string
-	if format == formatter.FormatNatural {
-		summary := BuildPaginationSummary(paginated.Pagination, "devices")
-		if !verbose {
-			summary += VerboseHint
-		}
-		response = summary + "\n\n" + output
-		if paginated.Pagination.HasMore && paginated.Pagination.NextCursor != nil {
-			response += fmt.Sprintf("\n\nNext cursor: %s", *paginated.Pagination.NextCursor)
-		}
-	} else {
-		// For JSON format, wrap with pagination metadata
-		response = string(buildPaginatedDeviceRegistryResponse(paginated, []byte(output)))
-	}
-
+	response := buildDeviceRegistryResponse(paginated, output, format, verbose)
 	return &mcp.ToolsCallResult{
 		Content: []mcp.ContentBlock{
 			mcp.NewTextContent(response),
 		},
 	}, nil
+}
+
+// buildDeviceRegistryResponse builds the final response string with pagination.
+func buildDeviceRegistryResponse(paginated PaginatedResponse[homeassistant.DeviceRegistryEntry], output string, format formatter.Format, verbose bool) string {
+	if format == formatter.FormatNatural {
+		summary := BuildPaginationSummary(paginated.Pagination, "devices")
+		if !verbose {
+			summary += VerboseHint
+		}
+		response := summary + "\n\n" + output
+		if paginated.Pagination.HasMore && paginated.Pagination.NextCursor != nil {
+			response += fmt.Sprintf("\n\nNext cursor: %s", *paginated.Pagination.NextCursor)
+		}
+		return response
+	}
+	// JSON format: wrap with pagination metadata
+	return string(buildPaginatedDeviceRegistryResponse(paginated, []byte(output)))
 }
 
 // handleAreas handles type=areas requests.

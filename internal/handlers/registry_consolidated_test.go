@@ -635,3 +635,76 @@ func TestConsolidatedRegistryHandlers_HandleGetRegistry_Areas_FormatJSON(t *test
 		t.Errorf("Expected JSON output to contain area_id field, got: %s", content[:min(500, len(content))])
 	}
 }
+
+func TestConsolidatedRegistryHandlers_HandleGetRegistry_Devices_IncludeEntities(t *testing.T) {
+	t.Parallel()
+
+	h := NewConsolidatedRegistryHandlers()
+
+	deviceRegistry := []homeassistant.DeviceRegistryEntry{
+		{ID: "device_1", Name: "Hue Bridge", Manufacturer: "Philips", AreaID: "living_room"},
+		{ID: "device_2", Name: "Smart Plug", Manufacturer: "Sonoff", AreaID: "bedroom"},
+	}
+
+	entityRegistry := []homeassistant.EntityRegistryEntry{
+		{EntityID: "light.living_1", DeviceID: "device_1", Name: "Living Light 1"},
+		{EntityID: "light.living_2", DeviceID: "device_1", Name: "Living Light 2"},
+		{EntityID: "switch.bedroom", DeviceID: "device_2", Name: "Bedroom Switch"},
+		{EntityID: "sensor.temperature", DeviceID: "", Name: "Temp Sensor"}, // no device
+	}
+
+	client := &mockConsolidatedRegistryClient{
+		deviceRegistry: deviceRegistry,
+		entityRegistry: entityRegistry,
+	}
+
+	tests := []struct {
+		name             string
+		args             map[string]any
+		wantContains     []string
+		wantNotContains  []string
+	}{
+		{
+			name: "include_entities true - natural format",
+			args: map[string]any{"type": "devices", "include_entities": true, "format": "natural"},
+			wantContains: []string{"Hue Bridge", "light.living_1", "light.living_2", "Entities (2):"},
+		},
+		{
+			name: "include_entities false - natural format",
+			args: map[string]any{"type": "devices", "include_entities": false, "format": "natural"},
+			wantNotContains: []string{"light.living_1", "Entities ("},
+		},
+		{
+			name: "include_entities true - json format",
+			args: map[string]any{"type": "devices", "include_entities": true, "format": "json"},
+			wantContains: []string{"\"entities\"", "\"light.living_1\""},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := h.handleGetRegistry(context.Background(), client, tt.args)
+			if err != nil {
+				t.Fatalf("handleGetRegistry() error = %v", err)
+			}
+
+			if result.IsError {
+				t.Fatalf("handleGetRegistry() returned error: %v", result.Content)
+			}
+
+			content := result.Content[0].Text
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(content, want) {
+					t.Errorf("Expected output to contain %q, got: %s", want, content[:min(500, len(content))])
+				}
+			}
+
+			for _, notWant := range tt.wantNotContains {
+				if strings.Contains(content, notWant) {
+					t.Errorf("Expected output NOT to contain %q, got: %s", notWant, content[:min(500, len(content))])
+				}
+			}
+		})
+	}
+}

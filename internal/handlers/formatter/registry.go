@@ -130,8 +130,8 @@ func (f *NaturalRegistryFormatter) FormatDeviceRegistry(
 		result.WriteString("\n")
 	}
 
-	// Verbose: list entries
-	if opts.Verbose {
+	// Verbose OR EntityMap: list entries
+	if opts.Verbose || opts.EntityMap != nil {
 		result.WriteString("Devices:\n")
 		limit := opts.Limit
 		if limit <= 0 {
@@ -145,14 +145,14 @@ func (f *NaturalRegistryFormatter) FormatDeviceRegistry(
 			if !opts.IncludeDisabled && d.DisabledBy != "" {
 				continue
 			}
-			f.writeDeviceEntry(&result, d)
+			f.writeDeviceEntry(&result, d, opts.EntityMap)
 		}
 	}
 
 	return strings.TrimSuffix(result.String(), "\n"), nil
 }
 
-func (f *NaturalRegistryFormatter) writeDeviceEntry(result *strings.Builder, d homeassistant.DeviceRegistryEntry) {
+func (f *NaturalRegistryFormatter) writeDeviceEntry(result *strings.Builder, d homeassistant.DeviceRegistryEntry, entityMap map[string][]EntityInfo) {
 	name := d.Name
 	if name == "" {
 		name = d.ID
@@ -177,6 +177,20 @@ func (f *NaturalRegistryFormatter) writeDeviceEntry(result *strings.Builder, d h
 		fmt.Fprintf(result, " [%s]", strings.Join(details, ", "))
 	}
 	result.WriteString("\n")
+
+	// Show entities if EntityMap is provided
+	if entityMap != nil {
+		if entities, ok := entityMap[d.ID]; ok && len(entities) > 0 {
+			fmt.Fprintf(result, "  Entities (%d):\n", len(entities))
+			for _, entity := range entities {
+				displayName := entity.EntityID
+				if entity.FriendlyName != "" {
+					displayName = fmt.Sprintf("%s (%s)", entity.FriendlyName, entity.EntityID)
+				}
+				fmt.Fprintf(result, "  - %s\n", displayName)
+			}
+		}
+	}
 }
 
 // FormatAreaRegistry formats area registry entries in natural language.
@@ -340,11 +354,35 @@ func (f *JSONRegistryFormatter) FormatEntityRegistry(
 func (f *JSONRegistryFormatter) FormatDeviceRegistry(
 	_ context.Context,
 	entries []homeassistant.DeviceRegistryEntry,
-	_ RegistryOptions,
+	opts RegistryOptions,
 ) (string, error) {
 	if entries == nil {
 		entries = []homeassistant.DeviceRegistryEntry{}
 	}
+
+	// If EntityMap is provided, augment devices with entity information
+	if opts.EntityMap != nil {
+		type deviceWithEntities struct {
+			homeassistant.DeviceRegistryEntry
+			Entities []EntityInfo `json:"entities,omitempty"`
+		}
+
+		augmented := make([]deviceWithEntities, len(entries))
+		for i, entry := range entries {
+			augmented[i] = deviceWithEntities{
+				DeviceRegistryEntry: entry,
+				Entities:            opts.EntityMap[entry.ID],
+			}
+		}
+
+		data, err := json.MarshalIndent(augmented, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal device registry: %w", err)
+		}
+		return string(data), nil
+	}
+
+	// Default: just marshal the entries
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal device registry: %w", err)
