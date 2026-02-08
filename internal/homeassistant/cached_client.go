@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/zorak1103/ha-mcp/internal/config"
 	"github.com/zorak1103/ha-mcp/internal/logging"
 )
@@ -23,7 +25,7 @@ func (e *cacheEntry) isExpired() bool {
 
 // CachedClient wraps a Client and provides caching for static data.
 // It caches services, config, and registry data to reduce API calls.
-// Thread-safe for concurrent access.
+// Thread-safe for concurrent access using singleflight to prevent thundering herd.
 type CachedClient struct {
 	client Client
 	mu     sync.RWMutex
@@ -33,6 +35,13 @@ type CachedClient struct {
 	entityRegistryCache *cacheEntry
 	deviceRegistryCache *cacheEntry
 	areaRegistryCache   *cacheEntry
+
+	// singleflight groups prevent duplicate API calls during concurrent access
+	servicesGroup       singleflight.Group
+	configGroup         singleflight.Group
+	entityRegistryGroup singleflight.Group
+	deviceRegistryGroup singleflight.Group
+	areaRegistryGroup   singleflight.Group
 
 	config config.CacheConfig
 	logger *logging.Logger
@@ -114,7 +123,9 @@ func (c *CachedClient) InvalidateRegistryCaches() {
 }
 
 // GetServices returns cached services or fetches from API.
+// Uses singleflight to prevent duplicate API calls during concurrent access.
 func (c *CachedClient) GetServices(ctx context.Context) ([]Service, error) {
+	// Check cache first with read lock
 	c.mu.RLock()
 	if c.servicesCache != nil && !c.servicesCache.isExpired() {
 		data := c.servicesCache.data.([]Service)
@@ -124,26 +135,45 @@ func (c *CachedClient) GetServices(ctx context.Context) ([]Service, error) {
 	}
 	c.mu.RUnlock()
 
-	// Fetch from API
-	services, err := c.client.GetServices(ctx)
+	// Use singleflight to ensure only one goroutine fetches data
+	result, err, _ := c.servicesGroup.Do("services", func() (any, error) {
+		// Double-check cache after acquiring singleflight lock
+		c.mu.RLock()
+		if c.servicesCache != nil && !c.servicesCache.isExpired() {
+			data := c.servicesCache.data.([]Service)
+			c.mu.RUnlock()
+			return data, nil
+		}
+		c.mu.RUnlock()
+
+		// Fetch from API
+		services, err := c.client.GetServices(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		c.servicesCache = &cacheEntry{
+			data:      services,
+			expiresAt: time.Now().Add(c.servicesTTL()),
+		}
+		c.mu.Unlock()
+		c.logger.Debug("Services cached", "count", len(services), "ttl", c.servicesTTL())
+
+		return services, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-
-	// Store in cache
-	c.mu.Lock()
-	c.servicesCache = &cacheEntry{
-		data:      services,
-		expiresAt: time.Now().Add(c.servicesTTL()),
-	}
-	c.mu.Unlock()
-	c.logger.Debug("Services cached", "count", len(services), "ttl", c.servicesTTL())
-
-	return services, nil
+	return result.([]Service), nil
 }
 
 // GetConfig returns cached config or fetches from API.
+// Uses singleflight to prevent duplicate API calls during concurrent access.
 func (c *CachedClient) GetConfig(ctx context.Context) (*Config, error) {
+	// Check cache first with read lock
 	c.mu.RLock()
 	if c.configCache != nil && !c.configCache.isExpired() {
 		data := c.configCache.data.(*Config)
@@ -153,26 +183,45 @@ func (c *CachedClient) GetConfig(ctx context.Context) (*Config, error) {
 	}
 	c.mu.RUnlock()
 
-	// Fetch from API
-	cfg, err := c.client.GetConfig(ctx)
+	// Use singleflight to ensure only one goroutine fetches data
+	result, err, _ := c.configGroup.Do("config", func() (any, error) {
+		// Double-check cache after acquiring singleflight lock
+		c.mu.RLock()
+		if c.configCache != nil && !c.configCache.isExpired() {
+			data := c.configCache.data.(*Config)
+			c.mu.RUnlock()
+			return data, nil
+		}
+		c.mu.RUnlock()
+
+		// Fetch from API
+		cfg, err := c.client.GetConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		c.configCache = &cacheEntry{
+			data:      cfg,
+			expiresAt: time.Now().Add(c.configTTL()),
+		}
+		c.mu.Unlock()
+		c.logger.Debug("Config cached", "ttl", c.configTTL())
+
+		return cfg, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-
-	// Store in cache
-	c.mu.Lock()
-	c.configCache = &cacheEntry{
-		data:      cfg,
-		expiresAt: time.Now().Add(c.configTTL()),
-	}
-	c.mu.Unlock()
-	c.logger.Debug("Config cached", "ttl", c.configTTL())
-
-	return cfg, nil
+	return result.(*Config), nil
 }
 
 // GetEntityRegistry returns cached entity registry or fetches from API.
+// Uses singleflight to prevent duplicate API calls during concurrent access.
 func (c *CachedClient) GetEntityRegistry(ctx context.Context) ([]EntityRegistryEntry, error) {
+	// Check cache first with read lock
 	c.mu.RLock()
 	if c.entityRegistryCache != nil && !c.entityRegistryCache.isExpired() {
 		data := c.entityRegistryCache.data.([]EntityRegistryEntry)
@@ -182,26 +231,45 @@ func (c *CachedClient) GetEntityRegistry(ctx context.Context) ([]EntityRegistryE
 	}
 	c.mu.RUnlock()
 
-	// Fetch from API
-	entities, err := c.client.GetEntityRegistry(ctx)
+	// Use singleflight to ensure only one goroutine fetches data
+	result, err, _ := c.entityRegistryGroup.Do("entity_registry", func() (any, error) {
+		// Double-check cache after acquiring singleflight lock
+		c.mu.RLock()
+		if c.entityRegistryCache != nil && !c.entityRegistryCache.isExpired() {
+			data := c.entityRegistryCache.data.([]EntityRegistryEntry)
+			c.mu.RUnlock()
+			return data, nil
+		}
+		c.mu.RUnlock()
+
+		// Fetch from API
+		entities, err := c.client.GetEntityRegistry(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		c.entityRegistryCache = &cacheEntry{
+			data:      entities,
+			expiresAt: time.Now().Add(c.entityRegTTL()),
+		}
+		c.mu.Unlock()
+		c.logger.Debug("Entity registry cached", "count", len(entities), "ttl", c.entityRegTTL())
+
+		return entities, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-
-	// Store in cache
-	c.mu.Lock()
-	c.entityRegistryCache = &cacheEntry{
-		data:      entities,
-		expiresAt: time.Now().Add(c.entityRegTTL()),
-	}
-	c.mu.Unlock()
-	c.logger.Debug("Entity registry cached", "count", len(entities), "ttl", c.entityRegTTL())
-
-	return entities, nil
+	return result.([]EntityRegistryEntry), nil
 }
 
 // GetDeviceRegistry returns cached device registry or fetches from API.
+// Uses singleflight to prevent duplicate API calls during concurrent access.
 func (c *CachedClient) GetDeviceRegistry(ctx context.Context) ([]DeviceRegistryEntry, error) {
+	// Check cache first with read lock
 	c.mu.RLock()
 	if c.deviceRegistryCache != nil && !c.deviceRegistryCache.isExpired() {
 		data := c.deviceRegistryCache.data.([]DeviceRegistryEntry)
@@ -211,26 +279,45 @@ func (c *CachedClient) GetDeviceRegistry(ctx context.Context) ([]DeviceRegistryE
 	}
 	c.mu.RUnlock()
 
-	// Fetch from API
-	devices, err := c.client.GetDeviceRegistry(ctx)
+	// Use singleflight to ensure only one goroutine fetches data
+	result, err, _ := c.deviceRegistryGroup.Do("device_registry", func() (any, error) {
+		// Double-check cache after acquiring singleflight lock
+		c.mu.RLock()
+		if c.deviceRegistryCache != nil && !c.deviceRegistryCache.isExpired() {
+			data := c.deviceRegistryCache.data.([]DeviceRegistryEntry)
+			c.mu.RUnlock()
+			return data, nil
+		}
+		c.mu.RUnlock()
+
+		// Fetch from API
+		devices, err := c.client.GetDeviceRegistry(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		c.deviceRegistryCache = &cacheEntry{
+			data:      devices,
+			expiresAt: time.Now().Add(c.deviceRegTTL()),
+		}
+		c.mu.Unlock()
+		c.logger.Debug("Device registry cached", "count", len(devices), "ttl", c.deviceRegTTL())
+
+		return devices, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-
-	// Store in cache
-	c.mu.Lock()
-	c.deviceRegistryCache = &cacheEntry{
-		data:      devices,
-		expiresAt: time.Now().Add(c.deviceRegTTL()),
-	}
-	c.mu.Unlock()
-	c.logger.Debug("Device registry cached", "count", len(devices), "ttl", c.deviceRegTTL())
-
-	return devices, nil
+	return result.([]DeviceRegistryEntry), nil
 }
 
 // GetAreaRegistry returns cached area registry or fetches from API.
+// Uses singleflight to prevent duplicate API calls during concurrent access.
 func (c *CachedClient) GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry, error) {
+	// Check cache first with read lock
 	c.mu.RLock()
 	if c.areaRegistryCache != nil && !c.areaRegistryCache.isExpired() {
 		data := c.areaRegistryCache.data.([]AreaRegistryEntry)
@@ -240,22 +327,39 @@ func (c *CachedClient) GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry
 	}
 	c.mu.RUnlock()
 
-	// Fetch from API
-	areas, err := c.client.GetAreaRegistry(ctx)
+	// Use singleflight to ensure only one goroutine fetches data
+	result, err, _ := c.areaRegistryGroup.Do("area_registry", func() (any, error) {
+		// Double-check cache after acquiring singleflight lock
+		c.mu.RLock()
+		if c.areaRegistryCache != nil && !c.areaRegistryCache.isExpired() {
+			data := c.areaRegistryCache.data.([]AreaRegistryEntry)
+			c.mu.RUnlock()
+			return data, nil
+		}
+		c.mu.RUnlock()
+
+		// Fetch from API
+		areas, err := c.client.GetAreaRegistry(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		c.areaRegistryCache = &cacheEntry{
+			data:      areas,
+			expiresAt: time.Now().Add(c.areaRegTTL()),
+		}
+		c.mu.Unlock()
+		c.logger.Debug("Area registry cached", "count", len(areas), "ttl", c.areaRegTTL())
+
+		return areas, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
-
-	// Store in cache
-	c.mu.Lock()
-	c.areaRegistryCache = &cacheEntry{
-		data:      areas,
-		expiresAt: time.Now().Add(c.areaRegTTL()),
-	}
-	c.mu.Unlock()
-	c.logger.Debug("Area registry cached", "count", len(areas), "ttl", c.areaRegTTL())
-
-	return areas, nil
+	return result.([]AreaRegistryEntry), nil
 }
 
 // CreateHelper creates a helper and invalidates registry caches.
