@@ -205,8 +205,19 @@ func TestNaturalFormatter_FormatHistory_Empty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FormatHistory() error = %v", err)
 	}
-	if !strings.Contains(result, "No history found") {
-		t.Errorf("FormatHistory() = %q, want to contain 'No history found'", result)
+
+	expectedPhrases := []string{
+		"No history found",
+		"Possible reasons",
+		"excluded from recorder",
+		"created recently",
+		"No state changes",
+	}
+
+	for _, phrase := range expectedPhrases {
+		if !strings.Contains(result, phrase) {
+			t.Errorf("FormatHistory() = %q, want to contain %q", result, phrase)
+		}
 	}
 }
 

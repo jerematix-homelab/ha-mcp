@@ -73,7 +73,17 @@ func (f *NaturalFormatter) FormatEntities(_ context.Context, entities []homeassi
 // entries is a flat list of HistoryEntry (already processed from [][]HistoryEntry).
 func (f *NaturalFormatter) FormatHistory(_ context.Context, entityID string, entries []homeassistant.HistoryEntry, opts HistoryOptions) (string, error) {
 	if len(entries) == 0 {
-		return fmt.Sprintf("No history found for %s.", entityID), nil
+		return fmt.Sprintf(`No history found for %s.
+
+Possible reasons:
+- Entity may be excluded from recorder configuration
+- Entity may have been created recently
+- No state changes occurred in the requested period
+
+Tips:
+- Check recorder configuration to ensure entity is not excluded
+- For new entities, history may not be available yet
+- Try increasing the time range if using filters`, entityID), nil
 	}
 
 	var parts []string

@@ -1439,3 +1439,117 @@ func TestInputDateTimeConfig_JSONRoundtrip(t *testing.T) {
 		t.Errorf("Roundtrip mismatch (-want +got):\n%s", diff)
 	}
 }
+
+func TestStatisticsResult_StartTime(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		result StatisticsResult
+		want   time.Time
+	}{
+		{
+			name: "unix timestamp in seconds",
+			result: StatisticsResult{
+				Start: 1704067200, // 2024-01-01 00:00:00 UTC
+			},
+			want: time.Unix(1704067200, 0),
+		},
+		{
+			name: "unix timestamp in milliseconds",
+			result: StatisticsResult{
+				Start: 1704067200000, // ms timestamp
+			},
+			want: time.UnixMilli(1704067200000),
+		},
+		{
+			name: "very large millisecond timestamp",
+			result: StatisticsResult{
+				Start: 1770000000000, // year 2026 in ms
+			},
+			want: time.UnixMilli(1770000000000),
+		},
+		{
+			name: "zero timestamp",
+			result: StatisticsResult{
+				Start: 0,
+			},
+			want: time.Unix(0, 0),
+		},
+		{
+			name: "fractional seconds",
+			result: StatisticsResult{
+				Start: 1704067200.5,
+			},
+			want: time.Unix(1704067200, 0), // truncates to seconds
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.result.StartTime()
+			if !got.Equal(tt.want) {
+				t.Errorf("StartTime() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStatisticsResult_EndTime(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		result StatisticsResult
+		want   time.Time
+	}{
+		{
+			name: "unix timestamp in seconds",
+			result: StatisticsResult{
+				End: 1704067200, // 2024-01-01 00:00:00 UTC
+			},
+			want: time.Unix(1704067200, 0),
+		},
+		{
+			name: "unix timestamp in milliseconds",
+			result: StatisticsResult{
+				End: 1704067200000, // ms timestamp
+			},
+			want: time.UnixMilli(1704067200000),
+		},
+		{
+			name: "very large millisecond timestamp",
+			result: StatisticsResult{
+				End: 1770000000000, // year 2026 in ms
+			},
+			want: time.UnixMilli(1770000000000),
+		},
+		{
+			name: "zero timestamp",
+			result: StatisticsResult{
+				End: 0,
+			},
+			want: time.Unix(0, 0),
+		},
+		{
+			name: "fractional seconds",
+			result: StatisticsResult{
+				End: 1704067200.5,
+			},
+			want: time.Unix(1704067200, 0), // truncates to seconds
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := tt.result.EndTime()
+			if !got.Equal(tt.want) {
+				t.Errorf("EndTime() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

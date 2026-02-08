@@ -312,6 +312,105 @@ func TestQueryEntities_Current_FormatNatural(t *testing.T) {
 	runHandlerTestCases(t, tests, h.handleQueryEntities)
 }
 
+func TestQueryEntities_Current_AreaFilter(t *testing.T) {
+	t.Parallel()
+
+	testStates := []homeassistant.Entity{
+		{EntityID: "light.living_room", State: "on", Attributes: map[string]any{"friendly_name": "Living Room"}},
+		{EntityID: "light.bedroom", State: "off", Attributes: map[string]any{"friendly_name": "Bedroom"}},
+		{EntityID: "light.kitchen", State: "on", Attributes: map[string]any{"friendly_name": "Kitchen"}},
+		{EntityID: "switch.garage", State: "off", Attributes: map[string]any{"friendly_name": "Garage"}},
+	}
+
+	entityRegistry := []homeassistant.EntityRegistryEntry{
+		{EntityID: "light.living_room", AreaID: "living_room", DeviceID: ""},
+		{EntityID: "light.bedroom", AreaID: "bedroom", DeviceID: ""},
+		{EntityID: "light.kitchen", AreaID: "", DeviceID: "device_kitchen"}, // via device
+		{EntityID: "switch.garage", AreaID: "garage", DeviceID: ""},
+	}
+
+	deviceRegistry := []homeassistant.DeviceRegistryEntry{
+		{ID: "device_kitchen", AreaID: "living_room"}, // kitchen light is in living_room via device
+	}
+
+	tests := []handlerTestCase{
+		{
+			name: "area_id direct match",
+			args: map[string]any{"mode": modeCurrent, "area_id": "living_room", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+				m.GetEntityRegistryFn = func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return entityRegistry, nil
+				}
+				m.GetDeviceRegistryFn = func(_ context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return deviceRegistry, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"light.living_room", "light.kitchen"},
+			wantNotContains: []string{"light.bedroom", "switch.garage"},
+		},
+		{
+			name: "area_id with domain filter",
+			args: map[string]any{"mode": modeCurrent, "area_id": "living_room", "domain": "light", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+				m.GetEntityRegistryFn = func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return entityRegistry, nil
+				}
+				m.GetDeviceRegistryFn = func(_ context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return deviceRegistry, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"light.living_room", "light.kitchen"},
+			wantNotContains: []string{"light.bedroom", "switch.garage"},
+		},
+		{
+			name: "area_id with state filter",
+			args: map[string]any{"mode": modeCurrent, "area_id": "living_room", "state": "on", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+				m.GetEntityRegistryFn = func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return entityRegistry, nil
+				}
+				m.GetDeviceRegistryFn = func(_ context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return deviceRegistry, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"light.living_room", "light.kitchen"},
+			wantNotContains: []string{"light.bedroom", "switch.garage"},
+		},
+		{
+			name: "area_id no matches",
+			args: map[string]any{"mode": modeCurrent, "area_id": "nonexistent", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+				m.GetEntityRegistryFn = func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return entityRegistry, nil
+				}
+				m.GetDeviceRegistryFn = func(_ context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return deviceRegistry, nil
+				}
+			},
+			wantError:       false,
+			wantNotContains: []string{"light.living_room", "light.bedroom", "light.kitchen", "switch.garage"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}
+
 func TestQueryEntities_History(t *testing.T) {
 	t.Parallel()
 

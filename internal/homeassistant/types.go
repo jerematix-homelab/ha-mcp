@@ -316,6 +316,26 @@ type StatisticsResult struct {
 	Change      *float64 `json:"change,omitempty"`
 }
 
+// StartTime returns Start as time.Time.
+// The WebSocket API may return timestamps in seconds or milliseconds.
+// If Start > 1e12, assumes milliseconds and converts accordingly.
+func (s StatisticsResult) StartTime() time.Time {
+	if s.Start > 1e12 {
+		return time.UnixMilli(int64(s.Start))
+	}
+	return time.Unix(int64(s.Start), 0)
+}
+
+// EndTime returns End as time.Time.
+// The WebSocket API may return timestamps in seconds or milliseconds.
+// If End > 1e12, assumes milliseconds and converts accordingly.
+func (s StatisticsResult) EndTime() time.Time {
+	if s.End > 1e12 {
+		return time.UnixMilli(int64(s.End))
+	}
+	return time.Unix(int64(s.End), 0)
+}
+
 // Target represents a target specification for entities, devices, areas, and labels.
 // This is used for service calls and for querying triggers, conditions, and services.
 type Target struct {
