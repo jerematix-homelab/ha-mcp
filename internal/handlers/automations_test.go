@@ -33,6 +33,12 @@ type mockAutomationClient struct {
 	updateErr error
 	deleteErr error
 	toggleErr error
+
+	// Capture IDs passed to methods
+	lastGetID    string
+	lastUpdateID string
+	lastDeleteID string
+	lastToggleID string
 }
 
 func (m *mockAutomationClient) ListAutomations(_ context.Context) ([]homeassistant.Automation, error) {
@@ -43,6 +49,7 @@ func (m *mockAutomationClient) ListAutomations(_ context.Context) ([]homeassista
 }
 
 func (m *mockAutomationClient) GetAutomation(_ context.Context, automationID string) (*homeassistant.Automation, error) {
+	m.lastGetID = automationID
 	if m.automationErr != nil {
 		return nil, m.automationErr
 	}
@@ -60,15 +67,18 @@ func (m *mockAutomationClient) CreateAutomation(_ context.Context, _ homeassista
 	return m.createErr
 }
 
-func (m *mockAutomationClient) UpdateAutomation(_ context.Context, _ string, _ homeassistant.AutomationConfig) error {
+func (m *mockAutomationClient) UpdateAutomation(_ context.Context, automationID string, _ homeassistant.AutomationConfig) error {
+	m.lastUpdateID = automationID
 	return m.updateErr
 }
 
-func (m *mockAutomationClient) DeleteAutomation(_ context.Context, _ string) error {
+func (m *mockAutomationClient) DeleteAutomation(_ context.Context, automationID string) error {
+	m.lastDeleteID = automationID
 	return m.deleteErr
 }
 
-func (m *mockAutomationClient) ToggleAutomation(_ context.Context, _ string, _ bool) error {
+func (m *mockAutomationClient) ToggleAutomation(_ context.Context, automationID string, _ bool) error {
+	m.lastToggleID = automationID
 	return m.toggleErr
 }
 
@@ -1057,6 +1067,193 @@ func TestManageAutomation_GetByFriendlyName(t *testing.T) {
 				if !strings.Contains(content, want) {
 					t.Errorf("Expected content to contain %q", want)
 				}
+			}
+		})
+	}
+}
+
+func TestNormalizeAutomationID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		input        string
+		wantEntityID string
+		wantConfigID string
+	}{
+		{
+			name:         "with automation prefix",
+			input:        "automation.test_auto",
+			wantEntityID: "automation.test_auto",
+			wantConfigID: "test_auto",
+		},
+		{
+			name:         "without prefix",
+			input:        "test_auto",
+			wantEntityID: "automation.test_auto",
+			wantConfigID: "test_auto",
+		},
+		{
+			name:         "with prefix - complex ID",
+			input:        "automation.my_morning_routine",
+			wantEntityID: "automation.my_morning_routine",
+			wantConfigID: "my_morning_routine",
+		},
+		{
+			name:         "without prefix - complex ID",
+			input:        "my_morning_routine",
+			wantEntityID: "automation.my_morning_routine",
+			wantConfigID: "my_morning_routine",
+		},
+		{
+			name:         "empty string",
+			input:        "",
+			wantEntityID: "automation.",
+			wantConfigID: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotEntityID, gotConfigID := normalizeAutomationID(tt.input)
+			if gotEntityID != tt.wantEntityID {
+				t.Errorf("normalizeAutomationID(%q) entityID = %q, want %q", tt.input, gotEntityID, tt.wantEntityID)
+			}
+			if gotConfigID != tt.wantConfigID {
+				t.Errorf("normalizeAutomationID(%q) configID = %q, want %q", tt.input, gotConfigID, tt.wantConfigID)
+			}
+		})
+	}
+}
+
+func TestAutomationHandlers_IDNormalization(t *testing.T) {
+	t.Parallel()
+
+	testConfig := &homeassistant.AutomationConfig{
+		ID:    "test_auto",
+		Alias: "Test Automation",
+	}
+
+	testAutomation := &homeassistant.Automation{
+		EntityID:     "automation.test_auto",
+		State:        "on",
+		FriendlyName: "Test Automation",
+		Config:       testConfig,
+	}
+
+	tests := []struct {
+		name           string
+		action         string
+		inputID        string
+		wantGetID      string
+		wantUpdateID   string
+		wantDeleteID   string
+		wantToggleID   string
+		additionalArgs map[string]any
+	}{
+		{
+			name:      "get - with prefix",
+			action:    "get",
+			inputID:   "automation.test_auto",
+			wantGetID: "test_auto",
+		},
+		{
+			name:      "get - without prefix",
+			action:    "get",
+			inputID:   "test_auto",
+			wantGetID: "test_auto",
+		},
+		{
+			name:         "update - with prefix",
+			action:       "update",
+			inputID:      "automation.test_auto",
+			wantGetID:    "test_auto",
+			wantUpdateID: "test_auto",
+			additionalArgs: map[string]any{
+				"alias": "Updated Name",
+			},
+		},
+		{
+			name:         "update - without prefix",
+			action:       "update",
+			inputID:      "test_auto",
+			wantGetID:    "test_auto",
+			wantUpdateID: "test_auto",
+			additionalArgs: map[string]any{
+				"alias": "Updated Name",
+			},
+		},
+		{
+			name:         "delete - with prefix",
+			action:       "delete",
+			inputID:      "automation.test_auto",
+			wantDeleteID: "test_auto",
+		},
+		{
+			name:         "delete - without prefix",
+			action:       "delete",
+			inputID:      "test_auto",
+			wantDeleteID: "test_auto",
+		},
+		{
+			name:         "toggle - with prefix",
+			action:       "toggle",
+			inputID:      "automation.test_auto",
+			wantToggleID: "automation.test_auto",
+			additionalArgs: map[string]any{
+				"enabled": true,
+			},
+		},
+		{
+			name:         "toggle - without prefix",
+			action:       "toggle",
+			inputID:      "test_auto",
+			wantToggleID: "automation.test_auto",
+			additionalArgs: map[string]any{
+				"enabled": false,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockAutomationClient{
+				automation: testAutomation,
+				automationMap: map[string]*homeassistant.Automation{
+					"test_auto": testAutomation,
+				},
+			}
+
+			h := &AutomationHandlers{}
+			args := map[string]any{
+				"action":        tt.action,
+				"automation_id": tt.inputID,
+			}
+			for k, v := range tt.additionalArgs {
+				args[k] = v
+			}
+
+			_, err := h.handleManageAutomation(context.Background(), client, args)
+			if err != nil {
+				t.Fatalf("handleManageAutomation() unexpected error = %v", err)
+			}
+
+			// Verify the correct ID format was passed to client methods
+			if tt.wantGetID != "" && client.lastGetID != tt.wantGetID {
+				t.Errorf("GetAutomation called with ID %q, want %q", client.lastGetID, tt.wantGetID)
+			}
+			if tt.wantUpdateID != "" && client.lastUpdateID != tt.wantUpdateID {
+				t.Errorf("UpdateAutomation called with ID %q, want %q", client.lastUpdateID, tt.wantUpdateID)
+			}
+			if tt.wantDeleteID != "" && client.lastDeleteID != tt.wantDeleteID {
+				t.Errorf("DeleteAutomation called with ID %q, want %q", client.lastDeleteID, tt.wantDeleteID)
+			}
+			if tt.wantToggleID != "" && client.lastToggleID != tt.wantToggleID {
+				t.Errorf("ToggleAutomation called with ID %q, want %q", client.lastToggleID, tt.wantToggleID)
 			}
 		})
 	}

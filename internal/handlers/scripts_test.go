@@ -859,6 +859,9 @@ func TestScriptHandlers_CallService(t *testing.T) {
 				"domain":  "light",
 				"service": "turn_off",
 				"format":  "natural",
+				"data": map[string]any{
+					"entity_id": "light.bedroom",
+				},
 			},
 			callServiceRes: []homeassistant.Entity{
 				{EntityID: "light.bedroom", State: "off"},
@@ -872,6 +875,9 @@ func TestScriptHandlers_CallService(t *testing.T) {
 				"domain":  "light",
 				"service": "toggle",
 				"format":  "natural",
+				"data": map[string]any{
+					"entity_id": []any{"light.bedroom", "light.kitchen"},
+				},
 			},
 			callServiceRes: []homeassistant.Entity{
 				{EntityID: "light.bedroom", State: "off"},
@@ -1175,6 +1181,82 @@ func TestManageScript_GetByFriendlyName(t *testing.T) {
 			content := result.Content[0].Text
 			if tt.wantContains != "" && !strings.Contains(content, tt.wantContains) {
 				t.Errorf("Expected content to contain %q, got: %s", tt.wantContains, content)
+			}
+		})
+	}
+}
+
+func TestExtractEntityTargets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		data     map[string]any
+		expected []string
+	}{
+		{
+			name:     "nil data",
+			data:     nil,
+			expected: []string{},
+		},
+		{
+			name:     "no entity_id",
+			data:     map[string]any{"brightness": 255},
+			expected: []string{},
+		},
+		{
+			name:     "single string entity_id",
+			data:     map[string]any{"entity_id": "light.bedroom"},
+			expected: []string{"light.bedroom"},
+		},
+		{
+			name: "[]any slice entity_id",
+			data: map[string]any{
+				"entity_id": []any{"light.bedroom", "light.kitchen"},
+			},
+			expected: []string{"light.bedroom", "light.kitchen"},
+		},
+		{
+			name: "[]string slice entity_id",
+			data: map[string]any{
+				"entity_id": []string{"light.bedroom", "light.kitchen"},
+			},
+			expected: []string{"light.bedroom", "light.kitchen"},
+		},
+		{
+			name:     "empty string entity_id",
+			data:     map[string]any{"entity_id": ""},
+			expected: []string{},
+		},
+		{
+			name: "empty []any slice",
+			data: map[string]any{
+				"entity_id": []any{},
+			},
+			expected: []string{},
+		},
+		{
+			name: "mixed valid and invalid in []any",
+			data: map[string]any{
+				"entity_id": []any{"light.bedroom", 123, "light.kitchen"},
+			},
+			expected: []string{"light.bedroom", "light.kitchen"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := extractEntityTargets(tt.data)
+			if len(got) != len(tt.expected) {
+				t.Errorf("extractEntityTargets() length = %d, want %d", len(got), len(tt.expected))
+				return
+			}
+			for i, exp := range tt.expected {
+				if got[i] != exp {
+					t.Errorf("extractEntityTargets()[%d] = %q, want %q", i, got[i], exp)
+				}
 			}
 		})
 	}

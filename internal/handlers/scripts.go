@@ -433,7 +433,7 @@ func (h *ScriptHandlers) handleCallService(ctx context.Context, client homeassis
 		data = d
 	}
 
-	entities, err := client.CallService(ctx, domain, service, data)
+	_, err := client.CallService(ctx, domain, service, data)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error calling service: %v", err)), nil
 	}
@@ -441,10 +441,8 @@ func (h *ScriptHandlers) handleCallService(ctx context.Context, client homeassis
 	format := formatter.ParseFormat(getStringArg(args, "format"))
 	f := formatter.New(format)
 
-	targets := make([]string, 0, len(entities))
-	for _, e := range entities {
-		targets = append(targets, e.EntityID)
-	}
+	// Extract targets from input data since WebSocket response doesn't include affected entities
+	targets := extractEntityTargets(data)
 
 	output, err := f.FormatServiceSuccess(ctx, domain, service, targets, data)
 	if err != nil {
@@ -452,4 +450,49 @@ func (h *ScriptHandlers) handleCallService(ctx context.Context, client homeassis
 	}
 
 	return successResult(output), nil
+}
+
+// extractEntityTargets extracts entity IDs from the data map.
+// Handles: string, []any, []string formats for data["entity_id"].
+func extractEntityTargets(data map[string]any) []string {
+	if data == nil {
+		return []string{}
+	}
+
+	entityIDVal, ok := data["entity_id"]
+	if !ok {
+		return []string{}
+	}
+
+	// Handle string
+	if entityID, ok := entityIDVal.(string); ok {
+		if entityID != "" {
+			return []string{entityID}
+		}
+		return []string{}
+	}
+
+	// Handle []string
+	if entityIDs, ok := entityIDVal.([]string); ok {
+		result := make([]string, 0, len(entityIDs))
+		for _, id := range entityIDs {
+			if id != "" {
+				result = append(result, id)
+			}
+		}
+		return result
+	}
+
+	// Handle []any
+	if entityIDs, ok := entityIDVal.([]any); ok {
+		result := make([]string, 0, len(entityIDs))
+		for _, id := range entityIDs {
+			if strID, ok := id.(string); ok && strID != "" {
+				result = append(result, strID)
+			}
+		}
+		return result
+	}
+
+	return []string{}
 }
