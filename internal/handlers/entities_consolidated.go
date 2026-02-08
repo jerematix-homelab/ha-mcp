@@ -56,13 +56,14 @@ type compactHistoryEntry struct {
 
 // historyParams encapsulates all parsed parameters for history queries.
 type historyParams struct {
-	entityID    string
-	startTime   time.Time
-	endTime     time.Time
-	stateFilter string
-	limit       int
-	format      formatter.Format
-	verbose     bool
+	entityID     string
+	startTime    time.Time
+	endTime      time.Time
+	stateFilter  string
+	limit        int
+	format       formatter.Format
+	verbose      bool
+	entityExists bool // Set after GetState check when history is empty
 }
 
 // historyResult encapsulates processed history data.
@@ -680,7 +681,7 @@ func (h *ConsolidatedEntityQueryHandlers) formatStatesNatural(
 	opts := formatter.EntityListOptions{
 		Verbose:        params.verbose,
 		IncludeSummary: true,
-		GroupByDomain:  !params.verbose, // Group by domain in compact mode
+		GroupByDomain:  params.groupBy == "domain", // Group by domain when explicitly requested
 	}
 
 	output, err := f.FormatEntities(ctx, paginated.Items, opts)
@@ -852,6 +853,14 @@ func (h *ConsolidatedEntityQueryHandlers) handleHistory(
 
 	result := processHistoryEntries(history, params.stateFilter, params.limit)
 
+	// Check entity existence when no history found
+	entityExists := true
+	if len(result.entries) == 0 {
+		_, stateErr := client.GetState(ctx, params.entityID)
+		entityExists = stateErr == nil
+	}
+	params.entityExists = entityExists
+
 	// Use formatter based on format parameter
 	if params.format == formatter.FormatNatural {
 		return h.formatHistoryNatural(ctx, params.entityID, result, params)
@@ -880,8 +889,9 @@ func (h *ConsolidatedEntityQueryHandlers) formatHistoryNatural(
 	f := formatter.NewNaturalFormatter()
 
 	opts := formatter.HistoryOptions{
-		Verbose: params.verbose,
-		Limit:   params.limit,
+		Verbose:      params.verbose,
+		Limit:        params.limit,
+		EntityExists: params.entityExists,
 	}
 	if opts.Limit == 0 {
 		opts.Limit = 10 // Default limit for verbose natural language output

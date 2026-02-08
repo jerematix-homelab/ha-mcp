@@ -73,11 +73,20 @@ func (f *NaturalFormatter) FormatEntities(_ context.Context, entities []homeassi
 // entries is a flat list of HistoryEntry (already processed from [][]HistoryEntry).
 func (f *NaturalFormatter) FormatHistory(_ context.Context, entityID string, entries []homeassistant.HistoryEntry, opts HistoryOptions) (string, error) {
 	if len(entries) == 0 {
+		// Differentiate between "entity not found" vs "entity exists but no history"
+		if !opts.EntityExists {
+			return fmt.Sprintf(`Entity %s was not found in Home Assistant.
+
+Please verify:
+- The entity_id is spelled correctly
+- The entity exists in your Home Assistant instance
+- You have access permissions to view this entity`, entityID), nil
+		}
 		return fmt.Sprintf(`No history found for %s.
 
 Possible reasons:
 - Entity may be excluded from recorder configuration
-- Entity may have been created recently
+- Entity may have been newly created
 - No state changes occurred in the requested period
 
 Tips:
@@ -391,7 +400,7 @@ func (f *NaturalFormatter) formatEntitiesByDomain(entities []homeassistant.Entit
 }
 
 // formatDomainGroup formats a group of entities from the same domain.
-func (f *NaturalFormatter) formatDomainGroup(domain string, entities []homeassistant.Entity, verbose bool) string {
+func (f *NaturalFormatter) formatDomainGroup(domain string, entities []homeassistant.Entity, _ bool) string {
 	var parts []string
 
 	// Domain header with count
@@ -411,10 +420,10 @@ func (f *NaturalFormatter) formatDomainGroup(domain string, entities []homeassis
 
 	parts = append(parts, header)
 
-	if verbose {
-		for _, e := range entities {
-			parts = append(parts, "- "+f.formatEntityNL(e, false))
-		}
+	// Always show entities when domain grouping is used (explicit grouping)
+	// Use compact format if not verbose
+	for _, e := range entities {
+		parts = append(parts, "- "+f.formatEntityNL(e, false))
 	}
 
 	return strings.Join(parts, "\n")

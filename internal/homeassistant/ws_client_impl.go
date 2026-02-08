@@ -865,7 +865,11 @@ func (c *wsClientImpl) GetStatistics(ctx context.Context, statIDs []string, peri
 	}
 
 	var allStats []StatisticsResult
-	for _, stats := range statsMap {
+	for statID, stats := range statsMap {
+		// Populate StatisticID from map key (HA API returns it only as key, not in entries)
+		for i := range stats {
+			stats[i].StatisticID = statID
+		}
 		allStats = append(allStats, stats...)
 	}
 

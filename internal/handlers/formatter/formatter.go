@@ -41,8 +41,9 @@ type EntityListOptions struct {
 
 // HistoryOptions configures history entry formatting.
 type HistoryOptions struct {
-	Verbose bool
-	Limit   int
+	Verbose      bool
+	Limit        int
+	EntityExists bool // Set to true if entity exists (via GetState), used for empty history messaging
 }
 
 // RegistryOptions configures registry entry formatting.
