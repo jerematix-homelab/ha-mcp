@@ -436,7 +436,7 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool | Description |
 |------|-------------|
-| `query_entities` | Consolidated entity queries (mode: current, history, statistics, domains; format: natural/json) |
+| `query_entities` | Consolidated entity queries (mode: current, history, statistics, domains, presence; format: natural/json; group_by: domain, area_id, device_class, integration) |
 | `get_state` | Get state of a specific entity (format: natural/json) |
 | `analyze_entity` | Analyze entity usage in automations, scripts, and scenes (format: natural/json) |
 | `get_entity_dependencies` | Find all entities an automation/script depends on (format: natural/json) |
@@ -453,7 +453,7 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool | Description |
 |------|-------------|
-| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle; format: natural/json for list/get) |
+| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle, coverage; format: natural/json for list/get/coverage) |
 
 **Flexible ID Lookup**: The `automation_id` parameter accepts multiple formats:
 - Entity ID: `automation.morning_lights`
@@ -467,7 +467,7 @@ ha-mcp provides comprehensive support for all 14 Home Assistant helper types thr
 | Tool | Description |
 |------|-------------|
 | `list_helpers` | List all helpers across all types |
-| `manage_helper` | List, create, delete, or get details for any helper type (format: natural/json) |
+| `manage_helper` | List, create, delete, or get details for any helper type (supports schedule, counter, timer details; format: natural/json) |
 | `helper_action` | Execute runtime actions (toggle, set, increment, start, etc.) |
 
 ##### manage_helper
@@ -550,7 +550,7 @@ Universal tool for runtime helper operations:
 
 | Tool | Description |
 |------|-------------|
-| `get_logbook` | Get logbook entries showing what happened in Home Assistant |
+| `get_logbook` | Get logbook entries (mode: entries, correlation; format: natural/json) with cause-effect analysis |
 
 #### Configuration Tools
 
@@ -936,8 +936,10 @@ ha-mcp/
 │   │   ├── analysis_snapshot.go # Parallel data fetching for analysis
 │   │   ├── entities.go          # Entity tool handlers (get_state)
 │   │   ├── analysis.go          # Analysis tool handlers (analyze_entity, get_entity_dependencies)
-│   │   ├── entities_consolidated.go # Consolidated query_entities tool (current/history/statistics/domains)
+│   │   ├── entities_consolidated.go # Consolidated query_entities tool (current/history/statistics/domains/presence)
+│   │   ├── entities_presence.go # Presence analysis for query_entities
 │   │   ├── automations.go       # Consolidated manage_automation tool
+│   │   ├── automations_coverage.go # Automation coverage analysis
 │   │   ├── helpers.go           # list_helpers tool handler
 │   │   ├── helpers_consolidated.go  # manage_helper and helper_action tools
 │   │   ├── scripts.go           # Consolidated manage_script tool
@@ -951,7 +953,8 @@ ha-mcp/
 │   │   ├── system.go            # System info handler
 │   │   ├── datetime.go          # Date/time handler
 │   │   ├── templates.go         # Template rendering handler
-│   │   ├── logbook.go           # Logbook access handler
+│   │   ├── logbook.go           # Logbook access handler (entries/correlation modes)
+│   │   ├── logbook_correlation.go # Logbook correlation analysis
 │   │   ├── config.go            # Configuration validation handler
 │   │   └── register.go          # Handler registration
 │   └── logging/
