@@ -28,6 +28,7 @@ type compactEntityState struct {
 // stateFilterParams holds parsed filter parameters for entity states.
 type stateFilterParams struct {
 	domain         string
+	areaID         string
 	stateFilter    string
 	stateNotFilter string
 	nameContains   string
@@ -75,6 +76,7 @@ func NewConsolidatedEntityQueryHandlers() *ConsolidatedEntityQueryHandlers {
 func parseStateFilterParams(args map[string]any) stateFilterParams {
 	return stateFilterParams{
 		domain:         getStringArg(args, "domain"),
+		areaID:         getStringArg(args, "area_id"),
 		stateFilter:    getStringArg(args, "state"),
 		stateNotFilter: getStringArg(args, "state_not"),
 		nameContains:   getStringArg(args, "name_contains"),
@@ -83,13 +85,51 @@ func parseStateFilterParams(args map[string]any) stateFilterParams {
 	}
 }
 
+// buildEntityIDsInArea builds a set of entity IDs that belong to an area,
+// either directly or via their device.
+func buildEntityIDsInArea(ctx context.Context, client homeassistant.Client, areaID string) (map[string]bool, error) {
+	entityIDsInArea := make(map[string]bool)
+
+	// Load entity registry
+	entityRegistry, err := client.GetEntityRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load entity registry: %w", err)
+	}
+
+	// Load device registry to check device-area mapping
+	deviceRegistry, err := client.GetDeviceRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load device registry: %w", err)
+	}
+
+	// Build device ID to area ID mapping
+	deviceIDsInArea := make(map[string]bool)
+	for _, device := range deviceRegistry {
+		if device.AreaID == areaID {
+			deviceIDsInArea[device.ID] = true
+		}
+	}
+
+	// Find entities in area (direct or via device)
+	for _, entity := range entityRegistry {
+		directMatch := entity.AreaID == areaID
+		deviceMatch := entity.DeviceID != "" && deviceIDsInArea[entity.DeviceID]
+		if directMatch || deviceMatch {
+			entityIDsInArea[entity.EntityID] = true
+		}
+	}
+
+	return entityIDsInArea, nil
+}
+
 // filterStates applies all filters to a list of entities.
-func filterStates(states []homeassistant.Entity, params stateFilterParams) []homeassistant.Entity {
+// If entityIDsInArea is non-nil, only entities in that set are included.
+func filterStates(states []homeassistant.Entity, params stateFilterParams, entityIDsInArea map[string]bool) []homeassistant.Entity {
 	nameContainsLower := strings.ToLower(params.nameContains)
 	filtered := make([]homeassistant.Entity, 0, len(states))
 
 	for _, state := range states {
-		if matchesStateFilters(state, params, nameContainsLower) {
+		if matchesStateFilters(state, params, nameContainsLower, entityIDsInArea) {
 			filtered = append(filtered, state)
 		}
 	}
@@ -98,7 +138,12 @@ func filterStates(states []homeassistant.Entity, params stateFilterParams) []hom
 }
 
 // matchesStateFilters checks if a single entity matches all filters.
-func matchesStateFilters(state homeassistant.Entity, params stateFilterParams, nameContainsLower string) bool {
+// If entityIDsInArea is non-nil, entity must be in that set.
+func matchesStateFilters(state homeassistant.Entity, params stateFilterParams, nameContainsLower string, entityIDsInArea map[string]bool) bool {
+	// Check area filter first (if entityIDsInArea is provided)
+	if entityIDsInArea != nil && !entityIDsInArea[state.EntityID] {
+		return false
+	}
 	if params.domain != "" && !strings.HasPrefix(state.EntityID, params.domain+".") {
 		return false
 	}
@@ -152,6 +197,9 @@ func buildStateFiltersMap(params stateFilterParams) map[string]any {
 	filters := make(map[string]any)
 	if params.domain != "" {
 		filters["domain"] = params.domain
+	}
+	if params.areaID != "" {
+		filters["area_id"] = params.areaID
 	}
 	if params.stateFilter != "" {
 		filters["state"] = params.stateFilter
@@ -379,6 +427,10 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 			Type:        "string",
 			Description: "Filter by entity_id or friendly_name containing string. Only for mode=current",
 		},
+		"area_id": {
+			Type:        "string",
+			Description: "Filter entities by area (matches entities directly in area or via device). Only for mode=current",
+		},
 		// History mode parameters
 		"entity_id": {
 			Type:        "string",
@@ -458,7 +510,17 @@ func (h *ConsolidatedEntityQueryHandlers) handleCurrent(
 	}
 
 	filterParams := parseStateFilterParams(args)
-	states = filterStates(states, filterParams)
+
+	// Load area filter if specified
+	var entityIDsInArea map[string]bool
+	if filterParams.areaID != "" {
+		entityIDsInArea, err = buildEntityIDsInArea(ctx, client, filterParams.areaID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("Error loading area filter: %v", err)), nil
+		}
+	}
+
+	states = filterStates(states, filterParams, entityIDsInArea)
 
 	// Sort by entity_id for stable pagination
 	sort.Slice(states, func(i, j int) bool {
@@ -689,7 +751,7 @@ func (h *ConsolidatedEntityQueryHandlers) formatStatisticsNatural(
 		showCount := min(5, len(stats))
 		for i := len(stats) - showCount; i < len(stats); i++ {
 			stat := stats[i]
-			timestamp := time.Unix(int64(stat.Start), 0).Format(time.RFC3339)
+			timestamp := stat.StartTime().Format(time.RFC3339)
 			values := formatStatValues(stat)
 			if values != "" {
 				fmt.Fprintf(&output, "- %s: %s\n", timestamp, values)
