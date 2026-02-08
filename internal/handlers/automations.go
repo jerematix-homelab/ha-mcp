@@ -16,12 +16,13 @@ import (
 
 // Automation action constants.
 const (
-	automationActionList   = "list"
-	automationActionGet    = "get"
-	automationActionCreate = "create"
-	automationActionUpdate = "update"
-	automationActionDelete = "delete"
-	automationActionToggle = "toggle"
+	automationActionList     = "list"
+	automationActionGet      = "get"
+	automationActionCreate   = "create"
+	automationActionUpdate   = "update"
+	automationActionDelete   = "delete"
+	automationActionToggle   = "toggle"
+	automationActionCoverage = "coverage"
 )
 
 // AutomationHandlers provides MCP tool handlers for automation operations.
@@ -45,7 +46,7 @@ func (h *AutomationHandlers) RegisterTools(registry *mcp.Registry) {
 func (h *AutomationHandlers) manageAutomationTool() mcp.Tool {
 	return mcp.Tool{
 		Name: "manage_automation",
-		Description: `Manage Home Assistant automations - list, get, create, update, delete, or toggle.
+		Description: `Manage Home Assistant automations - list, get, create, update, delete, toggle, or analyze coverage.
 
 Actions:
 - list: List automations (optional filters: state, alias, entity_id; supports verbose, limit, cursor)
@@ -53,15 +54,16 @@ Actions:
 - create: Create a new automation (requires alias, trigger, action)
 - update: Update an existing automation (requires automation_id)
 - delete: Delete an automation (requires automation_id)
-- toggle: Enable or disable an automation (requires automation_id, enabled)`,
+- toggle: Enable or disable an automation (requires automation_id, enabled)
+- coverage: Analyze which areas/entities lack automation coverage`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Automation management operation",
 			Properties: map[string]mcp.JSONSchema{
 				"action": {
 					Type:        "string",
-					Description: "Operation to perform: list, get, create, update, delete, toggle",
-					Enum:        []string{"list", "get", "create", "update", "delete", "toggle"},
+					Description: "Operation to perform: list, get, create, update, delete, toggle, coverage",
+					Enum:        []string{"list", "get", "create", "update", "delete", "toggle", "coverage"},
 				},
 				"automation_id": {
 					Type:        "string",
@@ -154,8 +156,10 @@ func (h *AutomationHandlers) handleManageAutomation(
 		return h.handleDelete(ctx, client, args)
 	case automationActionToggle:
 		return h.handleToggle(ctx, client, args)
+	case automationActionCoverage:
+		return h.handleCoverage(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, or toggle)", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, toggle, or coverage)", action)), nil
 	}
 }
 
