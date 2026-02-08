@@ -211,6 +211,67 @@ func TestQueryEntities_Current(t *testing.T) {
 			wantNotContains: []string{"light.bedroom", "switch.kitchen"},
 		},
 		{
+			name: "device_class filter - motion",
+			args: map[string]any{"mode": modeCurrent, "domain": "binary_sensor", "device_class": "motion", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{
+						{
+							EntityID: "binary_sensor.motion_hall",
+							State:    "on",
+							Attributes: map[string]any{
+								"device_class":  "motion",
+								"friendly_name": "Hall Motion",
+							},
+						},
+						{
+							EntityID: "binary_sensor.motion_living",
+							State:    "off",
+							Attributes: map[string]any{
+								"device_class":  "motion",
+								"friendly_name": "Living Room Motion",
+							},
+						},
+						{
+							EntityID: "binary_sensor.door_front",
+							State:    "off",
+							Attributes: map[string]any{
+								"device_class":  "door",
+								"friendly_name": "Front Door",
+							},
+						},
+					}, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"binary_sensor.motion_hall", "binary_sensor.motion_living"},
+			wantNotContains: []string{"binary_sensor.door_front"},
+		},
+		{
+			name: "device_class filter - no match",
+			args: map[string]any{"mode": modeCurrent, "device_class": "temperature", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"[]"}, // Empty result
+		},
+		{
+			name: "device_class filter - entity without device_class",
+			args: map[string]any{"mode": modeCurrent, "device_class": "motion", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{
+						{EntityID: "light.test", State: "on", Attributes: map[string]any{"brightness": 255}},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"[]"}, // Empty result - no device_class
+		},
+		{
 			name: "pagination",
 			args: map[string]any{"mode": modeCurrent, "limit": float64(2), "format": "json"},
 			setupMock: func(m *UniversalMockClient) {

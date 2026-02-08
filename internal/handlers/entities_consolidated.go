@@ -42,6 +42,7 @@ type stateFilterParams struct {
 	stateFilter    string
 	stateNotFilter string
 	nameContains   string
+	deviceClass    string
 	sortBy         string
 	groupBy        string
 	format         formatter.Format
@@ -93,6 +94,7 @@ func parseStateFilterParams(args map[string]any) stateFilterParams {
 		stateFilter:    getStringArg(args, "state"),
 		stateNotFilter: getStringArg(args, "state_not"),
 		nameContains:   getStringArg(args, "name_contains"),
+		deviceClass:    getStringArg(args, "device_class"),
 		sortBy:         getStringArg(args, "sort_by"),
 		groupBy:        getStringArg(args, "group_by"),
 		format:         formatter.ParseFormat(getStringArg(args, "format")),
@@ -265,6 +267,12 @@ func matchesStateFilters(state homeassistant.Entity, params stateFilterParams, n
 	if params.nameContains != "" && !matchesNameFilter(state, nameContainsLower) {
 		return false
 	}
+	if params.deviceClass != "" {
+		entityDC, _ := state.Attributes["device_class"].(string)
+		if entityDC != params.deviceClass {
+			return false
+		}
+	}
 	return true
 }
 
@@ -318,6 +326,9 @@ func buildStateFiltersMap(params stateFilterParams) map[string]any {
 	}
 	if params.nameContains != "" {
 		filters["name_contains"] = params.nameContains
+	}
+	if params.deviceClass != "" {
+		filters["device_class"] = params.deviceClass
 	}
 	return filters
 }
@@ -535,6 +546,10 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 		"name_contains": {
 			Type:        "string",
 			Description: "Filter by entity_id or friendly_name containing string. Only for mode=current",
+		},
+		"device_class": {
+			Type:        "string",
+			Description: "Filter by device_class attribute (e.g., 'motion', 'door', 'temperature'). Only for mode=current",
 		},
 		"area_id": {
 			Type:        "string",

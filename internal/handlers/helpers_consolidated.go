@@ -586,11 +586,21 @@ func (h *ConsolidatedHelperHandlers) handleGetDetails(ctx context.Context, clien
 		return errorResult("entity_id is required for get_details action"), nil
 	}
 
-	// Currently only schedule supports get_details
 	platform, _ := ParseHelperEntityID(entityID)
-	if platform != platformSchedule {
-		return errorResult("get_details is only supported for schedule entities"), nil
+	switch platform {
+	case platformSchedule:
+		return h.handleGetDetailsSchedule(ctx, client, args)
+	case platformCounter:
+		return h.handleGetDetailsCounter(ctx, client, args)
+	case platformTimer:
+		return h.handleGetDetailsTimer(ctx, client, args)
+	default:
+		return errorResult("get_details is not supported for this helper type (supported: schedule, counter, timer)"), nil
 	}
+}
+
+func (h *ConsolidatedHelperHandlers) handleGetDetailsSchedule(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	entityID, _ := args["entity_id"].(string)
 
 	state, err := client.GetState(ctx, entityID)
 	if err != nil {
@@ -605,7 +615,6 @@ func (h *ConsolidatedHelperHandlers) handleGetDetails(ctx context.Context, clien
 	timeBlocks := parseTimeBlocks(config)
 	details := buildScheduleDetails(state, timeBlocks)
 
-	// Format output based on format parameter
 	formatStr, _ := args["format"].(string)
 	format := formatter.ParseFormat(formatStr)
 
@@ -613,6 +622,83 @@ func (h *ConsolidatedHelperHandlers) handleGetDetails(ctx context.Context, clien
 	output, err := helperFormatter.FormatScheduleDetail(ctx, details)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error formatting schedule: %v", err)), nil
+	}
+
+	return successResult(output), nil
+}
+
+func (h *ConsolidatedHelperHandlers) handleGetDetailsCounter(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	entityID, _ := args["entity_id"].(string)
+
+	state, err := client.GetState(ctx, entityID)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error getting counter state: %v", err)), nil
+	}
+
+	details := map[string]any{
+		"entity_id":     state.EntityID,
+		"state":         state.State,
+		"friendly_name": state.Attributes["friendly_name"],
+	}
+
+	// Extract counter-specific attributes and convert to strings for natural format
+	if initial, ok := state.Attributes["initial"]; ok {
+		details["initial"] = fmt.Sprintf("%v", initial)
+	}
+	if minimum, ok := state.Attributes["minimum"]; ok {
+		details["minimum"] = fmt.Sprintf("%v", minimum)
+	}
+	if maximum, ok := state.Attributes["maximum"]; ok {
+		details["maximum"] = fmt.Sprintf("%v", maximum)
+	}
+	if step, ok := state.Attributes["step"]; ok {
+		details["step"] = fmt.Sprintf("%v", step)
+	}
+
+	formatStr, _ := args["format"].(string)
+	format := formatter.ParseFormat(formatStr)
+
+	helperFormatter := formatter.NewHelperFormatter(format)
+	output, err := helperFormatter.FormatCounterDetail(ctx, details)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error formatting counter: %v", err)), nil
+	}
+
+	return successResult(output), nil
+}
+
+func (h *ConsolidatedHelperHandlers) handleGetDetailsTimer(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	entityID, _ := args["entity_id"].(string)
+
+	state, err := client.GetState(ctx, entityID)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error getting timer state: %v", err)), nil
+	}
+
+	details := map[string]any{
+		"entity_id":     state.EntityID,
+		"state":         state.State,
+		"friendly_name": state.Attributes["friendly_name"],
+	}
+
+	// Extract timer-specific attributes (already strings in HA)
+	if duration, ok := state.Attributes["duration"]; ok {
+		details["duration"] = fmt.Sprintf("%v", duration)
+	}
+	if remaining, ok := state.Attributes["remaining"]; ok {
+		details["remaining"] = fmt.Sprintf("%v", remaining)
+	}
+	if finishesAt, ok := state.Attributes["finishes_at"]; ok {
+		details["finishes_at"] = fmt.Sprintf("%v", finishesAt)
+	}
+
+	formatStr, _ := args["format"].(string)
+	format := formatter.ParseFormat(formatStr)
+
+	helperFormatter := formatter.NewHelperFormatter(format)
+	output, err := helperFormatter.FormatTimerDetail(ctx, details)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error formatting timer: %v", err)), nil
 	}
 
 	return successResult(output), nil

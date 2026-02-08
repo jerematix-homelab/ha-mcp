@@ -110,6 +110,49 @@ func TestNaturalFormatter_FormatEntity(t *testing.T) {
 			},
 			contains: []string{"Living Room Speaker", "is playing", "Bohemian Rhapsody", "by Queen"},
 		},
+		{
+			name: "update available",
+			entity: homeassistant.Entity{
+				EntityID: "update.home_assistant_core",
+				State:    "on",
+				Attributes: map[string]any{
+					"title":             "Home Assistant Core Update",
+					"installed_version": "2024.1.0",
+					"latest_version":    "2024.1.5",
+				},
+				LastChanged: now.Add(-1 * time.Hour),
+			},
+			contains: []string{"Home Assistant Core Update", "Update available", "2024.1.0", "2024.1.5"},
+		},
+		{
+			name: "update up to date",
+			entity: homeassistant.Entity{
+				EntityID: "update.hacs",
+				State:    "off",
+				Attributes: map[string]any{
+					"title":             "HACS",
+					"installed_version": "1.34.0",
+					"latest_version":    "1.34.0",
+				},
+				LastChanged: now.Add(-2 * time.Hour),
+			},
+			contains: []string{"HACS", "Up to date", "1.34.0"},
+		},
+		{
+			name: "update in progress",
+			entity: homeassistant.Entity{
+				EntityID: "update.esphome",
+				State:    "on",
+				Attributes: map[string]any{
+					"title":             "ESPHome",
+					"installed_version": "2023.12.0",
+					"latest_version":    "2024.1.0",
+					"in_progress":       true,
+				},
+				LastChanged: now.Add(-5 * time.Minute),
+			},
+			contains: []string{"ESPHome", "Installing update"},
+		},
 	}
 
 	for _, tt := range tests {

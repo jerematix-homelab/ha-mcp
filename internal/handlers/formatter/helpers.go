@@ -18,6 +18,7 @@ const (
 // Helper type constants.
 const (
 	helperTypeInputBoolean = "input_boolean"
+	helperStateActive      = "active"
 )
 
 // HelperListOptions configures helper list formatting.
@@ -33,6 +34,12 @@ type HelperFormatter interface {
 
 	// FormatScheduleDetail formats schedule details.
 	FormatScheduleDetail(ctx context.Context, detail map[string]any) (string, error)
+
+	// FormatCounterDetail formats counter details.
+	FormatCounterDetail(ctx context.Context, detail map[string]any) (string, error)
+
+	// FormatTimerDetail formats timer details.
+	FormatTimerDetail(ctx context.Context, detail map[string]any) (string, error)
 }
 
 // NewHelperFormatter creates a new HelperFormatter for the specified format.
@@ -111,6 +118,75 @@ func (f *NaturalHelperFormatter) FormatScheduleDetail(
 	if schedule, ok := detail["schedule"].(map[string][]map[string]string); ok && len(schedule) > 0 {
 		result.WriteString("\n")
 		f.writeScheduleBlocks(&result, schedule)
+	}
+
+	return strings.TrimSuffix(result.String(), "\n"), nil
+}
+
+// FormatCounterDetail formats counter details in natural language.
+func (f *NaturalHelperFormatter) FormatCounterDetail(
+	_ context.Context,
+	detail map[string]any,
+) (string, error) {
+	var result strings.Builder
+
+	// Header
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	value := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Counter: %s\n", name)
+	fmt.Fprintf(&result, "Current value: %s\n", value)
+
+	// Counter configuration
+	if initial := f.getDetailString(detail, "initial"); initial != "" {
+		fmt.Fprintf(&result, "Initial value: %s\n", initial)
+	}
+	if minimum := f.getDetailString(detail, "minimum"); minimum != "" {
+		fmt.Fprintf(&result, "Minimum: %s\n", minimum)
+	}
+	if maximum := f.getDetailString(detail, "maximum"); maximum != "" {
+		fmt.Fprintf(&result, "Maximum: %s\n", maximum)
+	}
+	if step := f.getDetailString(detail, "step"); step != "" {
+		fmt.Fprintf(&result, "Step: %s", step)
+	}
+
+	return strings.TrimSuffix(result.String(), "\n"), nil
+}
+
+// FormatTimerDetail formats timer details in natural language.
+func (f *NaturalHelperFormatter) FormatTimerDetail(
+	_ context.Context,
+	detail map[string]any,
+) (string, error) {
+	var result strings.Builder
+
+	// Header
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Timer: %s\n", name)
+	fmt.Fprintf(&result, "State: %s\n", state)
+
+	// Timer details
+	if duration := f.getDetailString(detail, "duration"); duration != "" {
+		fmt.Fprintf(&result, "Duration: %s\n", duration)
+	}
+
+	// Only show remaining and finishes_at if timer is active
+	if state == helperStateActive {
+		if remaining := f.getDetailString(detail, "remaining"); remaining != "" {
+			fmt.Fprintf(&result, "Remaining: %s\n", remaining)
+		}
+		if finishesAt := f.getDetailString(detail, "finishes_at"); finishesAt != "" {
+			fmt.Fprintf(&result, "Finishes at: %s", finishesAt)
+		}
 	}
 
 	return strings.TrimSuffix(result.String(), "\n"), nil
@@ -446,6 +522,38 @@ func (f *JSONHelperFormatter) FormatScheduleDetail(
 	data, err := json.MarshalIndent(detail, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal schedule detail: %w", err)
+	}
+	return string(data), nil
+}
+
+// FormatCounterDetail formats counter details in JSON.
+func (f *JSONHelperFormatter) FormatCounterDetail(
+	_ context.Context,
+	detail map[string]any,
+) (string, error) {
+	if detail == nil {
+		detail = map[string]any{}
+	}
+
+	data, err := json.MarshalIndent(detail, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal counter detail: %w", err)
+	}
+	return string(data), nil
+}
+
+// FormatTimerDetail formats timer details in JSON.
+func (f *JSONHelperFormatter) FormatTimerDetail(
+	_ context.Context,
+	detail map[string]any,
+) (string, error) {
+	if detail == nil {
+		detail = map[string]any{}
+	}
+
+	data, err := json.MarshalIndent(detail, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal timer detail: %w", err)
 	}
 	return string(data), nil
 }

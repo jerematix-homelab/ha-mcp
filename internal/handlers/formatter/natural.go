@@ -171,6 +171,8 @@ func (f *NaturalFormatter) formatEntityNL(entity homeassistant.Entity, includeTi
 		details = f.formatCoverDetails(entity)
 	case "media_player":
 		details = f.formatMediaPlayerDetails(entity)
+	case "update":
+		details = f.formatUpdateDetails(entity)
 	default:
 		details = fmt.Sprintf("is %s", state)
 	}
@@ -216,7 +218,7 @@ func (f *NaturalFormatter) formatLightDetails(entity homeassistant.Entity) strin
 // formatClimateDetails formats climate-specific attributes.
 func (f *NaturalFormatter) formatClimateDetails(entity homeassistant.Entity) string {
 	state := entity.State
-	if state == "off" {
+	if state == stateOff {
 		return stateIsOff
 	}
 
@@ -311,7 +313,7 @@ func (f *NaturalFormatter) formatCoverDetails(entity homeassistant.Entity) strin
 // formatMediaPlayerDetails formats media_player-specific attributes.
 func (f *NaturalFormatter) formatMediaPlayerDetails(entity homeassistant.Entity) string {
 	state := entity.State
-	if state == "off" || state == "standby" {
+	if state == stateOff || state == "standby" {
 		return stateIsOff
 	}
 
@@ -329,6 +331,27 @@ func (f *NaturalFormatter) formatMediaPlayerDetails(entity homeassistant.Entity)
 	}
 
 	return strings.Join(parts, " ")
+}
+
+// formatUpdateDetails formats update-specific attributes.
+func (f *NaturalFormatter) formatUpdateDetails(entity homeassistant.Entity) string {
+	inProgress, _ := entity.Attributes["in_progress"].(bool)
+	if inProgress {
+		return "Installing update"
+	}
+
+	installedVersion := GetStringAttr(entity.Attributes, "installed_version")
+	latestVersion := GetStringAttr(entity.Attributes, "latest_version")
+
+	if entity.State == "on" && installedVersion != "" && latestVersion != "" {
+		return fmt.Sprintf("Update available (%s -> %s)", installedVersion, latestVersion)
+	}
+
+	if entity.State == stateOff && installedVersion != "" {
+		return fmt.Sprintf("Up to date (%s)", installedVersion)
+	}
+
+	return fmt.Sprintf("is %s", entity.State)
 }
 
 // buildEntitiesSummary builds a summary of entities by domain.
