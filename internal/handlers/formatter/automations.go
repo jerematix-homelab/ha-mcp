@@ -357,8 +357,7 @@ func (f *NaturalAutomationFormatter) formatKnownTrigger(platform, entityID strin
 		event, _ := triggerMap["event"].(string)
 		return fmt.Sprintf("sun: %s", event)
 	case "device":
-		deviceID, _ := triggerMap["device_id"].(string)
-		return fmt.Sprintf("device: %s", deviceID)
+		return f.formatDeviceTrigger(triggerMap)
 	case "numeric_state":
 		return f.formatNumericStateTrigger(entityID, triggerMap)
 	case "zone":
@@ -367,7 +366,7 @@ func (f *NaturalAutomationFormatter) formatKnownTrigger(platform, entityID strin
 		eventType, _ := triggerMap["event_type"].(string)
 		return fmt.Sprintf("event: %s", eventType)
 	case "template":
-		return "template trigger"
+		return f.formatTemplateTrigger(triggerMap)
 	case "homeassistant":
 		event, _ := triggerMap["event"].(string)
 		return fmt.Sprintf("homeassistant: %s", event)
@@ -385,10 +384,22 @@ func (f *NaturalAutomationFormatter) formatKnownTrigger(platform, entityID strin
 func (f *NaturalAutomationFormatter) formatStateTrigger(entityID string, triggerMap map[string]any) string {
 	from, _ := triggerMap["from"].(string)
 	to, _ := triggerMap["to"].(string)
-	if from != "" && to != "" {
-		return fmt.Sprintf("state: %s (%s -> %s)", entityID, from, to)
+	forDuration, _ := triggerMap["for"].(string)
+
+	var parts []string
+	parts = append(parts, entityID)
+
+	if from != "" {
+		parts = append(parts, "from: "+from)
 	}
-	return fmt.Sprintf("state: %s", entityID)
+	if to != "" {
+		parts = append(parts, "to: "+to)
+	}
+	if forDuration != "" {
+		parts = append(parts, "for: "+forDuration)
+	}
+
+	return fmt.Sprintf("state: %s", strings.Join(parts, ", "))
 }
 
 func (f *NaturalAutomationFormatter) formatNumericStateTrigger(entityID string, triggerMap map[string]any) string {
@@ -404,6 +415,32 @@ func (f *NaturalAutomationFormatter) formatZoneTrigger(entityID string, triggerM
 	zone, _ := triggerMap["zone"].(string)
 	event, _ := triggerMap["event"].(string)
 	return fmt.Sprintf("zone: %s %s %s", entityID, event, zone)
+}
+
+func (f *NaturalAutomationFormatter) formatDeviceTrigger(triggerMap map[string]any) string {
+	deviceID, _ := triggerMap["device_id"].(string)
+	dtype, _ := triggerMap["type"].(string)
+	subtype, _ := triggerMap["subtype"].(string)
+
+	if dtype != "" && subtype != "" {
+		return fmt.Sprintf("device: %s (%s/%s)", deviceID, dtype, subtype)
+	}
+	if dtype != "" {
+		return fmt.Sprintf("device: %s (%s)", deviceID, dtype)
+	}
+	return fmt.Sprintf("device: %s", deviceID)
+}
+
+func (f *NaturalAutomationFormatter) formatTemplateTrigger(triggerMap map[string]any) string {
+	tmpl, _ := triggerMap["value_template"].(string)
+	if tmpl != "" {
+		const maxLen = 80
+		if len(tmpl) > maxLen {
+			tmpl = tmpl[:maxLen-3] + "..."
+		}
+		return fmt.Sprintf("template: %s", tmpl)
+	}
+	return "template trigger"
 }
 
 func (f *NaturalAutomationFormatter) formatUnknownTrigger(platform, entityID string, triggerMap map[string]any) string {

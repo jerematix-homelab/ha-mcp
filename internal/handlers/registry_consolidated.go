@@ -107,6 +107,10 @@ func getRegistryProperties() map[string]mcp.JSONSchema {
 			Type:        "boolean",
 			Description: "If true, include disabled entries. Default: false",
 		},
+		"include_entities": {
+			Type:        "boolean",
+			Description: "If true, include associated entities for each device. Only for type=devices. Default: false",
+		},
 		"limit": {
 			Type:        "integer",
 			Description: "Maximum number of entries to return (max 1000). Use with 'cursor' for pagination.",
