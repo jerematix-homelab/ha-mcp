@@ -14,6 +14,16 @@ import (
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
+// Constants for sorting and grouping options.
+const (
+	sortByEntityID     = "entity_id"
+	sortByState        = "state"
+	sortByLastChanged  = "last_changed"
+	sortByFriendlyName = "friendly_name"
+	groupByDomain      = "domain"
+	groupByAreaID      = "area_id"
+)
+
 // ConsolidatedEntityQueryHandlers provides consolidated handlers for entity query operations.
 // This replaces get_states, get_history, get_statistics, and list_domains tools.
 type ConsolidatedEntityQueryHandlers struct{}
@@ -32,6 +42,8 @@ type stateFilterParams struct {
 	stateFilter    string
 	stateNotFilter string
 	nameContains   string
+	sortBy         string
+	groupBy        string
 	format         formatter.Format
 	verbose        bool
 }
@@ -80,9 +92,105 @@ func parseStateFilterParams(args map[string]any) stateFilterParams {
 		stateFilter:    getStringArg(args, "state"),
 		stateNotFilter: getStringArg(args, "state_not"),
 		nameContains:   getStringArg(args, "name_contains"),
+		sortBy:         getStringArg(args, "sort_by"),
+		groupBy:        getStringArg(args, "group_by"),
 		format:         formatter.ParseFormat(getStringArg(args, "format")),
 		verbose:        getBoolArg(args, "verbose"),
 	}
+}
+
+// applyFiltersAndSort applies filters and sorting to states.
+func (h *ConsolidatedEntityQueryHandlers) applyFiltersAndSort(
+	ctx context.Context,
+	client homeassistant.Client,
+	states []homeassistant.Entity,
+	filterParams stateFilterParams,
+) ([]homeassistant.Entity, error) {
+	// Load area filter if specified
+	var entityIDsInArea map[string]bool
+	if filterParams.areaID != "" {
+		var err error
+		entityIDsInArea, err = buildEntityIDsInArea(ctx, client, filterParams.areaID)
+		if err != nil {
+			return nil, fmt.Errorf("error loading area filter: %w", err)
+		}
+	}
+
+	states = filterStates(states, filterParams, entityIDsInArea)
+
+	// Validate and apply sorting
+	if err := validateSortAndGroup(filterParams); err != nil {
+		return nil, err
+	}
+
+	sortBy := filterParams.sortBy
+	if sortBy == "" {
+		sortBy = sortByEntityID
+	}
+	if err := sortEntities(states, sortBy); err != nil {
+		return nil, fmt.Errorf("error sorting: %w", err)
+	}
+
+	return states, nil
+}
+
+// paginateStates applies pagination to states.
+func (h *ConsolidatedEntityQueryHandlers) paginateStates(
+	states []homeassistant.Entity,
+	filterParams stateFilterParams,
+	args map[string]any,
+) (PaginatedResponse[homeassistant.Entity], error) {
+	filtersMap := buildStateFiltersMap(filterParams)
+	paginationParams, err := ParsePaginationParams(args, filtersMap)
+	if err != nil {
+		return PaginatedResponse[homeassistant.Entity]{}, fmt.Errorf("pagination error: %w", err)
+	}
+
+	return ApplyPagination(states, paginationParams), nil
+}
+
+// validateSortAndGroup validates sort_by and group_by parameters.
+func validateSortAndGroup(params stateFilterParams) error {
+	if params.sortBy != "" {
+		validSorts := map[string]bool{sortByEntityID: true, sortByState: true, sortByLastChanged: true, sortByFriendlyName: true}
+		if !validSorts[params.sortBy] {
+			return fmt.Errorf("invalid sort_by %q, must be one of: entity_id, state, last_changed, friendly_name", params.sortBy)
+		}
+	}
+	if params.groupBy != "" {
+		validGroups := map[string]bool{groupByDomain: true, groupByAreaID: true}
+		if !validGroups[params.groupBy] {
+			return fmt.Errorf("invalid group_by %q, must be one of: domain, area_id", params.groupBy)
+		}
+	}
+	return nil
+}
+
+// sortEntities sorts entities by the specified field.
+func sortEntities(states []homeassistant.Entity, sortBy string) error {
+	switch sortBy {
+	case sortByEntityID:
+		sort.Slice(states, func(i, j int) bool {
+			return states[i].EntityID < states[j].EntityID
+		})
+	case sortByState:
+		sort.Slice(states, func(i, j int) bool {
+			return states[i].State < states[j].State
+		})
+	case sortByLastChanged:
+		sort.Slice(states, func(i, j int) bool {
+			return states[i].LastChanged.Before(states[j].LastChanged)
+		})
+	case sortByFriendlyName:
+		sort.Slice(states, func(i, j int) bool {
+			nameI := formatter.GetFriendlyName(states[i].EntityID, states[i].Attributes)
+			nameJ := formatter.GetFriendlyName(states[j].EntityID, states[j].Attributes)
+			return strings.ToLower(nameI) < strings.ToLower(nameJ)
+		})
+	default:
+		return fmt.Errorf("unsupported sort_by: %s", sortBy)
+	}
+	return nil
 }
 
 // buildEntityIDsInArea builds a set of entity IDs that belong to an area,
@@ -431,6 +539,16 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 			Type:        "string",
 			Description: "Filter entities by area (matches entities directly in area or via device). Only for mode=current",
 		},
+		"sort_by": {
+			Type:        "string",
+			Enum:        []string{"entity_id", "state", "last_changed", "friendly_name"},
+			Description: "Sort results by field: entity_id (default), state, last_changed, friendly_name. Only for mode=current",
+		},
+		"group_by": {
+			Type:        "string",
+			Enum:        []string{"domain", "area_id"},
+			Description: "Group results by field: domain (default in natural format), area_id. Only for mode=current with format=natural",
+		},
 		// History mode parameters
 		"entity_id": {
 			Type:        "string",
@@ -511,36 +629,24 @@ func (h *ConsolidatedEntityQueryHandlers) handleCurrent(
 
 	filterParams := parseStateFilterParams(args)
 
-	// Load area filter if specified
-	var entityIDsInArea map[string]bool
-	if filterParams.areaID != "" {
-		entityIDsInArea, err = buildEntityIDsInArea(ctx, client, filterParams.areaID)
-		if err != nil {
-			return errorResult(fmt.Sprintf("Error loading area filter: %v", err)), nil
-		}
-	}
-
-	states = filterStates(states, filterParams, entityIDsInArea)
-
-	// Sort by entity_id for stable pagination
-	sort.Slice(states, func(i, j int) bool {
-		return states[i].EntityID < states[j].EntityID
-	})
-
-	// Build filters map for pagination hash
-	filtersMap := buildStateFiltersMap(filterParams)
-
-	// Parse pagination params
-	paginationParams, err := ParsePaginationParams(args, filtersMap)
+	// Apply filtering and sorting
+	states, err = h.applyFiltersAndSort(ctx, client, states, filterParams)
 	if err != nil {
-		return errorResult(fmt.Sprintf("Error: %v", err)), nil
+		return errorResult(err.Error()), nil
 	}
 
 	// Apply pagination
-	paginated := ApplyPagination(states, paginationParams)
+	paginated, err := h.paginateStates(states, filterParams, args)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
 
 	// Use formatter based on format parameter
 	if filterParams.format == formatter.FormatNatural {
+		// Handle area_id grouping
+		if filterParams.groupBy == "area_id" {
+			return h.formatStatesNaturalByArea(ctx, client, paginated, filterParams)
+		}
 		return h.formatStatesNatural(ctx, paginated, filterParams)
 	}
 
@@ -592,6 +698,140 @@ func (h *ConsolidatedEntityQueryHandlers) formatStatesNatural(
 	return &mcp.ToolsCallResult{
 		Content: []mcp.ContentBlock{mcp.NewTextContent(output)},
 	}, nil
+}
+
+// formatStatesNaturalByArea formats states grouped by area.
+func (h *ConsolidatedEntityQueryHandlers) formatStatesNaturalByArea(
+	ctx context.Context,
+	client homeassistant.Client,
+	paginated PaginatedResponse[homeassistant.Entity],
+	params stateFilterParams,
+) (*mcp.ToolsCallResult, error) {
+	// Build entity -> area mapping
+	entityToArea, err := buildEntityToAreaMap(ctx, client)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error loading area mapping: %v", err)), nil
+	}
+
+	// Group entities by area
+	areaGroups, noAreaEntities := groupEntitiesByArea(paginated.Items, entityToArea)
+
+	// Build output
+	output := formatAreaGroups(ctx, areaGroups, noAreaEntities, params)
+
+	// Add pagination info if paginated
+	if paginated.Pagination.HasMore && paginated.Pagination.NextCursor != nil {
+		output += fmt.Sprintf("\n\n[Page %d of results. Use cursor='%s' for next page]",
+			(paginated.Pagination.Offset/paginated.Pagination.Limit)+1,
+			*paginated.Pagination.NextCursor)
+	}
+
+	return &mcp.ToolsCallResult{
+		Content: []mcp.ContentBlock{mcp.NewTextContent(output)},
+	}, nil
+}
+
+// buildEntityToAreaMap builds a mapping from entity_id to area_id.
+func buildEntityToAreaMap(ctx context.Context, client homeassistant.Client) (map[string]string, error) {
+	entityRegistry, err := client.GetEntityRegistry(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	deviceRegistry, err := client.GetDeviceRegistry(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	deviceToArea := make(map[string]string)
+	for _, device := range deviceRegistry {
+		if device.AreaID != "" {
+			deviceToArea[device.ID] = device.AreaID
+		}
+	}
+
+	entityToArea := make(map[string]string)
+	for _, entity := range entityRegistry {
+		if entity.AreaID != "" {
+			entityToArea[entity.EntityID] = entity.AreaID
+		} else if entity.DeviceID != "" {
+			if areaID, ok := deviceToArea[entity.DeviceID]; ok {
+				entityToArea[entity.EntityID] = areaID
+			}
+		}
+	}
+
+	return entityToArea, nil
+}
+
+// groupEntitiesByArea groups entities by their area.
+func groupEntitiesByArea(entities []homeassistant.Entity, entityToArea map[string]string) (map[string][]homeassistant.Entity, []homeassistant.Entity) {
+	areaGroups := make(map[string][]homeassistant.Entity)
+	var noAreaEntities []homeassistant.Entity
+
+	for _, state := range entities {
+		if areaID, ok := entityToArea[state.EntityID]; ok {
+			areaGroups[areaID] = append(areaGroups[areaID], state)
+		} else {
+			noAreaEntities = append(noAreaEntities, state)
+		}
+	}
+
+	return areaGroups, noAreaEntities
+}
+
+// formatAreaGroups formats grouped entities by area.
+func formatAreaGroups(ctx context.Context, areaGroups map[string][]homeassistant.Entity, noAreaEntities []homeassistant.Entity, params stateFilterParams) string {
+	var output strings.Builder
+	f := formatter.NewNaturalFormatter()
+
+	// Get sorted area names
+	var areaNames []string
+	for areaName := range areaGroups {
+		areaNames = append(areaNames, areaName)
+	}
+	sort.Strings(areaNames)
+
+	totalCount := 0
+	for _, entities := range areaGroups {
+		totalCount += len(entities)
+	}
+	totalCount += len(noAreaEntities)
+
+	fmt.Fprintf(&output, "%d entities total.\n\n", totalCount)
+
+	// Output each area group
+	for _, areaName := range areaNames {
+		entities := areaGroups[areaName]
+		fmt.Fprintf(&output, "Area: %s (%d entities)\n", areaName, len(entities))
+		writeEntityList(ctx, &output, f, entities, params.verbose)
+		output.WriteString("\n")
+	}
+
+	// Handle entities without area
+	if len(noAreaEntities) > 0 {
+		fmt.Fprintf(&output, "No Area (%d entities)\n", len(noAreaEntities))
+		writeEntityList(ctx, &output, f, noAreaEntities, params.verbose)
+	}
+
+	return strings.TrimSuffix(output.String(), "\n")
+}
+
+// writeEntityList writes a list of entities to the output.
+func writeEntityList(ctx context.Context, output *strings.Builder, f formatter.Formatter, entities []homeassistant.Entity, verbose bool) {
+	if verbose {
+		for _, entity := range entities {
+			formatted, err := f.FormatEntity(ctx, entity)
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(output, "  %s\n", formatted)
+		}
+	} else {
+		for _, entity := range entities {
+			fmt.Fprintf(output, "  - %s\n", entity.EntityID)
+		}
+	}
 }
 
 // handleHistory handles mode=history requests (adapted from handleGetHistory).

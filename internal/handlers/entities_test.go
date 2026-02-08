@@ -49,7 +49,7 @@ func TestHandleGetState(t *testing.T) {
 			args:         map[string]any{},
 			setupMock:    nil,
 			wantError:    true,
-			wantContains: []string{"entity_id is required"},
+			wantContains: []string{"entity_id or entity_ids is required"},
 		},
 		{
 			name:         "error - empty entity_id",
@@ -98,4 +98,94 @@ func TestHandleGetState(t *testing.T) {
 			assertContainsAll(t, content, tt.wantContains)
 		})
 	}
+}
+
+func TestEntityHandlers_GetState_Batch(t *testing.T) {
+	t.Parallel()
+
+	testStates := []homeassistant.Entity{
+		{
+			EntityID: "light.living_room",
+			State:    "on",
+			Attributes: map[string]any{
+				"friendly_name": "Living Room Light",
+			},
+		},
+		{
+			EntityID: "light.bedroom",
+			State:    "off",
+			Attributes: map[string]any{
+				"friendly_name": "Bedroom Light",
+			},
+		},
+		{
+			EntityID: "switch.kitchen",
+			State:    "on",
+			Attributes: map[string]any{
+				"friendly_name": "Kitchen Switch",
+			},
+		},
+	}
+
+	tests := []handlerTestCase{
+		{
+			name: "multiple entities - natural format",
+			args: map[string]any{"entity_ids": []any{"light.living_room", "light.bedroom", "switch.kitchen"}, "format": "natural"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Living Room Light is on", "Bedroom Light is off", "Kitchen Switch is on"},
+		},
+		{
+			name: "multiple entities - json format",
+			args: map[string]any{"entity_ids": []any{"light.living_room", "light.bedroom"}, "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"light.living_room", "light.bedroom", "\"state\""},
+		},
+		{
+			name: "entity not found in batch",
+			args: map[string]any{"entity_ids": []any{"light.living_room", "light.nonexistent"}},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Living Room Light", "light.nonexistent: not found"},
+		},
+		{
+			name:         "both entity_id and entity_ids provided",
+			args:         map[string]any{"entity_id": "light.test", "entity_ids": []any{"light.other"}},
+			wantError:    true,
+			wantContains: []string{"Cannot specify both", "entity_id", "entity_ids"},
+		},
+		{
+			name:         "invalid entity_ids type",
+			args:         map[string]any{"entity_ids": "not-an-array"},
+			wantError:    true,
+			wantContains: []string{"entity_ids", "array"},
+		},
+		{
+			name: "client error in batch",
+			args: map[string]any{"entity_ids": []any{"light.test"}},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return nil, errors.New("connection refused")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"Error", "connection refused"},
+		},
+	}
+
+	h := NewEntityHandlers()
+	runHandlerTestCases(t, tests, h.handleGetState)
 }
