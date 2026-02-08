@@ -257,9 +257,9 @@ func (h *AutomationHandlers) handleGet(ctx context.Context, client homeassistant
 		return errorResult("automation_id is required for get action. Use 'list' action to find IDs (shown in [brackets])"), nil
 	}
 
-	normalizedID := strings.TrimPrefix(automationID, "automation.")
+	_, configID := normalizeAutomationID(automationID)
 
-	automation, err := client.GetAutomation(ctx, normalizedID)
+	automation, err := client.GetAutomation(ctx, configID)
 	if err != nil {
 		automation, err = h.findAutomationByID(ctx, client, automationID)
 		if err != nil {
@@ -324,17 +324,19 @@ func (h *AutomationHandlers) handleUpdate(ctx context.Context, client homeassist
 		return errorResult("automation_id is required for update action. Use 'list' action to find IDs (shown in [brackets])"), nil
 	}
 
-	current, err := client.GetAutomation(ctx, automationID)
+	_, configID := normalizeAutomationID(automationID)
+
+	current, err := client.GetAutomation(ctx, configID)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error getting current automation: %v", err)), nil
 	}
 
 	if current.Config == nil {
-		current.Config = &homeassistant.AutomationConfig{ID: automationID}
+		current.Config = &homeassistant.AutomationConfig{ID: configID}
 	}
 	applyAutomationConfigUpdates(current.Config, args)
 
-	if err := client.UpdateAutomation(ctx, automationID, *current.Config); err != nil {
+	if err := client.UpdateAutomation(ctx, configID, *current.Config); err != nil {
 		return errorResult(fmt.Sprintf("Error updating automation: %v", err)), nil
 	}
 
@@ -347,7 +349,9 @@ func (h *AutomationHandlers) handleDelete(ctx context.Context, client homeassist
 		return errorResult("automation_id is required for delete action. Use 'list' action to find IDs (shown in [brackets])"), nil
 	}
 
-	if err := client.DeleteAutomation(ctx, automationID); err != nil {
+	_, configID := normalizeAutomationID(automationID)
+
+	if err := client.DeleteAutomation(ctx, configID); err != nil {
 		return errorResult(fmt.Sprintf("Error deleting automation: %v", err)), nil
 	}
 
@@ -365,7 +369,9 @@ func (h *AutomationHandlers) handleToggle(ctx context.Context, client homeassist
 		return errorResult("enabled is required for " + automationActionToggle + " action"), nil
 	}
 
-	if err := client.ToggleAutomation(ctx, automationID, enabled); err != nil {
+	entityID, _ := normalizeAutomationID(automationID)
+
+	if err := client.ToggleAutomation(ctx, entityID, enabled); err != nil {
 		return errorResult(fmt.Sprintf("Error toggling automation: %v", err)), nil
 	}
 
@@ -774,6 +780,16 @@ func searchTargetEntityID(val any, entityID string) bool {
 		return false
 	}
 	return searchInConfigValue(targetMap[configKeyEntityID], entityID)
+}
+
+// normalizeAutomationID handles both "automation.xyz" and "xyz" formats.
+// Returns (entityID, configID) where entityID includes the "automation." prefix
+// and configID is the bare ID used for REST API calls.
+func normalizeAutomationID(automationID string) (entityID, configID string) {
+	if strings.HasPrefix(automationID, "automation.") {
+		return automationID, strings.TrimPrefix(automationID, "automation.")
+	}
+	return "automation." + automationID, automationID
 }
 
 // generateAutomationID converts an alias to a valid automation ID.

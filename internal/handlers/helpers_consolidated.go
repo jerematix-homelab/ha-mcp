@@ -559,7 +559,8 @@ func (h *ConsolidatedHelperHandlers) handleCreate(ctx context.Context, client ho
 		return errorResult(fmt.Sprintf("Error creating %s: %v", helperType, err)), nil
 	}
 
-	entityID := fmt.Sprintf("%s.%s", meta.entityPrefix, id)
+	predictedSlug := slugifyName(name)
+	entityID := fmt.Sprintf("%s.%s", meta.entityPrefix, predictedSlug)
 	return successResult(fmt.Sprintf("%s '%s' created successfully as %s", formatHelperType(helperType), name, entityID)), nil
 }
 
@@ -1342,6 +1343,11 @@ func capitalizeFirst(s string) string {
 		return s
 	}
 	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// slugifyName converts a name to a valid helper ID using the same logic as automation IDs.
+func slugifyName(name string) string {
+	return generateAutomationID(name)
 }
 
 // =============================================================================

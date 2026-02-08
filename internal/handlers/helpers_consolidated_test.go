@@ -327,7 +327,7 @@ func TestManageHelper_CreateTemplateSensor(t *testing.T) {
 				"state":  "{{ (states('sensor.temp1') | float + states('sensor.temp2') | float) / 2 }}",
 			},
 			wantError:    false,
-			wantContains: []string{"sensor.avg_temp", "created"},
+			wantContains: []string{"sensor.average_temperature", "created"},
 		},
 		{
 			name: "create template_sensor without state",
@@ -383,7 +383,7 @@ func TestManageHelper_CreateThreshold(t *testing.T) {
 				"upper":     float64(25),
 			},
 			wantError:    false,
-			wantContains: []string{"binary_sensor.temp_high", "created"},
+			wantContains: []string{"binary_sensor.temperature_high", "created"},
 		},
 		{
 			name: "create threshold without entity_id",
@@ -1501,4 +1501,95 @@ func TestConsolidatedHelperHandlers_RegisterTools(t *testing.T) {
 	if !foundHelperAction {
 		t.Error("helper_action tool not registered")
 	}
+}
+
+// =============================================================================
+// Helper ID Slugification Tests
+// =============================================================================
+
+func TestSlugifyName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple lowercase",
+			input:    "test",
+			expected: "test",
+		},
+		{
+			name:     "uppercase to lowercase",
+			input:    "TEST",
+			expected: "test",
+		},
+		{
+			name:     "spaces to underscores",
+			input:    "MCP Test Boolean",
+			expected: "mcp_test_boolean",
+		},
+		{
+			name:     "special characters removed",
+			input:    "Test! @Helper# $%",
+			expected: "test_helper",
+		},
+		{
+			name:     "multiple spaces collapsed",
+			input:    "test   spaces",
+			expected: "test_spaces",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := slugifyName(tt.input)
+			if got != tt.expected {
+				t.Errorf("slugifyName(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestHelperCreate_SuccessMessageUsesSlugifiedName(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "counter with name that needs slugification",
+			args: map[string]any{
+				"action": "create",
+				"type":   "counter",
+				"id":     "mcp_test_bool",
+				"name":   "MCP Test Boolean",
+			},
+			wantContains: []string{"counter.mcp_test_boolean"},
+		},
+		{
+			name: "boolean with special characters in name",
+			args: map[string]any{
+				"action": "create",
+				"type":   "input_boolean",
+				"id":     "test_bool",
+				"name":   "Test! Boolean@",
+			},
+			wantContains: []string{"input_boolean.test_boolean"},
+		},
+		{
+			name: "text with spaces in name",
+			args: map[string]any{
+				"action": "create",
+				"type":   "input_text",
+				"id":     "text_id",
+				"name":   "My   Test   Text",
+			},
+			wantContains: []string{"input_text.my_test_text"},
+		},
+	}
+
+	h := NewConsolidatedHelperHandlers()
+	runHandlerTestCases(t, tests, h.handleManageHelper)
 }
