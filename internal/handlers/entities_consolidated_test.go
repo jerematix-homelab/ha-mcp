@@ -1192,3 +1192,95 @@ func TestQueryEntities_Current_GroupingWithSorting(t *testing.T) {
 	h := NewConsolidatedEntityQueryHandlers()
 	runHandlerTestCases(t, tests, h.handleQueryEntities)
 }
+
+func TestQueryEntities_Current_GroupByDeviceClass(t *testing.T) {
+	t.Parallel()
+
+	testStates := []homeassistant.Entity{
+		{
+			EntityID: "binary_sensor.motion_hall",
+			State:    "on",
+			Attributes: map[string]any{
+				"friendly_name": "Hall Motion",
+				"device_class":  "motion",
+			},
+		},
+		{
+			EntityID: "binary_sensor.motion_kitchen",
+			State:    "off",
+			Attributes: map[string]any{
+				"friendly_name": "Kitchen Motion",
+				"device_class":  "motion",
+			},
+		},
+		{
+			EntityID: "binary_sensor.door_front",
+			State:    "off",
+			Attributes: map[string]any{
+				"friendly_name": "Front Door",
+				"device_class":  "door",
+			},
+		},
+		{
+			EntityID: "light.living_room",
+			State:    "on",
+			Attributes: map[string]any{
+				"friendly_name": "Living Room",
+				// No device_class
+			},
+		},
+	}
+
+	tests := []handlerTestCase{
+		{
+			name: "group by device_class",
+			args: map[string]any{"mode": modeCurrent, "group_by": "device_class", "format": "natural"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Device Class: motion", "Device Class: door", "binary_sensor.motion_hall", "binary_sensor.door_front"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}
+
+func TestQueryEntities_Current_GroupByIntegration(t *testing.T) {
+	t.Parallel()
+
+	testStates := []homeassistant.Entity{
+		{EntityID: "light.hue_1", State: "on", Attributes: map[string]any{"friendly_name": "Hue Light 1"}},
+		{EntityID: "light.hue_2", State: "off", Attributes: map[string]any{"friendly_name": "Hue Light 2"}},
+		{EntityID: "switch.tasmota_1", State: "on", Attributes: map[string]any{"friendly_name": "Tasmota Switch"}},
+	}
+
+	entityRegistry := []homeassistant.EntityRegistryEntry{
+		{EntityID: "light.hue_1", Platform: "hue"},
+		{EntityID: "light.hue_2", Platform: "hue"},
+		{EntityID: "switch.tasmota_1", Platform: "tasmota"},
+	}
+
+	tests := []handlerTestCase{
+		{
+			name: "group by integration",
+			args: map[string]any{"mode": modeCurrent, "group_by": "integration", "format": "natural"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+				m.GetEntityRegistryFn = func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return entityRegistry, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Integration: hue", "Integration: tasmota", "light.hue_1", "light.hue_2", "switch.tasmota_1"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}

@@ -25,7 +25,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 
 | Function | ha-mcp | Official HA MCP |
 |----------|--------|-----------------|
-| Query entity states | `query_entities` mode=current (Filter, Pagination, natural/json format) | `HassGetState`, `GetLiveContext` (all exposed entities) |
+| Query entity states | `query_entities` mode=current (Filter by domain, state, name, device_class; group_by: domain, area_id, device_class, integration; Pagination; natural/json) | `HassGetState`, `GetLiveContext` (all exposed entities) |
 | Query single entity | `get_state` (natural/json format) | `HassGetState` |
 | Entity on/off/toggle | `call_service` (any service) | `HassTurnOn`, `HassTurnOff`, `HassTurnToggle` |
 | Query temperature | via `get_state` | `HassGetTemperature` (specialized) |
@@ -33,6 +33,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | List domains | `query_entities` mode=domains | -- |
 | Entity history | `query_entities` mode=history (time range, filter, pagination, natural/json) | -- |
 | Entity statistics | `query_entities` mode=statistics (long-term data, pagination, natural/json) | -- |
+| Presence analysis | `query_entities` mode=presence (person/tracker correlation, natural/json) | -- |
 | Cover control | `call_service` (domain=cover) | `HassOpenCover`, `HassCloseCover` |
 | Date/Time | `get_datetime` | `GetDateTime` |
 
@@ -46,6 +47,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | Edit automation | `manage_automation` action=update | -- |
 | Delete automation | `manage_automation` action=delete | -- |
 | Enable/disable automation | `manage_automation` action=toggle | -- |
+| Automation coverage | `manage_automation` action=coverage (analyze areas/entities without automations, natural/json) | -- |
 
 ### Scripts
 
@@ -76,6 +78,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | List helpers | `list_helpers`, `manage_helper` action=list | -- |
 | Create helper | `manage_helper` action=create (15 types) | -- |
 | Delete helper | `manage_helper` action=delete | -- |
+| Helper details | `manage_helper` action=get_details (schedule, counter, timer; natural/json) | -- |
 | Helper actions | `helper_action` (toggle, set, increment, etc.) | via `call_service` Intents (limited) |
 | Timer management | `helper_action` (start/pause/cancel/finish) | Timer Intents (HassStartTimer, etc.) |
 
@@ -99,7 +102,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | Dependency analysis | `get_entity_dependencies` | -- |
 | Target analysis | `analyze_target` (triggers/conditions/services) | -- |
 | Render Jinja2 templates | `render_template` | -- |
-| Logbook | `get_logbook` | -- |
+| Logbook | `get_logbook` (mode: entries, correlation; cause-effect analysis across entities, natural/json) | -- |
 | Statistics (long-term) | `get_statistics` | -- |
 | Lovelace dashboard | `get_lovelace_config` | -- |
 

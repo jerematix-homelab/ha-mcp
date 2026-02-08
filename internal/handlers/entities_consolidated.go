@@ -161,9 +161,14 @@ func validateSortAndGroup(params stateFilterParams) error {
 		}
 	}
 	if params.groupBy != "" {
-		validGroups := map[string]bool{groupByDomain: true, groupByAreaID: true}
+		validGroups := map[string]bool{
+			groupByDomain:  true,
+			groupByAreaID:  true,
+			"device_class": true,
+			"integration":  true,
+		}
 		if !validGroups[params.groupBy] {
-			return fmt.Errorf("invalid group_by %q, must be one of: domain, area_id", params.groupBy)
+			return fmt.Errorf("invalid group_by %q, must be one of: domain, area_id, device_class, integration", params.groupBy)
 		}
 	}
 	return nil
@@ -563,8 +568,8 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 		},
 		"group_by": {
 			Type:        "string",
-			Enum:        []string{"domain", "area_id"},
-			Description: "Group results by field: domain (default in natural format), area_id. Only for mode=current with format=natural",
+			Enum:        []string{"domain", "area_id", "device_class", "integration"},
+			Description: "Group results by field: domain (default in natural format), area_id, device_class, integration. Only for mode=current with format=natural",
 		},
 		// History mode parameters
 		"entity_id": {
@@ -662,9 +667,15 @@ func (h *ConsolidatedEntityQueryHandlers) handleCurrent(
 
 	// Use formatter based on format parameter
 	if filterParams.format == formatter.FormatNatural {
-		// Handle area_id grouping
+		// Handle special grouping modes
 		if filterParams.groupBy == "area_id" {
 			return h.formatStatesNaturalByArea(ctx, client, paginated, filterParams)
+		}
+		if filterParams.groupBy == "device_class" {
+			return h.formatStatesNaturalByDeviceClass(paginated, filterParams)
+		}
+		if filterParams.groupBy == "integration" {
+			return h.formatStatesNaturalByIntegration(ctx, client, paginated, filterParams)
 		}
 		return h.formatStatesNatural(ctx, paginated, filterParams)
 	}
@@ -851,6 +862,128 @@ func writeEntityList(ctx context.Context, output *strings.Builder, f formatter.F
 			fmt.Fprintf(output, "  - %s\n", entity.EntityID)
 		}
 	}
+}
+
+// formatStatesNaturalByDeviceClass formats states grouped by device_class.
+func (h *ConsolidatedEntityQueryHandlers) formatStatesNaturalByDeviceClass(
+	paginated PaginatedResponse[homeassistant.Entity],
+	params stateFilterParams,
+) (*mcp.ToolsCallResult, error) {
+	// Group entities by device_class
+	deviceClassGroups := make(map[string][]homeassistant.Entity)
+	var noDeviceClassEntities []homeassistant.Entity
+
+	for _, entity := range paginated.Items {
+		deviceClass, ok := entity.Attributes["device_class"].(string)
+		if ok && deviceClass != "" {
+			deviceClassGroups[deviceClass] = append(deviceClassGroups[deviceClass], entity)
+		} else {
+			noDeviceClassEntities = append(noDeviceClassEntities, entity)
+		}
+	}
+
+	// Sort device class keys
+	deviceClasses := make([]string, 0, len(deviceClassGroups))
+	for dc := range deviceClassGroups {
+		deviceClasses = append(deviceClasses, dc)
+	}
+	sort.Strings(deviceClasses)
+
+	// Build output
+	var output strings.Builder
+	f := formatter.NewNaturalFormatter()
+	ctx := context.Background()
+
+	for _, deviceClass := range deviceClasses {
+		entities := deviceClassGroups[deviceClass]
+		fmt.Fprintf(&output, "\n**Device Class: %s** (%d entities)\n", deviceClass, len(entities))
+		writeEntityList(ctx, &output, f, entities, params.verbose)
+	}
+
+	// Add entities without device_class
+	if len(noDeviceClassEntities) > 0 {
+		fmt.Fprintf(&output, "\n**Other** (%d entities)\n", len(noDeviceClassEntities))
+		writeEntityList(ctx, &output, f, noDeviceClassEntities, params.verbose)
+	}
+
+	// Add pagination info if paginated
+	if paginated.Pagination.HasMore && paginated.Pagination.NextCursor != nil {
+		output.WriteString(fmt.Sprintf("\n\n[Page %d of results. Use cursor='%s' for next page]",
+			(paginated.Pagination.Offset/paginated.Pagination.Limit)+1,
+			*paginated.Pagination.NextCursor))
+	}
+
+	return &mcp.ToolsCallResult{
+		Content: []mcp.ContentBlock{mcp.NewTextContent(strings.TrimPrefix(output.String(), "\n"))},
+	}, nil
+}
+
+// formatStatesNaturalByIntegration formats states grouped by integration (platform).
+func (h *ConsolidatedEntityQueryHandlers) formatStatesNaturalByIntegration(
+	ctx context.Context,
+	client homeassistant.Client,
+	paginated PaginatedResponse[homeassistant.Entity],
+	params stateFilterParams,
+) (*mcp.ToolsCallResult, error) {
+	// Load entity registry to get platform information
+	entityRegistry, err := client.GetEntityRegistry(ctx)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error loading entity registry: %v", err)), nil
+	}
+
+	// Build entity -> platform mapping
+	entityToPlatform := make(map[string]string)
+	for _, entry := range entityRegistry {
+		if entry.Platform != "" {
+			entityToPlatform[entry.EntityID] = entry.Platform
+		}
+	}
+
+	// Group entities by platform
+	platformGroups := make(map[string][]homeassistant.Entity)
+	var noPlatformEntities []homeassistant.Entity
+
+	for _, entity := range paginated.Items {
+		if platform, ok := entityToPlatform[entity.EntityID]; ok {
+			platformGroups[platform] = append(platformGroups[platform], entity)
+		} else {
+			noPlatformEntities = append(noPlatformEntities, entity)
+		}
+	}
+
+	// Sort platform keys
+	platforms := make([]string, 0, len(platformGroups))
+	for p := range platformGroups {
+		platforms = append(platforms, p)
+	}
+	sort.Strings(platforms)
+
+	// Build output
+	var output strings.Builder
+	f := formatter.NewNaturalFormatter()
+
+	for _, platform := range platforms {
+		entities := platformGroups[platform]
+		fmt.Fprintf(&output, "\n**Integration: %s** (%d entities)\n", platform, len(entities))
+		writeEntityList(ctx, &output, f, entities, params.verbose)
+	}
+
+	// Add entities without platform
+	if len(noPlatformEntities) > 0 {
+		fmt.Fprintf(&output, "\n**Unknown Integration** (%d entities)\n", len(noPlatformEntities))
+		writeEntityList(ctx, &output, f, noPlatformEntities, params.verbose)
+	}
+
+	// Add pagination info if paginated
+	if paginated.Pagination.HasMore && paginated.Pagination.NextCursor != nil {
+		output.WriteString(fmt.Sprintf("\n\n[Page %d of results. Use cursor='%s' for next page]",
+			(paginated.Pagination.Offset/paginated.Pagination.Limit)+1,
+			*paginated.Pagination.NextCursor))
+	}
+
+	return &mcp.ToolsCallResult{
+		Content: []mcp.ContentBlock{mcp.NewTextContent(strings.TrimPrefix(output.String(), "\n"))},
+	}, nil
 }
 
 // handleHistory handles mode=history requests (adapted from handleGetHistory).
