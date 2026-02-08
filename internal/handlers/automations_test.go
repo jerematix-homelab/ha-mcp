@@ -1131,16 +1131,18 @@ func TestNormalizeAutomationID(t *testing.T) {
 func TestAutomationHandlers_IDNormalization(t *testing.T) {
 	t.Parallel()
 
-	testConfig := &homeassistant.AutomationConfig{
-		ID:    "test_auto",
-		Alias: "Test Automation",
-	}
-
-	testAutomation := &homeassistant.Automation{
-		EntityID:     "automation.test_auto",
-		State:        "on",
-		FriendlyName: "Test Automation",
-		Config:       testConfig,
+	// Factory function to create fresh automation instances per subtest
+	newTestAutomation := func() *homeassistant.Automation {
+		config := &homeassistant.AutomationConfig{
+			ID:    "test_auto",
+			Alias: "Test Automation",
+		}
+		return &homeassistant.Automation{
+			EntityID:     "automation.test_auto",
+			State:        "on",
+			FriendlyName: "Test Automation",
+			Config:       config,
+		}
 	}
 
 	tests := []struct {
@@ -1221,6 +1223,8 @@ func TestAutomationHandlers_IDNormalization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			// Create fresh automation instance for this subtest
+			testAutomation := newTestAutomation()
 			client := &mockAutomationClient{
 				automation: testAutomation,
 				automationMap: map[string]*homeassistant.Automation{
