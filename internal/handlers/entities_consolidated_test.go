@@ -66,7 +66,7 @@ func TestQueryEntitiesTool_Schema(t *testing.T) {
 		t.Fatal("mode property not found")
 	}
 
-	expectedModes := []string{modeCurrent, modeHistory, modeStatistics, modeDomains}
+	expectedModes := []string{modeCurrent, modeHistory, modeStatistics, modeDomains, "presence"}
 	if len(modeSchema.Enum) != len(expectedModes) {
 		t.Errorf("mode enum has %d values, want %d", len(modeSchema.Enum), len(expectedModes))
 	}
