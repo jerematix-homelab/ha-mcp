@@ -1263,3 +1263,74 @@ func TestAnalysisHandlers_searchAreaInSlice(t *testing.T) {
 		})
 	}
 }
+
+func TestAnalysisHandlers_formatHistory(t *testing.T) {
+	t.Parallel()
+
+	h := NewAnalysisHandlers()
+
+	tests := []struct {
+		name             string
+		history          []HistoryEntry
+		wantContains     []string
+		wantNotContains  []string
+	}{
+		{
+			name: "shows up to 10 most recent entries",
+			history: []HistoryEntry{
+				{State: "state_1", LastChanged: "2024-01-01T00:00:00Z"},
+				{State: "state_2", LastChanged: "2024-01-01T01:00:00Z"},
+				{State: "state_3", LastChanged: "2024-01-01T02:00:00Z"},
+				{State: "state_4", LastChanged: "2024-01-01T03:00:00Z"},
+				{State: "state_5", LastChanged: "2024-01-01T04:00:00Z"},
+				{State: "state_6", LastChanged: "2024-01-01T05:00:00Z"},
+				{State: "state_7", LastChanged: "2024-01-01T06:00:00Z"},
+				{State: "state_8", LastChanged: "2024-01-01T07:00:00Z"},
+				{State: "state_9", LastChanged: "2024-01-01T08:00:00Z"},
+				{State: "state_10", LastChanged: "2024-01-01T09:00:00Z"},
+				{State: "state_11", LastChanged: "2024-01-01T10:00:00Z"},
+				{State: "state_12", LastChanged: "2024-01-01T11:00:00Z"},
+			},
+			// Should show newest 10 (state_3 through state_12)
+			wantContains:    []string{"state_12", "state_11", "state_10", "state_9", "state_8", "state_7", "state_6", "state_5", "state_4", "state_3", "Showing 10 of 12"},
+			wantNotContains: []string{"- State: state_1 at", "- State: state_2 at"},
+		},
+		{
+			name: "shows all when less than 10",
+			history: []HistoryEntry{
+				{State: "state_1", LastChanged: "2024-01-01T00:00:00Z"},
+				{State: "state_2", LastChanged: "2024-01-01T01:00:00Z"},
+				{State: "state_3", LastChanged: "2024-01-01T02:00:00Z"},
+			},
+			wantContains:    []string{"state_1", "state_2", "state_3", "3 state changes"},
+			wantNotContains: []string{"Showing"},
+		},
+		{
+			name: "empty history",
+			history: []HistoryEntry{},
+			wantContains:    []string{"0 state changes"},
+			wantNotContains: []string{"Showing"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parts := h.formatHistory([]string{}, tt.history)
+			output := strings.Join(parts, "\n")
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(output, want) {
+					t.Errorf("Expected output to contain %q, got: %s", want, output)
+				}
+			}
+
+			for _, notWant := range tt.wantNotContains {
+				if strings.Contains(output, notWant) {
+					t.Errorf("Expected output NOT to contain %q, got: %s", notWant, output)
+				}
+			}
+		})
+	}
+}
