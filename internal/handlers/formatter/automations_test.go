@@ -223,6 +223,166 @@ func TestNaturalAutomationFormatter_FormatDetail_NoConfig(t *testing.T) {
 	}
 }
 
+func TestNaturalAutomationFormatter_ImprovedTriggerFormatting(t *testing.T) {
+	ctx := context.Background()
+	f := NewNaturalAutomationFormatter()
+
+	tests := []struct {
+		name     string
+		trigger  map[string]any
+		wantText []string
+	}{
+		{
+			name: "state trigger with only from",
+			trigger: map[string]any{
+				"platform":  "state",
+				"entity_id": "light.test",
+				"from":      "off",
+			},
+			wantText: []string{"state: light.test", "from: off"},
+		},
+		{
+			name: "state trigger with only to",
+			trigger: map[string]any{
+				"platform":  "state",
+				"entity_id": "light.test",
+				"to":        "on",
+			},
+			wantText: []string{"state: light.test", "to: on"},
+		},
+		{
+			name: "state trigger with for duration",
+			trigger: map[string]any{
+				"platform":  "state",
+				"entity_id": "light.test",
+				"to":        "on",
+				"for":       "00:05:00",
+			},
+			wantText: []string{"state: light.test", "to: on", "for: 00:05:00"},
+		},
+		{
+			name: "device trigger with type and subtype",
+			trigger: map[string]any{
+				"platform":  "device",
+				"device_id": "device_123",
+				"type":      "turned_on",
+				"subtype":   "button_1",
+			},
+			wantText: []string{"device: device_123", "turned_on/button_1"},
+		},
+		{
+			name: "template trigger with value",
+			trigger: map[string]any{
+				"platform":       "template",
+				"value_template": "{{ states('sensor.temp') | float > 20 }}",
+			},
+			wantText: []string{"template:", "states('sensor.temp')"},
+		},
+		{
+			name: "template trigger with long value",
+			trigger: map[string]any{
+				"platform":       "template",
+				"value_template": "{{ states('sensor.temperature') | float > 20 and states('sensor.humidity') | float < 60 and is_state('binary_sensor.motion', 'on') }}",
+			},
+			wantText: []string{"template:", "..."},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			automation := homeassistant.Automation{
+				EntityID:     "automation.test",
+				State:        "on",
+				FriendlyName: "Test",
+				Config: &homeassistant.AutomationConfig{
+					ID:       "test",
+					Alias:    "Test",
+					Triggers: []any{tt.trigger},
+					Actions:  []any{},
+				},
+			}
+
+			result, err := f.FormatDetail(ctx, automation)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			for _, want := range tt.wantText {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected %q in output, got: %s", want, result)
+				}
+			}
+		})
+	}
+}
+
+func TestNaturalAutomationFormatter_ImprovedActionFormatting(t *testing.T) {
+	ctx := context.Background()
+	f := NewNaturalAutomationFormatter()
+
+	tests := []struct {
+		name     string
+		action   map[string]any
+		wantText []string
+	}{
+		{
+			name: "choose action with options",
+			action: map[string]any{
+				"choose": []any{
+					map[string]any{
+						"alias":      "Morning mode",
+						"conditions": []any{},
+						"sequence":   []any{},
+					},
+					map[string]any{
+						"alias":      "Evening mode",
+						"conditions": []any{},
+						"sequence":   []any{},
+					},
+				},
+			},
+			wantText: []string{"choose:", "2 option"},
+		},
+		{
+			name: "if action with conditions",
+			action: map[string]any{
+				"if": []any{
+					map[string]any{"condition": "state", "entity_id": "light.test", "state": "on"},
+				},
+				"then": []any{},
+			},
+			wantText: []string{"conditional:", "if/then"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			automation := homeassistant.Automation{
+				EntityID:     "automation.test",
+				State:        "on",
+				FriendlyName: "Test",
+				Config: &homeassistant.AutomationConfig{
+					ID:       "test",
+					Alias:    "Test",
+					Triggers: []any{},
+					Actions:  []any{tt.action},
+				},
+			}
+
+			result, err := f.FormatDetail(ctx, automation)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			for _, want := range tt.wantText {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected %q in output, got: %s", want, result)
+				}
+			}
+		})
+	}
+}
+
 func TestJSONAutomationFormatter_FormatList(t *testing.T) {
 	ctx := context.Background()
 	f := NewJSONAutomationFormatter()

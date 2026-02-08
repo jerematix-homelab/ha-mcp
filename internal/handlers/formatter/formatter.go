@@ -50,6 +50,14 @@ type RegistryOptions struct {
 	Verbose         bool
 	IncludeDisabled bool
 	Limit           int
+	// EntityMap maps device_id to entities for include_entities option (type=devices only)
+	EntityMap map[string][]EntityInfo
+}
+
+// EntityInfo holds minimal entity information for device-entity mapping.
+type EntityInfo struct {
+	EntityID     string
+	FriendlyName string
 }
 
 // TargetAnalysisOptions configures target analysis formatting.
