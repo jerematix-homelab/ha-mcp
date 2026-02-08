@@ -472,6 +472,145 @@ func TestManageHelper_CreateIntegral(t *testing.T) {
 }
 
 // =============================================================================
+// manage_helper - ID vs Name Entity Slug Tests
+// =============================================================================
+
+func TestHelperCreate_IDControlsEntitySlug(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		args             map[string]any
+		setupMock        func(m *UniversalMockClient)
+		wantEntityID     string
+		wantUpdateCalled bool
+		wantUpdateName   string
+		wantError        bool
+		wantContains     []string
+	}{
+		{
+			name: "WebSocket helper - different id and name - uses id for entity, updates name",
+			args: map[string]any{
+				"action": "create",
+				"type":   "input_boolean",
+				"id":     "mcp_test_bug1",
+				"name":   "MCP Test Bug 1 Check",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.CreateHelperFn = func(_ context.Context, helper homeassistant.HelperConfig) error {
+					// Verify create uses id as name (to control slug)
+					if name, ok := helper.Config["name"].(string); !ok || name != "mcp_test_bug1" {
+						return fmt.Errorf("expected name=mcp_test_bug1, got %v", helper.Config["name"])
+					}
+					return nil
+				}
+				m.UpdateHelperFn = func(_ context.Context, helperID string, config homeassistant.HelperConfig) error {
+					// Verify update sets the friendly name
+					if helperID != "mcp_test_bug1" {
+						return fmt.Errorf("expected helperID=mcp_test_bug1, got %s", helperID)
+					}
+					if name, ok := config.Config["name"].(string); !ok || name != "MCP Test Bug 1 Check" {
+						return fmt.Errorf("expected name=MCP Test Bug 1 Check, got %v", config.Config["name"])
+					}
+					return nil
+				}
+			},
+			wantEntityID:     "input_boolean.mcp_test_bug1",
+			wantUpdateCalled: true,
+			wantUpdateName:   "MCP Test Bug 1 Check",
+			wantError:        false,
+			wantContains:     []string{"input_boolean.mcp_test_bug1", "created"},
+		},
+		{
+			name: "WebSocket helper - id matches slugified name - no update needed",
+			args: map[string]any{
+				"action": "create",
+				"type":   "counter",
+				"id":     "test_counter",
+				"name":   "Test Counter",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.CreateHelperFn = func(_ context.Context, helper homeassistant.HelperConfig) error {
+					// Since slugify(id) == slugify(name), name should be used directly
+					if name, ok := helper.Config["name"].(string); !ok || name != "Test Counter" {
+						return fmt.Errorf("expected name=Test Counter, got %v", helper.Config["name"])
+					}
+					return nil
+				}
+				m.UpdateHelperFn = func(_ context.Context, _ string, _ homeassistant.HelperConfig) error {
+					return fmt.Errorf("UpdateHelper should not be called when id matches slugified name")
+				}
+			},
+			wantEntityID:     "counter.test_counter",
+			wantUpdateCalled: false,
+			wantError:        false,
+			wantContains:     []string{"counter.test_counter", "created"},
+		},
+		{
+			name: "Config Entry helper (threshold) - always uses name for entity ID",
+			args: map[string]any{
+				"action":    "create",
+				"type":      "threshold",
+				"id":        "temp_high",
+				"name":      "Temperature High",
+				"entity_id": "sensor.temperature",
+				"upper":     float64(25),
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.CreateHelperFn = func(_ context.Context, helper homeassistant.HelperConfig) error {
+					// Config Entry helpers use name, not id
+					if name, ok := helper.Config["name"].(string); !ok || name != "Temperature High" {
+						return fmt.Errorf("expected name=Temperature High, got %v", helper.Config["name"])
+					}
+					return nil
+				}
+				m.UpdateHelperFn = func(_ context.Context, _ string, _ homeassistant.HelperConfig) error {
+					return fmt.Errorf("UpdateHelper should not be called for config entry helpers")
+				}
+			},
+			wantEntityID:     "binary_sensor.temperature_high",
+			wantUpdateCalled: false,
+			wantError:        false,
+			wantContains:     []string{"binary_sensor.temperature_high", "created"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup mock client
+			mockClient := &UniversalMockClient{}
+			if tt.setupMock != nil {
+				tt.setupMock(mockClient)
+			}
+
+			// Execute handler
+			h := NewConsolidatedHelperHandlers()
+			result, err := h.handleManageHelper(context.Background(), mockClient, tt.args)
+
+			// Check error
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+				return
+			}
+
+			// Check result contains expected strings
+			if result != nil && len(result.Content) > 0 {
+				text := result.Content[0].Text
+				assertContainsAll(t, text, tt.wantContains)
+			}
+		})
+	}
+}
+
+// =============================================================================
 // manage_helper - Validation Tests
 // =============================================================================
 
@@ -1418,7 +1557,7 @@ func TestManageHelper_APIErrors(t *testing.T) {
 				}
 			},
 			wantError:    true,
-			wantContains: []string{"Error", "creating"},
+			wantContains: []string{"error", "creating"},
 		},
 		{
 			name: "delete helper error",
@@ -1559,34 +1698,34 @@ func TestHelperCreate_SuccessMessageUsesSlugifiedName(t *testing.T) {
 
 	tests := []handlerTestCase{
 		{
-			name: "counter with name that needs slugification",
+			name: "counter with name that needs slugification - entity ID from id",
 			args: map[string]any{
 				"action": "create",
 				"type":   "counter",
 				"id":     "mcp_test_bool",
 				"name":   "MCP Test Boolean",
 			},
-			wantContains: []string{"counter.mcp_test_boolean"},
+			wantContains: []string{"counter.mcp_test_bool"},
 		},
 		{
-			name: "boolean with special characters in name",
+			name: "boolean with special characters in name - entity ID from id",
 			args: map[string]any{
 				"action": "create",
 				"type":   "input_boolean",
 				"id":     "test_bool",
 				"name":   "Test! Boolean@",
 			},
-			wantContains: []string{"input_boolean.test_boolean"},
+			wantContains: []string{"input_boolean.test_bool"},
 		},
 		{
-			name: "text with spaces in name",
+			name: "text with spaces in name - entity ID from id",
 			args: map[string]any{
 				"action": "create",
 				"type":   "input_text",
 				"id":     "text_id",
 				"name":   "My   Test   Text",
 			},
-			wantContains: []string{"input_text.my_test_text"},
+			wantContains: []string{"input_text.text_id"},
 		},
 	}
 
