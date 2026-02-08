@@ -199,9 +199,9 @@ func TestNaturalFormatter_FormatEntities_GroupByDomain(t *testing.T) {
 	}
 }
 
-func TestNaturalFormatter_FormatHistory_Empty(t *testing.T) {
+func TestNaturalFormatter_FormatHistory_Empty_EntityExists(t *testing.T) {
 	f := NewNaturalFormatter()
-	result, err := f.FormatHistory(context.Background(), "light.test", nil, HistoryOptions{})
+	result, err := f.FormatHistory(context.Background(), "light.test", nil, HistoryOptions{EntityExists: true})
 	if err != nil {
 		t.Fatalf("FormatHistory() error = %v", err)
 	}
@@ -210,7 +210,7 @@ func TestNaturalFormatter_FormatHistory_Empty(t *testing.T) {
 		"No history found",
 		"Possible reasons",
 		"excluded from recorder",
-		"created recently",
+		"newly created",
 		"No state changes",
 	}
 
@@ -218,6 +218,37 @@ func TestNaturalFormatter_FormatHistory_Empty(t *testing.T) {
 		if !strings.Contains(result, phrase) {
 			t.Errorf("FormatHistory() = %q, want to contain %q", result, phrase)
 		}
+	}
+
+	// Should NOT contain entity not found message
+	if strings.Contains(result, "was not found") {
+		t.Errorf("FormatHistory() should not contain 'was not found' for existing entity, got %q", result)
+	}
+}
+
+func TestNaturalFormatter_FormatHistory_Empty_EntityNotFound(t *testing.T) {
+	f := NewNaturalFormatter()
+	result, err := f.FormatHistory(context.Background(), "light.test", nil, HistoryOptions{EntityExists: false})
+	if err != nil {
+		t.Fatalf("FormatHistory() error = %v", err)
+	}
+
+	expectedPhrases := []string{
+		"was not found",
+		"verify",
+		"entity_id",
+		"spelled correctly",
+	}
+
+	for _, phrase := range expectedPhrases {
+		if !strings.Contains(result, phrase) {
+			t.Errorf("FormatHistory() = %q, want to contain %q", result, phrase)
+		}
+	}
+
+	// Should NOT contain generic "no history" tips
+	if strings.Contains(result, "excluded from recorder") {
+		t.Errorf("FormatHistory() should not contain recorder tips for non-existent entity, got %q", result)
 	}
 }
 

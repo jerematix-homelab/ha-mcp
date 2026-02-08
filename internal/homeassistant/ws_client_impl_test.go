@@ -795,10 +795,14 @@ func (t *testableWSClientImplV2) BrowseMedia(ctx context.Context, mediaContentID
 func TestWSClientImpl_GetStatistics(t *testing.T) {
 	t.Parallel()
 
+	// Simulate real HA API response: statistic_id is only in map key, not in entries
 	statsData := map[string][]StatisticsResult{
 		"sensor.energy": {
-			{StatisticID: "sensor.energy", Mean: float64Ptr(100.5)},
-			{StatisticID: "sensor.energy", Mean: float64Ptr(102.3)},
+			{Mean: float64Ptr(100.5)}, // StatisticID intentionally empty
+			{Mean: float64Ptr(102.3)}, // StatisticID intentionally empty
+		},
+		"sensor.power": {
+			{Mean: float64Ptr(50.0)}, // StatisticID intentionally empty
 		},
 	}
 
@@ -815,13 +819,34 @@ func TestWSClientImpl_GetStatistics(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	stats, err := impl.GetStatistics(ctx, []string{"sensor.energy"}, "hour")
+	stats, err := impl.GetStatistics(ctx, []string{"sensor.energy", "sensor.power"}, "hour")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(stats) != 2 {
-		t.Errorf("got %d stats, want 2", len(stats))
+	if len(stats) != 3 {
+		t.Errorf("got %d stats, want 3", len(stats))
+	}
+
+	// Verify that StatisticID is populated from map key
+	energyCount, powerCount := 0, 0
+	for _, stat := range stats {
+		if stat.StatisticID == "" {
+			t.Errorf("StatisticID is empty for stat with mean %v", stat.Mean)
+		}
+		if stat.StatisticID == "sensor.energy" {
+			energyCount++
+		}
+		if stat.StatisticID == "sensor.power" {
+			powerCount++
+		}
+	}
+
+	if energyCount != 2 {
+		t.Errorf("got %d energy stats, want 2", energyCount)
+	}
+	if powerCount != 1 {
+		t.Errorf("got %d power stats, want 1", powerCount)
 	}
 }
 
@@ -849,7 +874,11 @@ func (t *testableWSClientImplV2) GetStatistics(ctx context.Context, statIDs []st
 	}
 
 	var allStats []StatisticsResult
-	for _, stats := range statsMap {
+	for statID, stats := range statsMap {
+		// Populate StatisticID from map key (HA API returns it only as key, not in entries)
+		for i := range stats {
+			stats[i].StatisticID = statID
+		}
 		allStats = append(allStats, stats...)
 	}
 
@@ -2255,8 +2284,9 @@ func TestWSClientImplWithSender_GetLovelaceConfig(t *testing.T) {
 func TestWSClientImplWithSender_GetStatistics(t *testing.T) {
 	t.Parallel()
 
+	// Simulate real HA API response: statistic_id is only in map key, not in entries
 	statsData := map[string][]StatisticsResult{
-		"sensor.energy": {{StatisticID: "sensor.energy"}},
+		"sensor.energy": {{Mean: float64Ptr(100.5)}}, // StatisticID intentionally empty
 	}
 
 	mock := &mockWSClientSender{
@@ -2279,6 +2309,10 @@ func TestWSClientImplWithSender_GetStatistics(t *testing.T) {
 	}
 	if len(stats) != 1 {
 		t.Errorf("got %d stats, want 1", len(stats))
+	}
+	// Verify StatisticID was populated from map key
+	if stats[0].StatisticID != "sensor.energy" {
+		t.Errorf("got StatisticID %q, want sensor.energy", stats[0].StatisticID)
 	}
 }
 

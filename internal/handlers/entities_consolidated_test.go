@@ -560,6 +560,70 @@ func TestQueryEntities_History_FormatNatural(t *testing.T) {
 	runHandlerTestCases(t, tests, h.handleQueryEntities)
 }
 
+func TestQueryEntities_History_EmptyHistory_EntityExists(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "entity exists but no history",
+			args: map[string]any{"mode": modeHistory, "entity_id": "sensor.new_sensor"},
+			setupMock: func(m *UniversalMockClient) {
+				// Empty history
+				m.GetHistoryFn = func(_ context.Context, _ string, _, _ time.Time) ([][]homeassistant.HistoryEntry, error) {
+					return [][]homeassistant.HistoryEntry{}, nil
+				}
+				// Entity exists (GetState succeeds)
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{EntityID: entityID, State: "20.5"}, nil
+				}
+			},
+			wantError: false,
+			wantContains: []string{
+				"No history found",
+				"sensor.new_sensor",
+				"newly created",
+				"requested period",
+			},
+			wantNotContains: []string{"not found", "verify"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}
+
+func TestQueryEntities_History_EntityNotFound(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "entity does not exist",
+			args: map[string]any{"mode": modeHistory, "entity_id": "sensor.nonexistent"},
+			setupMock: func(m *UniversalMockClient) {
+				// Empty history
+				m.GetHistoryFn = func(_ context.Context, _ string, _, _ time.Time) ([][]homeassistant.HistoryEntry, error) {
+					return [][]homeassistant.HistoryEntry{}, nil
+				}
+				// Entity doesn't exist (GetState fails)
+				m.GetStateFn = func(_ context.Context, _ string) (*homeassistant.Entity, error) {
+					return nil, errors.New("Entity not found")
+				}
+			},
+			wantError: false,
+			wantContains: []string{
+				"not found",
+				"sensor.nonexistent",
+				"verify",
+				"entity_id",
+			},
+			wantNotContains: []string{"newly created", "requested period"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}
+
 func TestQueryEntities_Statistics(t *testing.T) {
 	t.Parallel()
 
@@ -996,6 +1060,71 @@ func TestQueryEntities_Current_Grouping(t *testing.T) {
 			},
 			wantError:    true,
 			wantContains: []string{"invalid group_by"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}
+
+func TestQueryEntities_Current_GroupingWithSorting(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	testStates := []homeassistant.Entity{
+		{EntityID: "light.zzz", State: "on", LastChanged: now.Add(-10 * time.Minute), Attributes: map[string]any{"friendly_name": "ZZZ Light"}},
+		{EntityID: "light.aaa", State: "off", LastChanged: now.Add(-5 * time.Minute), Attributes: map[string]any{"friendly_name": "AAA Light"}},
+		{EntityID: "switch.bbb", State: "on", LastChanged: now.Add(-1 * time.Minute), Attributes: map[string]any{"friendly_name": "BBB Switch"}},
+	}
+
+	entityRegistry := []homeassistant.EntityRegistryEntry{
+		{EntityID: "light.zzz", AreaID: "area_1"},
+		{EntityID: "light.aaa", AreaID: "area_1"},
+		{EntityID: "switch.bbb", AreaID: "area_2"},
+	}
+
+	deviceRegistry := []homeassistant.DeviceRegistryEntry{}
+
+	tests := []handlerTestCase{
+		{
+			name: "group_by=domain + sort_by=entity_id shows sorted entities",
+			args: map[string]any{"mode": modeCurrent, "group_by": "domain", "sort_by": "entity_id", "format": "natural"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError: false,
+			wantContains: []string{
+				"**light**",  // domain header
+				"AAA Light",  // should be first (alphabetically by entity_id)
+				"ZZZ Light",  // should be second
+				"**switch**", // domain header
+				"BBB Switch", // only switch
+			},
+		},
+		{
+			name: "group_by=area_id + sort_by=last_changed shows sorted entities with criterion",
+			args: map[string]any{"mode": modeCurrent, "group_by": "area_id", "sort_by": "last_changed", "format": "natural"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+				m.GetEntityRegistryFn = func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return entityRegistry, nil
+				}
+				m.GetDeviceRegistryFn = func(_ context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return deviceRegistry, nil
+				}
+			},
+			wantError: false,
+			wantContains: []string{
+				"Area: area_1", // area header
+				"light.aaa",    // should be first (most recent)
+				"light.zzz",    // should be second (older)
+				"Area: area_2", // area header
+				"switch.bbb",   // only entity in area_2
+			},
 		},
 	}
 
