@@ -58,12 +58,17 @@ func ExtractDomain(entityID string) string {
 }
 
 // GetFriendlyName returns the friendly_name attribute or falls back to entity_id.
+// For update entities, it also checks the title attribute.
 func GetFriendlyName(entityID string, attributes map[string]any) string {
 	if attributes == nil {
 		return entityID
 	}
 	if name, ok := attributes["friendly_name"].(string); ok && name != "" {
 		return name
+	}
+	// Update entities use "title" instead of "friendly_name"
+	if title, ok := attributes["title"].(string); ok && title != "" {
+		return title
 	}
 	return entityID
 }

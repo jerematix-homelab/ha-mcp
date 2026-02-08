@@ -671,13 +671,109 @@ func TestManageHelper_GetDetails(t *testing.T) {
 			wantContains: []string{"Work Hours", "on", "Mon"},
 		},
 		{
-			name: "get_details for non-schedule entity",
+			name: "get_details for counter with json format",
 			args: map[string]any{
 				"action":    "get_details",
-				"entity_id": "counter.test_counter",
+				"entity_id": "counter.visitors",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "42",
+						Attributes: map[string]any{
+							"friendly_name": "Visitor Counter",
+							"initial":       float64(0),
+							"minimum":       float64(0),
+							"maximum":       float64(100),
+							"step":          float64(1),
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"counter.visitors", "42", "initial", "minimum", "maximum"},
+		},
+		{
+			name: "get_details for counter with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "counter.visitors",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "42",
+						Attributes: map[string]any{
+							"friendly_name": "Visitor Counter",
+							"initial":       float64(0),
+							"minimum":       float64(0),
+							"maximum":       float64(100),
+							"step":          float64(1),
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Visitor Counter", "42", "Initial value", "Minimum", "Maximum"},
+		},
+		{
+			name: "get_details for timer with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "timer.pomodoro",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "active",
+						Attributes: map[string]any{
+							"friendly_name": "Pomodoro Timer",
+							"duration":      "0:25:00",
+							"remaining":     "0:15:30",
+							"finishes_at":   "2024-01-15T12:25:00+00:00",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"timer.pomodoro", "active", "duration", "remaining"},
+		},
+		{
+			name: "get_details for timer with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "timer.pomodoro",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "idle",
+						Attributes: map[string]any{
+							"friendly_name": "Pomodoro Timer",
+							"duration":      "0:25:00",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Pomodoro Timer", "idle", "Duration"},
+		},
+		{
+			name: "get_details for unsupported helper type",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_boolean.test",
 			},
 			wantError:    true,
-			wantContains: []string{"schedule"},
+			wantContains: []string{"not supported"},
 		},
 	}
 
