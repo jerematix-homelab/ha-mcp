@@ -509,6 +509,7 @@ Modes:
 - history: Get historical state changes for an entity (requires entity_id)
 - statistics: Get long-term statistics for entities (requires statistic_ids array)
 - domains: List all available entity domains with counts
+- presence: Analyze person entities and device tracker correlation
 
 Examples:
 - Get all lights: {"mode": "current", "domain": "light"}
@@ -522,8 +523,8 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 	return map[string]mcp.JSONSchema{
 		"mode": {
 			Type:        "string",
-			Enum:        []string{"current", "history", "statistics", "domains"},
-			Description: "Query mode: current (states), history, statistics, or domains",
+			Enum:        []string{"current", "history", "statistics", "domains", "presence"},
+			Description: "Query mode: current (states), history, statistics, domains, or presence",
 		},
 		"format": {
 			Type:        "string",
@@ -627,8 +628,10 @@ func (h *ConsolidatedEntityQueryHandlers) handleQueryEntities(
 		return h.handleStatistics(ctx, client, args)
 	case "domains":
 		return h.handleDomains(ctx, client, args)
+	case "presence":
+		return h.handlePresence(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("Invalid mode %q. Must be one of: current, history, statistics, domains", mode)), nil
+		return errorResult(fmt.Sprintf("Invalid mode %q. Must be one of: current, history, statistics, domains, presence", mode)), nil
 	}
 }
 

@@ -28,10 +28,15 @@ func (h *LogbookHandlers) RegisterTools(registry *mcp.Registry) {
 func (h *LogbookHandlers) getLogbookTool() mcp.Tool {
 	return mcp.Tool{
 		Name:        "get_logbook",
-		Description: "Get logbook entries showing what happened in Home Assistant. By default returns compact output with time, entity, and state change. Use filters to narrow down results. Supports pagination via 'limit' and 'cursor' parameters.",
+		Description: "Get logbook entries showing what happened in Home Assistant. Supports two modes: 'entries' (default) for chronological events, and 'correlation' for analyzing cause-effect relationships across multiple entities.",
 		InputSchema: mcp.JSONSchema{
 			Type: "object",
 			Properties: map[string]mcp.JSONSchema{
+				"mode": {
+					Type:        "string",
+					Enum:        []string{"entries", "correlation"},
+					Description: "Query mode: 'entries' for chronological logbook (default), 'correlation' for cause-effect analysis across entities",
+				},
 				"start_time": {
 					Type:        "string",
 					Description: "Start time in ISO 8601 format (e.g., '2024-01-15T10:00:00'). Default: 24 hours ago",
@@ -42,11 +47,24 @@ func (h *LogbookHandlers) getLogbookTool() mcp.Tool {
 				},
 				"entity_id": {
 					Type:        "string",
-					Description: "Filter by entity ID (e.g., 'light.living_room')",
+					Description: "Filter by single entity ID (e.g., 'light.living_room'). For mode=entries only",
+				},
+				"entity_ids": {
+					Type:        "array",
+					Description: "Array of entity IDs to analyze for correlations. Required for mode=correlation",
 				},
 				"hours": {
 					Type:        "number",
 					Description: "Number of hours to look back from now (alternative to start_time, e.g., 6 for last 6 hours)",
+				},
+				"max_time_delta_seconds": {
+					Type:        "integer",
+					Description: "Maximum time difference in seconds to group correlated events (default: 60). Only for mode=correlation",
+				},
+				"format": {
+					Type:        "string",
+					Enum:        []string{"natural", "json"},
+					Description: "Output format: 'natural' for LLM-optimized output (default), 'json' for structured JSON",
 				},
 				"limit": {
 					Type:        "integer",
@@ -131,6 +149,26 @@ func parseLogbookTimes(args map[string]any) (startTime, endTime time.Time, err e
 
 // handleGetLogbook handles requests to retrieve logbook entries.
 func (h *LogbookHandlers) handleGetLogbook(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	// Check mode parameter
+	mode := getString(args, "mode")
+	if mode == "" {
+		mode = "entries" // default mode
+	}
+
+	if mode == "correlation" {
+		return h.handleCorrelation(ctx, client, args)
+	}
+
+	// Handle entries mode
+	return h.handleEntriesMode(ctx, client, args)
+}
+
+// handleEntriesMode handles logbook entries mode (default mode).
+func (h *LogbookHandlers) handleEntriesMode(
 	ctx context.Context,
 	client homeassistant.Client,
 	args map[string]any,
