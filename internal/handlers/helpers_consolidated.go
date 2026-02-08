@@ -549,6 +549,41 @@ func (h *ConsolidatedHelperHandlers) handleCreate(ctx context.Context, client ho
 		return errorResult(err.Error()), nil
 	}
 
+	// Determine if this is a WebSocket helper or Config Entry Flow helper
+	isWSHelper := !homeassistant.RequiresConfigEntryFlow(meta.platform)
+
+	var entityID string
+	if isWSHelper {
+		entityID, err = h.createWSHelper(ctx, client, id, name, config, meta, helperType)
+	} else {
+		entityID, err = h.createConfigEntryHelper(ctx, client, id, name, config, meta, helperType)
+	}
+
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	return successResult(fmt.Sprintf("%s '%s' created successfully as %s", formatHelperType(helperType), name, entityID)), nil
+}
+
+// createWSHelper creates a WebSocket-based helper, using id to control entity slug.
+func (h *ConsolidatedHelperHandlers) createWSHelper(
+	ctx context.Context,
+	client homeassistant.Client,
+	id, name string,
+	config map[string]any,
+	meta helperTypeMetadata,
+	helperType string,
+) (string, error) {
+	idSlug := slugifyName(id)
+	nameSlug := slugifyName(name)
+	needsUpdate := idSlug != nameSlug
+
+	if needsUpdate {
+		// Override config name with id to control entity slug
+		config["name"] = id
+	}
+
 	helper := homeassistant.HelperConfig{
 		Platform: meta.platform,
 		ID:       id,
@@ -556,12 +591,46 @@ func (h *ConsolidatedHelperHandlers) handleCreate(ctx context.Context, client ho
 	}
 
 	if err := client.CreateHelper(ctx, helper); err != nil {
-		return errorResult(fmt.Sprintf("Error creating %s: %v", helperType, err)), nil
+		return "", fmt.Errorf("error creating %s: %w", helperType, err)
+	}
+
+	if needsUpdate {
+		// Restore friendly name via update
+		updateConfig := homeassistant.HelperConfig{
+			Platform: meta.platform,
+			Config:   map[string]any{"name": name},
+		}
+		if updateErr := client.UpdateHelper(ctx, id, updateConfig); updateErr != nil {
+			// Entity created but rename failed - return error with context
+			return "", fmt.Errorf("%s created as %s.%s, but failed to set display name: %w",
+				formatHelperType(helperType), meta.entityPrefix, idSlug, updateErr)
+		}
+	}
+
+	return fmt.Sprintf("%s.%s", meta.entityPrefix, idSlug), nil
+}
+
+// createConfigEntryHelper creates a Config Entry Flow helper, using name for entity slug.
+func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
+	ctx context.Context,
+	client homeassistant.Client,
+	id, name string,
+	config map[string]any,
+	meta helperTypeMetadata,
+	helperType string,
+) (string, error) {
+	helper := homeassistant.HelperConfig{
+		Platform: meta.platform,
+		ID:       id,
+		Config:   config,
+	}
+
+	if err := client.CreateHelper(ctx, helper); err != nil {
+		return "", fmt.Errorf("error creating %s: %w", helperType, err)
 	}
 
 	predictedSlug := slugifyName(name)
-	entityID := fmt.Sprintf("%s.%s", meta.entityPrefix, predictedSlug)
-	return successResult(fmt.Sprintf("%s '%s' created successfully as %s", formatHelperType(helperType), name, entityID)), nil
+	return fmt.Sprintf("%s.%s", meta.entityPrefix, predictedSlug), nil
 }
 
 func (h *ConsolidatedHelperHandlers) handleDelete(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {

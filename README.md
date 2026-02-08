@@ -483,6 +483,10 @@ Universal tool for helper lifecycle management:
 
 **Supported helper types:** `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`, `group`, `template_sensor`, `template_binary_sensor`, `threshold`, `derivative`, `integral`
 
+**ID Parameter Behavior:**
+- For WebSocket helpers (`input_*`, `counter`, `timer`, `schedule`): The `id` parameter controls the entity ID (e.g., `id="test_bool"` creates `input_boolean.test_bool`), while `name` sets the display name
+- For Config Entry Flow helpers (`threshold`, `derivative`, `integral`, `group`, `template_*`): Entity ID is derived from `name` (Home Assistant limitation)
+
 ##### helper_action
 
 Universal tool for runtime helper operations:
