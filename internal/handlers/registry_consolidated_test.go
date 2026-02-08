@@ -659,24 +659,24 @@ func TestConsolidatedRegistryHandlers_HandleGetRegistry_Devices_IncludeEntities(
 	}
 
 	tests := []struct {
-		name             string
-		args             map[string]any
-		wantContains     []string
-		wantNotContains  []string
+		name            string
+		args            map[string]any
+		wantContains    []string
+		wantNotContains []string
 	}{
 		{
-			name: "include_entities true - natural format",
-			args: map[string]any{"type": "devices", "include_entities": true, "format": "natural"},
+			name:         "include_entities true - natural format",
+			args:         map[string]any{"type": "devices", "include_entities": true, "format": "natural"},
 			wantContains: []string{"Hue Bridge", "light.living_1", "light.living_2", "Entities (2):"},
 		},
 		{
-			name: "include_entities false - natural format",
-			args: map[string]any{"type": "devices", "include_entities": false, "format": "natural"},
+			name:            "include_entities false - natural format",
+			args:            map[string]any{"type": "devices", "include_entities": false, "format": "natural"},
 			wantNotContains: []string{"light.living_1", "Entities ("},
 		},
 		{
-			name: "include_entities true - json format",
-			args: map[string]any{"type": "devices", "include_entities": true, "format": "json"},
+			name:         "include_entities true - json format",
+			args:         map[string]any{"type": "devices", "include_entities": true, "format": "json"},
 			wantContains: []string{"\"entities\"", "\"light.living_1\""},
 		},
 	}

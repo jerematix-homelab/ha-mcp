@@ -1270,10 +1270,10 @@ func TestAnalysisHandlers_formatHistory(t *testing.T) {
 	h := NewAnalysisHandlers()
 
 	tests := []struct {
-		name             string
-		history          []HistoryEntry
-		wantContains     []string
-		wantNotContains  []string
+		name            string
+		history         []HistoryEntry
+		wantContains    []string
+		wantNotContains []string
 	}{
 		{
 			name: "shows up to 10 most recent entries",
@@ -1306,8 +1306,8 @@ func TestAnalysisHandlers_formatHistory(t *testing.T) {
 			wantNotContains: []string{"Showing"},
 		},
 		{
-			name: "empty history",
-			history: []HistoryEntry{},
+			name:            "empty history",
+			history:         []HistoryEntry{},
 			wantContains:    []string{"0 state changes"},
 			wantNotContains: []string{"Showing"},
 		},

@@ -846,3 +846,159 @@ func TestFormatStatValues(t *testing.T) {
 func ptrFloat(f float64) *float64 {
 	return &f
 }
+
+func TestQueryEntities_Current_Sorting(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	testStates := []homeassistant.Entity{
+		{
+			EntityID: "light.living_room",
+			State:    "on",
+			Attributes: map[string]any{
+				"friendly_name": "Zebra Light",
+			},
+			LastChanged: now.Add(-10 * time.Minute),
+		},
+		{
+			EntityID: "light.bedroom",
+			State:    "off",
+			Attributes: map[string]any{
+				"friendly_name": "Apple Light",
+			},
+			LastChanged: now.Add(-5 * time.Minute),
+		},
+		{
+			EntityID: "light.kitchen",
+			State:    "unavailable",
+			Attributes: map[string]any{
+				"friendly_name": "Mango Light",
+			},
+			LastChanged: now,
+		},
+	}
+
+	tests := []handlerTestCase{
+		{
+			name: "sort by entity_id (default)",
+			args: map[string]any{"mode": modeCurrent, "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError: false,
+			// Should be sorted: bedroom, kitchen, living_room
+		},
+		{
+			name: "sort by state",
+			args: map[string]any{"mode": modeCurrent, "sort_by": "state", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError: false,
+			// Should be sorted: off, on, unavailable
+		},
+		{
+			name: "sort by friendly_name",
+			args: map[string]any{"mode": modeCurrent, "sort_by": "friendly_name", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError: false,
+			// Should be sorted: Apple, Mango, Zebra
+		},
+		{
+			name: "sort by last_changed",
+			args: map[string]any{"mode": modeCurrent, "sort_by": "last_changed", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError: false,
+			// Should be sorted: oldest to newest (living_room, bedroom, kitchen)
+		},
+		{
+			name: "invalid sort_by",
+			args: map[string]any{"mode": modeCurrent, "sort_by": "invalid"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"invalid sort_by"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}
+
+func TestQueryEntities_Current_Grouping(t *testing.T) {
+	t.Parallel()
+
+	testStates := []homeassistant.Entity{
+		{EntityID: "light.living_room", State: "on", Attributes: map[string]any{"friendly_name": "Living Room"}},
+		{EntityID: "light.bedroom", State: "off", Attributes: map[string]any{"friendly_name": "Bedroom"}},
+		{EntityID: "switch.kitchen", State: "on", Attributes: map[string]any{"friendly_name": "Kitchen"}},
+	}
+
+	entityRegistry := []homeassistant.EntityRegistryEntry{
+		{EntityID: "light.living_room", AreaID: "living_room"},
+		{EntityID: "light.bedroom", AreaID: "bedroom"},
+		{EntityID: "switch.kitchen", AreaID: "living_room"},
+	}
+
+	deviceRegistry := []homeassistant.DeviceRegistryEntry{}
+
+	tests := []handlerTestCase{
+		{
+			name: "group by domain (natural format default)",
+			args: map[string]any{"mode": modeCurrent, "format": "natural"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"light", "switch"},
+		},
+		{
+			name: "group by area_id (natural format)",
+			args: map[string]any{"mode": modeCurrent, "group_by": "area_id", "format": "natural"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+				m.GetEntityRegistryFn = func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return entityRegistry, nil
+				}
+				m.GetDeviceRegistryFn = func(_ context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return deviceRegistry, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Area: living_room", "Area: bedroom"},
+		},
+		{
+			name: "invalid group_by",
+			args: map[string]any{"mode": modeCurrent, "group_by": "invalid"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"invalid group_by"},
+		},
+	}
+
+	h := NewConsolidatedEntityQueryHandlers()
+	runHandlerTestCases(t, tests, h.handleQueryEntities)
+}
