@@ -9,15 +9,16 @@ import (
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
-// timeNow is a variable that can be overridden in tests
-var timeNow = time.Now
-
 // DatetimeHandlers provides date/time related tools
-type DatetimeHandlers struct{}
+type DatetimeHandlers struct {
+	nowFunc func() time.Time
+}
 
 // NewDatetimeHandlers creates a new DatetimeHandlers instance
 func NewDatetimeHandlers() *DatetimeHandlers {
-	return &DatetimeHandlers{}
+	return &DatetimeHandlers{
+		nowFunc: time.Now,
+	}
 }
 
 // RegisterTools registers all datetime tools with the MCP registry
@@ -87,7 +88,7 @@ func (h *DatetimeHandlers) HandleGetDatetime(ctx context.Context, client homeass
 	}
 
 	// Get current time in the specified timezone
-	now := timeNow().In(loc)
+	now := h.nowFunc().In(loc)
 
 	// Format output
 	output := formatDatetimeOutput(now, tzName)

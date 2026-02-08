@@ -123,10 +123,8 @@ func TestDatetimeHandlers_HandleGetDatetime(t *testing.T) {
 
 	h := NewDatetimeHandlers()
 
-	// Override time.Now for consistent testing
-	originalNow := timeNow
-	timeNow = func() time.Time { return referenceTime }
-	defer func() { timeNow = originalNow }()
+	// Override time function for consistent testing
+	h.nowFunc = func() time.Time { return referenceTime }
 
 	runHandlerTestCases(t, tests, h.HandleGetDatetime)
 }
