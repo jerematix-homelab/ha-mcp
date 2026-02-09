@@ -159,8 +159,16 @@ func (m *mockHAClient) RemoveEntityRegistryEntry(_ context.Context, _ string) er
 	return nil
 }
 
+func (m *mockHAClient) UpdateEntityRegistryEntry(_ context.Context, _ string, _ homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+	return nil, nil
+}
+
 func (m *mockHAClient) RemoveDeviceConfigEntry(_ context.Context, _, _ string) error {
 	return nil
+}
+
+func (m *mockHAClient) UpdateDeviceRegistryEntry(_ context.Context, _ string, _ homeassistant.DeviceRegistryUpdateConfig) (*homeassistant.DeviceRegistryEntry, error) {
+	return nil, nil
 }
 
 func (m *mockHAClient) SignPath(_ context.Context, _ string, _ int) (string, error) {

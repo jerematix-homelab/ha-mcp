@@ -68,9 +68,11 @@ type Client interface {
 
 	// Entity registry modification operations
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
+	UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error)
 
 	// Device registry modification operations
 	RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error
+	UpdateDeviceRegistryEntry(ctx context.Context, deviceID string, config DeviceRegistryUpdateConfig) (*DeviceRegistryEntry, error)
 
 	// Media operations
 	SignPath(ctx context.Context, path string, expires int) (string, error)

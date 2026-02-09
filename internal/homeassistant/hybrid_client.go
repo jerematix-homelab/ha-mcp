@@ -83,7 +83,9 @@ type WSOperations interface {
 	UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
 	DeleteArea(ctx context.Context, areaID string) error
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
+	UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error)
 	RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error
+	UpdateDeviceRegistryEntry(ctx context.Context, deviceID string, config DeviceRegistryUpdateConfig) (*DeviceRegistryEntry, error)
 	SignPath(ctx context.Context, path string, expires int) (string, error)
 	GetCameraStream(ctx context.Context, entityID string) (*StreamInfo, error)
 	BrowseMedia(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
@@ -573,9 +575,19 @@ func (c *HybridClient) RemoveEntityRegistryEntry(ctx context.Context, entityID s
 	return c.ws.RemoveEntityRegistryEntry(ctx, entityID)
 }
 
+// UpdateEntityRegistryEntry updates an existing entity in the entity registry.
+func (c *HybridClient) UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error) {
+	return c.ws.UpdateEntityRegistryEntry(ctx, entityID, config)
+}
+
 // RemoveDeviceConfigEntry removes a config entry from a device.
 func (c *HybridClient) RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error {
 	return c.ws.RemoveDeviceConfigEntry(ctx, deviceID, configEntryID)
+}
+
+// UpdateDeviceRegistryEntry updates an existing device in the device registry.
+func (c *HybridClient) UpdateDeviceRegistryEntry(ctx context.Context, deviceID string, config DeviceRegistryUpdateConfig) (*DeviceRegistryEntry, error) {
+	return c.ws.UpdateDeviceRegistryEntry(ctx, deviceID, config)
 }
 
 // =============================================================================

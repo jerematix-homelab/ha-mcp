@@ -64,7 +64,9 @@ type UniversalMockClient struct {
 	UpdateAreaFn                func(ctx context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error)
 	DeleteAreaFn                func(ctx context.Context, areaID string) error
 	RemoveEntityRegistryEntryFn func(ctx context.Context, entityID string) error
+	UpdateEntityRegistryEntryFn func(ctx context.Context, entityID string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error)
 	RemoveDeviceConfigEntryFn   func(ctx context.Context, deviceID, configEntryID string) error
+	UpdateDeviceRegistryEntryFn func(ctx context.Context, deviceID string, config homeassistant.DeviceRegistryUpdateConfig) (*homeassistant.DeviceRegistryEntry, error)
 
 	// Media operations
 	SignPathFn        func(ctx context.Context, path string, expires int) (string, error)
@@ -354,11 +356,25 @@ func (m *UniversalMockClient) RemoveEntityRegistryEntry(ctx context.Context, ent
 	return nil
 }
 
+func (m *UniversalMockClient) UpdateEntityRegistryEntry(ctx context.Context, entityID string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+	if m.UpdateEntityRegistryEntryFn != nil {
+		return m.UpdateEntityRegistryEntryFn(ctx, entityID, config)
+	}
+	return nil, nil
+}
+
 func (m *UniversalMockClient) RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error {
 	if m.RemoveDeviceConfigEntryFn != nil {
 		return m.RemoveDeviceConfigEntryFn(ctx, deviceID, configEntryID)
 	}
 	return nil
+}
+
+func (m *UniversalMockClient) UpdateDeviceRegistryEntry(ctx context.Context, deviceID string, config homeassistant.DeviceRegistryUpdateConfig) (*homeassistant.DeviceRegistryEntry, error) {
+	if m.UpdateDeviceRegistryEntryFn != nil {
+		return m.UpdateDeviceRegistryEntryFn(ctx, deviceID, config)
+	}
+	return nil, nil
 }
 
 // Media operations implementation

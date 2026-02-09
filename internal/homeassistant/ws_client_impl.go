@@ -762,6 +762,48 @@ func (c *wsClientImpl) RemoveEntityRegistryEntry(ctx context.Context, entityID s
 	return err
 }
 
+// UpdateEntityRegistryEntry updates an existing entity in the entity registry.
+func (c *wsClientImpl) UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error) {
+	params := map[string]any{
+		"entity_id": entityID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.Name != nil {
+		params["name"] = *config.Name
+	}
+	if config.Icon != nil {
+		params["icon"] = *config.Icon
+	}
+	if config.AreaID != nil {
+		params["area_id"] = *config.AreaID
+	}
+	if config.DisabledBy != nil {
+		params["disabled_by"] = *config.DisabledBy
+	}
+	if config.HiddenBy != nil {
+		params["hidden_by"] = *config.HiddenBy
+	}
+	if config.Labels != nil {
+		params["labels"] = config.Labels
+	}
+	if config.Aliases != nil {
+		params["aliases"] = config.Aliases
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/entity_registry/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update entity: %w", err)
+	}
+
+	var entry EntityRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated entity: %w", err)
+	}
+
+	return &entry, nil
+}
+
 // RemoveDeviceConfigEntry removes a config entry from a device.
 // When all config entries are removed, Home Assistant deletes the device.
 func (c *wsClientImpl) RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error {
@@ -770,6 +812,39 @@ func (c *wsClientImpl) RemoveDeviceConfigEntry(ctx context.Context, deviceID, co
 		"config_entry_id": configEntryID,
 	})
 	return err
+}
+
+// UpdateDeviceRegistryEntry updates an existing device in the device registry.
+func (c *wsClientImpl) UpdateDeviceRegistryEntry(ctx context.Context, deviceID string, config DeviceRegistryUpdateConfig) (*DeviceRegistryEntry, error) {
+	params := map[string]any{
+		"device_id": deviceID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.NameByUser != nil {
+		params["name_by_user"] = *config.NameByUser
+	}
+	if config.AreaID != nil {
+		params["area_id"] = *config.AreaID
+	}
+	if config.DisabledBy != nil {
+		params["disabled_by"] = *config.DisabledBy
+	}
+	if config.Labels != nil {
+		params["labels"] = config.Labels
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/device_registry/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update device: %w", err)
+	}
+
+	var entry DeviceRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated device: %w", err)
+	}
+
+	return &entry, nil
 }
 
 // CreateArea creates a new area in the area registry.
