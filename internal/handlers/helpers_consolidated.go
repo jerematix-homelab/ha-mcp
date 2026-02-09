@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -611,6 +612,7 @@ func (h *ConsolidatedHelperHandlers) createWSHelper(
 }
 
 // createConfigEntryHelper creates a Config Entry Flow helper, using name for entity slug.
+// If an icon is provided in config, it will be set via Entity Registry after creation.
 func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
 	ctx context.Context,
 	client homeassistant.Client,
@@ -619,6 +621,14 @@ func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
 	meta helperTypeMetadata,
 	helperType string,
 ) (string, error) {
+	// Extract and REMOVE icon before creation
+	// Config Entry Flow doesn't support icon in create flow
+	icon, hasIcon := config["icon"].(string)
+	if hasIcon {
+		// Remove icon from config to prevent it from being sent to Config Entry Flow
+		delete(config, "icon")
+	}
+
 	helper := homeassistant.HelperConfig{
 		Platform: meta.platform,
 		ID:       id,
@@ -630,7 +640,25 @@ func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
 	}
 
 	predictedSlug := slugifyName(name)
-	return fmt.Sprintf("%s.%s", meta.entityPrefix, predictedSlug), nil
+	entityID := fmt.Sprintf("%s.%s", meta.entityPrefix, predictedSlug)
+
+	// Set icon via Entity Registry if provided
+	// Note: We need to wait briefly for the entity to appear in the registry
+	if hasIcon && icon != "" {
+		// Wait a moment for entity to be registered
+		// Config Entry Flow entities may take time to appear in registry
+		time.Sleep(500 * time.Millisecond)
+
+		updateCfg := homeassistant.EntityRegistryUpdateConfig{
+			Icon: &icon,
+		}
+		if _, err := client.UpdateEntityRegistryEntry(ctx, entityID, updateCfg); err != nil {
+			// Non-fatal: entity was created successfully, just couldn't set icon
+			return entityID, fmt.Errorf("%s created as %s, but failed to set icon: %w", formatHelperType(helperType), entityID, err)
+		}
+	}
+
+	return entityID, nil
 }
 
 func (h *ConsolidatedHelperHandlers) handleDelete(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {

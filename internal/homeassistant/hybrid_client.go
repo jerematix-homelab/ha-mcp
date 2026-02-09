@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Constants for entity domains used in Config Entry Flow logic.
+// Constants for entity domains and platforms used in Config Entry Flow logic.
 const (
 	domainSensor       = "sensor"
 	domainBinarySensor = "binary_sensor"
@@ -19,6 +19,9 @@ const (
 	domainLock         = "lock"
 	domainInputNumber  = "input_number"
 	domainNumber       = "number"
+
+	platformTemplate = "template"
+	platformGroup    = "group"
 )
 
 // binaryDeviceClasses maps device classes that indicate a binary sensor.
@@ -136,7 +139,7 @@ type RESTOperations interface {
 	GetConfig(ctx context.Context) (*Config, error)
 
 	// Template rendering
-	RenderTemplate(ctx context.Context, template string) (string, error)
+	RenderTemplate(ctx context.Context, platformTemplate string) (string, error)
 
 	// Logbook
 	GetLogbook(ctx context.Context, startTime, endTime, entityID string) ([]LogbookEntry, error)
@@ -252,12 +255,46 @@ func (c *HybridClient) ListHelpers(ctx context.Context) ([]Entity, error) {
 }
 
 // CreateHelper creates a new input helper.
-// For Config Entry platforms (threshold, derivative, integration, group, template),
-// this uses the HTTP Config Entry Flow mechanism.
+// For Config Entry platforms (threshold, derivative, integration, group, platformTemplate),
+// this uses the HTTP Config Entry Flow mechanism with icon support via Entity Registry.
 // For standard helpers (input_*, counter, timer, schedule), this uses WebSocket.
 func (c *HybridClient) CreateHelper(ctx context.Context, config HelperConfig) error {
 	if RequiresConfigEntryFlow(config.Platform) {
-		return c.createHelperViaConfigFlow(ctx, config)
+		// Extract icon before creating helper (Config Entry Flow doesn't support icons in create)
+		icon, hasIcon := config.Config["icon"].(string)
+		if hasIcon && icon != "" {
+			// Remove icon from config to prevent API error
+			delete(config.Config, "icon")
+		}
+
+		// Create helper via Config Entry Flow
+		if err := c.createHelperViaConfigFlow(ctx, config); err != nil {
+			return err
+		}
+
+		// Set icon via Entity Registry if provided
+		if hasIcon && icon != "" {
+			// Predict entity ID based on name and platform
+			entityID, err := c.predictEntityIDForConfigEntry(ctx, config)
+			if err != nil {
+				// Non-fatal: helper was created successfully
+				return fmt.Errorf("helper created but failed to predict entity ID for icon update: %w", err)
+			}
+
+			// Wait briefly for entity to appear in registry
+			time.Sleep(500 * time.Millisecond)
+
+			// Update icon via Entity Registry
+			updateCfg := EntityRegistryUpdateConfig{
+				Icon: &icon,
+			}
+			if _, err := c.ws.UpdateEntityRegistryEntry(ctx, entityID, updateCfg); err != nil {
+				// Non-fatal: helper was created successfully
+				return fmt.Errorf("helper created as %s but failed to set icon: %w", entityID, err)
+			}
+		}
+
+		return nil
 	}
 	return c.ws.CreateHelper(ctx, config)
 }
@@ -297,6 +334,66 @@ func (c *HybridClient) SetHelperValue(ctx context.Context, entityID string, valu
 	return c.ws.SetHelperValue(ctx, entityID, value)
 }
 
+// predictEntityIDForConfigEntry predicts the entity ID that will be created for a Config Entry helper.
+// This is needed to update the icon via Entity Registry after creation.
+func (c *HybridClient) predictEntityIDForConfigEntry(_ context.Context, config HelperConfig) (string, error) {
+	name, ok := config.Config["name"].(string)
+	if !ok || name == "" {
+		return "", fmt.Errorf("name not found in config")
+	}
+
+	// Determine entity domain based on platform
+	domain := c.determineEntityDomainForConfigEntry(config)
+	if domain == "" {
+		return "", fmt.Errorf("could not determine entity domain for platform %s", config.Platform)
+	}
+
+	// Slugify name (same logic as Home Assistant)
+	slug := slugifyEntityName(name)
+
+	return fmt.Sprintf("%s.%s", domain, slug), nil
+}
+
+// determineEntityDomainForConfigEntry determines the entity domain for a Config Entry helper.
+func (c *HybridClient) determineEntityDomainForConfigEntry(config HelperConfig) string {
+	switch config.Platform {
+	case platformTemplate:
+		// Template can be sensor or binary_sensor
+		subtype := c.determineTemplateSubtype(config)
+		return subtype
+	case "threshold":
+		return domainBinarySensor
+	case "derivative", "integration":
+		return domainSensor
+	case platformGroup:
+		// Group type depends on member entities
+		subtype := c.determineGroupSubtype(config)
+		return subtype
+	default:
+		return ""
+	}
+}
+
+// slugifyEntityName converts a name to a valid entity ID slug (same logic as Home Assistant).
+func slugifyEntityName(name string) string {
+	// Convert to lowercase
+	slug := strings.ToLower(name)
+	// Replace spaces and special characters with underscores
+	slug = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			return r
+		}
+		return '_'
+	}, slug)
+	// Remove leading/trailing underscores
+	slug = strings.Trim(slug, "_")
+	// Collapse multiple underscores
+	for strings.Contains(slug, "__") {
+		slug = strings.ReplaceAll(slug, "__", "_")
+	}
+	return slug
+}
+
 // createHelperViaConfigFlow creates a helper using the HTTP Config Entry Flow.
 // This handles the multi-step flow: init -> (menu selection) -> submit data -> verify creation.
 func (c *HybridClient) createHelperViaConfigFlow(ctx context.Context, config HelperConfig) error {
@@ -306,7 +403,7 @@ func (c *HybridClient) createHelperViaConfigFlow(ctx context.Context, config Hel
 		return fmt.Errorf("init config entry flow: %w", err)
 	}
 
-	// Step 2: Handle menu step if present (for group and template helpers)
+	// Step 2: Handle menu step if present (for group and platformTemplate helpers)
 	// These require selecting a subtype first (e.g., "binary_sensor", "sensor")
 	if flowResult.Type == "menu" {
 		subtype := c.determineHelperSubtype(config)
@@ -350,7 +447,7 @@ func (c *HybridClient) createHelperViaConfigFlow(ctx context.Context, config Hel
 	return fmt.Errorf("unexpected config entry flow result type: %s", flowResult.Type)
 }
 
-// determineHelperSubtype extracts the subtype for multi-step flows (group, template).
+// determineHelperSubtype extracts the subtype for multi-step flows (group, platformTemplate).
 func (c *HybridClient) determineHelperSubtype(config HelperConfig) string {
 	// Check for explicit "group_type" field for menu selection
 	if gt, ok := config.Config["group_type"].(string); ok {
@@ -358,19 +455,25 @@ func (c *HybridClient) determineHelperSubtype(config HelperConfig) string {
 	}
 
 	switch config.Platform {
-	case "template":
+	case platformTemplate:
 		return c.determineTemplateSubtype(config)
-	case "group":
+	case platformGroup:
 		return c.determineGroupSubtype(config)
 	}
 	return ""
 }
 
-// determineTemplateSubtype determines whether a template is a sensor or binary_sensor.
+// determineTemplateSubtype determines whether a platformTemplate is a sensor or binary_sensor.
 func (c *HybridClient) determineTemplateSubtype(config HelperConfig) string {
+	// Check explicit type field first (for backward compatibility)
 	if t, ok := config.Config["type"].(string); ok {
 		return t
 	}
+	// Check platformTemplate_type field (set by buildTemplateConfig)
+	if tt, ok := config.Config["platformTemplate_type"].(string); ok {
+		return tt
+	}
+	// Infer from device_class
 	if dc, ok := config.Config["device_class"].(string); ok && binaryDeviceClasses[dc] {
 		return domainBinarySensor
 	}
@@ -416,10 +519,25 @@ func (c *HybridClient) transformConfigForFlow(config HelperConfig) map[string]an
 
 // shouldSkipConfigField checks if a config field should be skipped during transformation.
 func (c *HybridClient) shouldSkipConfigField(key, platform string) bool {
+	// Always skip group_type (internal routing field)
 	if key == "group_type" {
 		return true
 	}
-	return key == "type" && platform == "template"
+
+	// Skip template-specific internal fields
+	if platform == platformTemplate {
+		if key == "type" || key == "template_type" {
+			return true
+		}
+	}
+
+	// Skip icon for Config Entry Flow platforms (not supported in create flow)
+	// Icons should be set via entity registry after creation
+	if key == "icon" && RequiresConfigEntryFlow(platform) {
+		return true
+	}
+
+	return false
 }
 
 // transformFieldValue transforms a config field value if needed.
@@ -721,9 +839,9 @@ func (c *HybridClient) GetConfig(ctx context.Context) (*Config, error) {
 // Template Operations (delegated to REST)
 // =============================================================================
 
-// RenderTemplate renders a Jinja2 template using Home Assistant state.
-func (c *HybridClient) RenderTemplate(ctx context.Context, template string) (string, error) {
-	return c.rest.RenderTemplate(ctx, template)
+// RenderTemplate renders a Jinja2 platformTemplate using Home Assistant state.
+func (c *HybridClient) RenderTemplate(ctx context.Context, platformTemplate string) (string, error) {
+	return c.rest.RenderTemplate(ctx, platformTemplate)
 }
 
 // =============================================================================
