@@ -85,6 +85,12 @@ func RegisterConfigEntryTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
+// RegisterHACSTools registers all HACS (Home Assistant Community Store) tools with the registry.
+func RegisterHACSTools(registry *mcp.Registry) {
+	h := NewHACSHandlers()
+	h.RegisterTools(registry)
+}
+
 // RegisterAreaTools registers all area management tools with the registry.
 func RegisterAreaTools(registry *mcp.Registry) {
 	h := NewAreaHandlers()
@@ -138,4 +144,7 @@ func RegisterAllTools(registry *mcp.Registry) {
 
 	// Config entry tools (for accessing full config including template definitions)
 	RegisterConfigEntryTools(registry)
+
+	// HACS tools (Home Assistant Community Store management)
+	RegisterHACSTools(registry)
 }

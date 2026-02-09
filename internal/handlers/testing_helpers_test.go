@@ -108,6 +108,9 @@ type UniversalMockClient struct {
 
 	// Configuration validation operations
 	CheckConfigFn func(ctx context.Context) (*homeassistant.ConfigCheckResult, error)
+
+	// HACS operations
+	SendHACSCommandFn func(ctx context.Context, command string, data map[string]any) (any, error)
 }
 
 // Entity operations implementation
@@ -532,6 +535,15 @@ func (m *UniversalMockClient) CheckConfig(ctx context.Context) (*homeassistant.C
 		Result: "valid",
 		Errors: nil,
 	}, nil
+}
+
+// HACS operations implementation
+
+func (m *UniversalMockClient) SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error) {
+	if m.SendHACSCommandFn != nil {
+		return m.SendHACSCommandFn(ctx, command, data)
+	}
+	return map[string]any{}, nil
 }
 
 // =============================================================================

@@ -258,6 +258,9 @@ func (m *mockClientForPool) GetConfigEntries(_ context.Context, _ string) ([]Con
 func (m *mockClientForPool) GetConfigEntry(_ context.Context, _ string) (*ConfigEntryFull, error) {
 	return nil, nil
 }
+func (m *mockClientForPool) SendHACSCommand(_ context.Context, _ string, _ map[string]any) (any, error) {
+	return nil, nil
+}
 
 // Ensure mockClientForPool implements Client and ClientCloser.
 var (
