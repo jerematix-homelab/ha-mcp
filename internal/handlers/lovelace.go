@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
@@ -47,10 +48,12 @@ func (h *DashboardHandlers) manageDashboardTool() mcp.Tool {
 Actions:
 - list: List all dashboards
 - get: Get dashboard configuration with optional view filtering (url_path optional)
-- create: Create a new dashboard (requires url_path, title, and mode)
+- create: Create a new dashboard with modern section-based layout (requires url_path, title, and mode)
 - update: Update an existing dashboard (requires dashboard_id)
 - delete: Delete a dashboard (requires dashboard_id)
-- save_config: Save dashboard configuration (requires config, url_path optional)`,
+- save_config: Save dashboard configuration (requires config, url_path optional)
+
+Note: Newly created dashboards use the modern "sections" layout format instead of the legacy "badges/cards" format.`,
 		InputSchema: schema,
 	}
 }
@@ -236,11 +239,8 @@ func (h *DashboardHandlers) handleCreate(
 		return errorResult(fmt.Sprintf("error creating dashboard: %v", err)), nil
 	}
 
-	formatStr, _ := args["format"].(string)
-	if formatStr == formatJSON {
-		return h.formatDashboardJSON(dashboard, "Dashboard created successfully")
-	}
-	return h.formatDashboardNatural(dashboard, "Dashboard created successfully")
+	// Initialize dashboard with modern section-based layout
+	return h.initializeDashboardLayout(ctx, client, dashboard, urlPath, args)
 }
 
 func (h *DashboardHandlers) handleUpdate(
@@ -307,6 +307,58 @@ func (h *DashboardHandlers) handleSaveConfig(
 		target = fmt.Sprintf("dashboard '%s'", urlPath)
 	}
 	return successResult(fmt.Sprintf("Dashboard configuration saved successfully for %s", target)), nil
+}
+
+// =============================================================================
+// Helper Methods
+// =============================================================================
+
+// initializeDashboardLayout initializes a newly created dashboard with modern section-based layout.
+func (h *DashboardHandlers) initializeDashboardLayout(
+	ctx context.Context,
+	client homeassistant.Client,
+	dashboard *homeassistant.DashboardEntry,
+	urlPath string,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	// Build modern section-based layout config
+	defaultConfig := map[string]any{
+		"views": []any{
+			map[string]any{
+				"title": "Home",
+				"type":  "sections", // Modern section-based layout
+				"sections": []any{
+					map[string]any{
+						"type":  "grid",
+						"cards": []any{}, // Empty cards array - user can add cards later
+					},
+				},
+			},
+		},
+	}
+
+	// Wait briefly for dashboard to be fully initialized
+	// This gives Home Assistant time to create the config entry
+	time.Sleep(500 * time.Millisecond)
+
+	// Save the default configuration with modern section layout
+	// Non-fatal if this fails - dashboard was created successfully
+	if err := client.SaveLovelaceConfig(ctx, urlPath, defaultConfig); err != nil {
+		// Dashboard exists, but layout initialization failed
+		// Return success with a note about manual configuration
+		formatStr, _ := args["format"].(string)
+		successMsg := fmt.Sprintf("Dashboard created successfully. Note: Could not initialize default layout (%v). Please configure views manually.", err)
+		if formatStr == formatJSON {
+			return h.formatDashboardJSON(dashboard, successMsg)
+		}
+		return h.formatDashboardNatural(dashboard, successMsg)
+	}
+
+	formatStr, _ := args["format"].(string)
+	if formatStr == formatJSON {
+		return h.formatDashboardJSON(dashboard, "Dashboard created successfully with modern section layout")
+	}
+	return h.formatDashboardNatural(dashboard, "Dashboard created successfully with modern section layout")
 }
 
 // =============================================================================
