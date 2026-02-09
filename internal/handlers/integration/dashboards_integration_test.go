@@ -138,7 +138,7 @@ func (s *DashboardIntegrationTestSuite) TestDashboardWithConfig() {
 				"path":  "test",
 				"cards": []any{
 					map[string]any{
-						"type":   "markdown",
+						"type":    "markdown",
 						"content": "This is a test card",
 					},
 				},
