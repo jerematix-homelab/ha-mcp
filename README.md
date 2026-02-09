@@ -153,12 +153,12 @@ ha-mcp connects to Home Assistant via **WebSocket** (`ws://{host}/api/websocket`
 
 ha-mcp fully supports secure connections. The URL scheme is automatically converted:
 
-| Input URL Scheme | WebSocket Scheme |
-|-----------------|------------------|
-| `http://`       | `ws://`          |
-| `https://`      | `wss://`         |
-| `ws://`         | `ws://`          |
-| `wss://`        | `wss://`         |
+| Input URL Scheme  | WebSocket Scheme   |
+| ----------------- | ------------------ |
+| `http://`         | `ws://`            |
+| `https://`        | `wss://`           |
+| `ws://`           | `ws://`            |
+| `wss://`          | `wss://`           |
 
 **Example configurations for secure connections:**
 
@@ -209,11 +209,11 @@ ha-mcp supports HTTP/HTTPS proxies via standard environment variables. The under
 
 **Supported environment variables:**
 
-| Variable | Description |
-|----------|-------------|
-| `HTTP_PROXY` | Proxy for HTTP connections (e.g., `http://proxy:8080`) |
+| Variable      | Description                                             |
+| ------------- | ------------------------------------------------------- |
+| `HTTP_PROXY`  | Proxy for HTTP connections (e.g., `http://proxy:8080`)  |
 | `HTTPS_PROXY` | Proxy for HTTPS connections (e.g., `http://proxy:8080`) |
-| `NO_PROXY` | Comma-separated list of hosts to bypass proxy |
+| `NO_PROXY`    | Comma-separated list of hosts to bypass proxy           |
 
 **Example usage:**
 
@@ -349,12 +349,12 @@ ha-mcp
 
 ### Available Commands
 
-| Command | Description |
-|---------|-------------|
-| `ha-mcp` | Start the MCP server |
-| `ha-mcp init` | Create config.yaml and .env in current directory |
-| `ha-mcp config` | Display effective configuration (tokens masked) |
-| `ha-mcp --help` | Show help and available flags |
+| Command         | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `ha-mcp`        | Start the MCP server                             |
+| `ha-mcp init`   | Create config.yaml and .env in current directory |
+| `ha-mcp config` | Display effective configuration (tokens masked)  |
+| `ha-mcp --help` | Show help and available flags                    |
 
 ### Starting the Server
 
@@ -434,26 +434,26 @@ Authorization: Bearer <your-ha-access-token>
 
 #### Entity Tools
 
-| Tool | Description |
-|------|-------------|
-| `query_entities` | Consolidated entity queries (mode: current, history, statistics, domains, presence, health; format: natural/json; group_by: domain, area_id, device_class, integration; health: analyze/remove dead entities with multi-category filter) |
-| `get_state` | Get state of a specific entity (format: natural/json) |
-| `analyze_entity` | Analyze entity usage in automations, scripts, and scenes (format: natural/json) |
-| `get_entity_dependencies` | Find all entities an automation/script depends on (format: natural/json) |
+| Tool                      | Description                                                                                                                                                                                                                              |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `query_entities`          | Consolidated entity queries (mode: current, history, statistics, domains, presence, health; format: natural/json; group_by: domain, area_id, device_class, integration; health: analyze/remove dead entities with multi-category filter) |
+| `get_state`               | Get state of a specific entity (format: natural/json)                                                                                                                                                                                    |
+| `analyze_entity`          | Analyze entity usage in automations, scripts, and scenes (format: natural/json)                                                                                                                                                          |
+| `get_entity_dependencies` | Find all entities an automation/script depends on (format: natural/json)                                                                                                                                                                 |
 
 #### Registry Tools
 
-| Tool | Description |
-|------|-------------|
-| `get_registry` | Query registries (type: entities, devices, areas, all; format: natural/json) |
-| `manage_area` | Consolidated area management (actions: list, get, create, update, delete; format: natural/json for list/get) |
-| `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain |
-| `get_config_entry` | Get a single config entry by entry ID |
+| Tool                  | Description                                                                                                  |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `get_registry`        | Query registries (type: entities, devices, areas, all; format: natural/json)                                 |
+| `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; format: natural/json for list/get) |
+| `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain                           |
+| `get_config_entry`    | Get a single config entry by entry ID                                                                        |
 
 #### Automation Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool                | Description                                                                                                                                   |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle, coverage; format: natural/json for list/get/coverage) |
 
 **Flexible ID Lookup**: The `automation_id` parameter accepts multiple formats:
@@ -465,21 +465,21 @@ Authorization: Bearer <your-ha-access-token>
 
 ha-mcp provides comprehensive support for all 14 Home Assistant helper types through two consolidated tools.
 
-| Tool | Description |
-|------|-------------|
-| `list_helpers` | List all helpers across all types |
+| Tool            | Description                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `list_helpers`  | List all helpers across all types                                                                                          |
 | `manage_helper` | List, create, delete, or get details for any helper type (supports schedule, counter, timer details; format: natural/json) |
-| `helper_action` | Execute runtime actions (toggle, set, increment, start, etc.) |
+| `helper_action` | Execute runtime actions (toggle, set, increment, start, etc.)                                                              |
 
 ##### manage_helper
 
 Universal tool for helper lifecycle management:
 
-| Action | Description |
-|--------|-------------|
-| `list` | List all helpers with optional format (natural/json) and verbose mode |
-| `create` | Create a new helper (requires `type`, `id`, `name`) |
-| `delete` | Delete an existing helper (requires `entity_id`) |
+| Action        | Description                                                                            |
+| ------------- | -------------------------------------------------------------------------------------- |
+| `list`        | List all helpers with optional format (natural/json) and verbose mode                  |
+| `create`      | Create a new helper (requires `type`, `id`, `name`)                                    |
+| `delete`      | Delete an existing helper (requires `entity_id`)                                       |
 | `get_details` | Get detailed configuration (requires `entity_id`, schedule only, format: natural/json) |
 
 **Supported helper types:** `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`, `group`, `template_sensor`, `template_binary_sensor`, `threshold`, `derivative`, `integral`
@@ -492,29 +492,29 @@ Universal tool for helper lifecycle management:
 
 Universal tool for runtime helper operations:
 
-| Action | Applicable To | Description |
-|--------|---------------|-------------|
-| `toggle` | input_boolean | Toggle on/off |
-| `set` | input_number, input_text, input_datetime, counter | Set value |
-| `increment` | counter | Increment by step |
-| `decrement` | counter | Decrement by step |
-| `reset` | counter, integral | Reset to initial/zero |
-| `start` | timer | Start timer (optional duration) |
-| `pause` | timer | Pause running timer |
-| `cancel` | timer | Cancel timer |
-| `finish` | timer | Finish immediately |
-| `change` | timer | Change duration while running |
-| `press` | input_button | Press/trigger button |
-| `select` | input_select | Select an option |
-| `set_options` | input_select | Update available options |
-| `reload` | schedule, group | Reload from configuration |
-| `add_entities` | group | Add entities to group |
-| `remove_entities` | group | Remove entities from group |
+| Action            | Applicable To                                     | Description                     |
+| ----------------- | ------------------------------------------------- | ------------------------------- |
+| `toggle`          | input_boolean                                     | Toggle on/off                   |
+| `set`             | input_number, input_text, input_datetime, counter | Set value                       |
+| `increment`       | counter                                           | Increment by step               |
+| `decrement`       | counter                                           | Decrement by step               |
+| `reset`           | counter, integral                                 | Reset to initial/zero           |
+| `start`           | timer                                             | Start timer (optional duration) |
+| `pause`           | timer                                             | Pause running timer             |
+| `cancel`          | timer                                             | Cancel timer                    |
+| `finish`          | timer                                             | Finish immediately              |
+| `change`          | timer                                             | Change duration while running   |
+| `press`           | input_button                                      | Press/trigger button            |
+| `select`          | input_select                                      | Select an option                |
+| `set_options`     | input_select                                      | Update available options        |
+| `reload`          | schedule, group                                   | Reload from configuration       |
+| `add_entities`    | group                                             | Add entities to group           |
+| `remove_entities` | group                                             | Remove entities from group      |
 
 #### Script Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool            | Description                                                                                                             |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute; format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `script_id` parameter accepts multiple formats:
@@ -523,8 +523,8 @@ Universal tool for runtime helper operations:
 
 #### Scene Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool           | Description                                                                                                             |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate; format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `scene_id` parameter accepts multiple formats:
@@ -533,55 +533,70 @@ Universal tool for runtime helper operations:
 
 #### Media Tools
 
-| Tool | Description |
-|------|-------------|
-| `browse_media` | Browse media sources and libraries |
-| `get_camera_stream` | Get camera stream URL for an entity |
-| `sign_media_path` | Sign a media path for authenticated access |
+| Tool                | Description                                |
+| ------------------- | ------------------------------------------ |
+| `browse_media`      | Browse media sources and libraries         |
+| `get_camera_stream` | Get camera stream URL for an entity        |
+| `sign_media_path`   | Sign a media path for authenticated access |
 
 #### Dashboard Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool               | Description                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------- |
 | `manage_dashboard` | Manage Lovelace dashboards - list, get, create, update, delete, save configuration |
 
 #### Template Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool              | Description                                                 |
+| ----------------- | ----------------------------------------------------------- |
 | `render_template` | Render a Jinja2 template using current Home Assistant state |
 
 #### Logbook Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool          | Description                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------- |
 | `get_logbook` | Get logbook entries (mode: entries, correlation; format: natural/json) with cause-effect analysis |
 
 #### Configuration Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool              | Description                                                  |
+| ----------------- | ------------------------------------------------------------ |
 | `validate_config` | Validate Home Assistant configuration.yaml for syntax errors |
 
 #### Target Tools
 
-| Tool | Description |
-|------|-------------|
+| Tool             | Description                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `analyze_target` | Analyze targets for automation capabilities (info: triggers, conditions, services, entities, all; format: natural/json) |
 
 #### Service Tools
 
-| Tool | Description |
-|------|-------------|
-| `call_service` | Call any Home Assistant service (format: natural/json) |
+| Tool            | Description                                                            |
+| --------------- | ---------------------------------------------------------------------- |
+| `call_service`  | Call any Home Assistant service (format: natural/json)                 |
 | `list_services` | List all available services with descriptions (optional domain filter) |
 
 #### System Tools
 
-| Tool | Description |
-|------|-------------|
-| `get_system_info` | Get Home Assistant system configuration (version, timezone, units, etc.) |
-| `get_datetime` | Get current date/time in Home Assistant's configured timezone (optional timezone override) |
+| Tool              | Description                                                                                |
+| ----------------- | ------------------------------------------------------------------------------------------ |
+| `get_system_info` | Get Home Assistant system configuration (version, timezone, units, etc.)                   |
+| `get_datetime`    | Get current date/time in Home Assistant's configured timezone (optional timezone override) |
+
+#### HACS Tools
+
+> **Note**: HACS (Home Assistant Community Store) is an optional third-party add-on. These tools will only work if HACS is installed.
+
+| Tool          | Description                                                                                                                                                                                                 |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `manage_hacs` | Manage HACS repositories (actions: info, list, get, releases, release_notes, critical, download, uninstall, add_repository, remove_repository, refresh, toggle_beta; format: natural/json for read actions) |
+
+##### Key Features
+- **Repository Management**: List installed repositories, check for updates, download/uninstall
+- **Custom Repositories**: Add and remove custom GitHub repositories
+- **Beta Versions**: Toggle beta version visibility per repository
+- **Release Information**: Get release notes and available versions
+- **Filters**: Filter by category (integration, plugin, theme, python_script, appdaemon, netdaemon), installed status, or pending updates
 
 ### Output Formats
 
@@ -593,7 +608,7 @@ Most tools support two output formats via the `format` parameter:
 - **`json`**: Structured JSON output for backward compatibility and programmatic access
   - Example: `{"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 204, ...}}`
 
-**Tools with format support**: `query_entities`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_helper`, `helper_action`
+**Tools with format support**: `query_entities`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_helper`, `helper_action`, `manage_hacs`
 
 ### Example Requests
 
@@ -834,14 +849,14 @@ Debug logs show:
 
 ### Common Errors
 
-| Error | Solution |
-|-------|----------|
-| `connection refused` | Check if Home Assistant is running and accessible |
-| `401 unauthorized` | Token is invalid or expired, create a new one |
-| `websocket: bad handshake` | Check URL format and proxy WebSocket support |
-| `auth_invalid` | Token authentication failed, verify token |
-| `entity not found` | Verify the entity_id exists in Home Assistant |
-| `connection closed` | Network issue, ha-mcp will auto-reconnect |
+| Error                      | Solution                                          |
+| -------------------------- | ------------------------------------------------- |
+| `connection refused`       | Check if Home Assistant is running and accessible |
+| `401 unauthorized`         | Token is invalid or expired, create a new one     |
+| `websocket: bad handshake` | Check URL format and proxy WebSocket support      |
+| `auth_invalid`             | Token authentication failed, verify token         |
+| `entity not found`         | Verify the entity_id exists in Home Assistant     |
+| `connection closed`        | Network issue, ha-mcp will auto-reconnect         |
 
 ## Development
 
@@ -962,6 +977,7 @@ ha-mcp/
 │   │   ├── logbook.go           # Logbook access handler (entries/correlation modes)
 │   │   ├── logbook_correlation.go # Logbook correlation analysis
 │   │   ├── config.go            # Configuration validation handler
+│   │   ├── hacs.go              # HACS (Community Store) management handler
 │   │   └── register.go          # Handler registration
 │   └── logging/
 │       └── logger.go            # Structured logging

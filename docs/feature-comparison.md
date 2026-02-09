@@ -8,14 +8,14 @@ This document compares the features of `ha-mcp` (this project) with the official
 
 ## Architectural Differences
 
-| Aspect | ha-mcp | Official HA MCP Server |
-|--------|--------|------------------------|
-| **Type** | Standalone Go binary (external server) | HA integration (built-in) |
-| **Transport** | HTTP JSON-RPC | Streamable HTTP |
-| **HA Communication** | WebSocket + REST API (Hybrid) | Direct Python API (internal) |
-| **Tool Design** | 27 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
-| **Authentication** | Long-Lived Access Token | OAuth (IndieAuth) + Long-Lived Token |
-| **Entity Access** | All entities (no filtering) | Only explicitly exposed entities (Voice Assistant Exposure) |
+| Aspect               | ha-mcp                                     | Official HA MCP Server                                      |
+| -------------------- | ------------------------------------------ | ----------------------------------------------------------- |
+| **Type**             | Standalone Go binary (external server)     | HA integration (built-in)                                   |
+| **Transport**        | HTTP JSON-RPC                              | Streamable HTTP                                             |
+| **HA Communication** | WebSocket + REST API (Hybrid)              | Direct Python API (internal)                                |
+| **Tool Design**      | 28 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
+| **Authentication**   | Long-Lived Access Token                    | OAuth (IndieAuth) + Long-Lived Token                        |
+| **Entity Access**    | All entities (no filtering)                | Only explicitly exposed entities (Voice Assistant Exposure) |
 
 ---
 
@@ -23,105 +23,124 @@ This document compares the features of `ha-mcp` (this project) with the official
 
 ### Entity Queries & Control
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| Query entity states | `query_entities` mode=current (Filter by domain, state, name, device_class; group_by: domain, area_id, device_class, integration; Pagination; natural/json) | `HassGetState`, `GetLiveContext` (all exposed entities) |
-| Query single entity | `get_state` (natural/json format) | `HassGetState` |
-| Entity on/off/toggle | `call_service` (any service) | `HassTurnOn`, `HassTurnOff`, `HassTurnToggle` |
-| Query temperature | via `get_state` | `HassGetTemperature` (specialized) |
-| Query weather | via `get_state` | `HassGetWeather` (specialized) |
-| List domains | `query_entities` mode=domains | -- |
-| Entity history | `query_entities` mode=history (time range, filter, pagination, natural/json) | -- |
-| Entity statistics | `query_entities` mode=statistics (long-term data, pagination, natural/json) | -- |
-| Presence analysis | `query_entities` mode=presence (person/tracker correlation, natural/json) | -- |
-| Health detection/cleanup | `query_entities` mode=health (detect unavailable/unknown/disabled/orphaned/stale entities, multi-category filter, action=remove to cleanup, natural/json) | -- |
-| Cover control | `call_service` (domain=cover) | `HassOpenCover`, `HassCloseCover` |
-| Date/Time | `get_datetime` | `GetDateTime` |
+| Function                 | ha-mcp                                                                                                                                                      | Official HA MCP                                         |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Query entity states      | `query_entities` mode=current (Filter by domain, state, name, device_class; group_by: domain, area_id, device_class, integration; Pagination; natural/json) | `HassGetState`, `GetLiveContext` (all exposed entities) |
+| Query single entity      | `get_state` (natural/json format)                                                                                                                           | `HassGetState`                                          |
+| Entity on/off/toggle     | `call_service` (any service)                                                                                                                                | `HassTurnOn`, `HassTurnOff`, `HassTurnToggle`           |
+| Query temperature        | via `get_state`                                                                                                                                             | `HassGetTemperature` (specialized)                      |
+| Query weather            | via `get_state`                                                                                                                                             | `HassGetWeather` (specialized)                          |
+| List domains             | `query_entities` mode=domains                                                                                                                               | ------------------------------------------------------- |
+| Entity history           | `query_entities` mode=history (time range, filter, pagination, natural/json)                                                                                | ------------------------------------------------------- |
+| Entity statistics        | `query_entities` mode=statistics (long-term data, pagination, natural/json)                                                                                 | ------------------------------------------------------- |
+| Presence analysis        | `query_entities` mode=presence (person/tracker correlation, natural/json)                                                                                   | ------------------------------------------------------- |
+| Health detection/cleanup | `query_entities` mode=health (detect unavailable/unknown/disabled/orphaned/stale entities, multi-category filter, action=remove to cleanup, natural/json)   | ------------------------------------------------------- |
+| Cover control            | `call_service` (domain=cover)                                                                                                                               | `HassOpenCover`, `HassCloseCover`                       |
+| Date/Time                | `get_datetime`                                                                                                                                              | `GetDateTime`                                           |
 
 ### Automations
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| List automations | `manage_automation` action=list | -- |
-| Automation details | `manage_automation` action=get | -- |
-| Create automation | `manage_automation` action=create | -- |
-| Edit automation | `manage_automation` action=update | -- |
-| Delete automation | `manage_automation` action=delete | -- |
-| Enable/disable automation | `manage_automation` action=toggle | -- |
-| Automation coverage | `manage_automation` action=coverage (analyze areas/entities without automations, natural/json) | -- |
+| Function                  | ha-mcp                                                                                         | Official HA MCP   |
+| ------------------------- | ---------------------------------------------------------------------------------------------- | ----------------- |
+| List automations          | `manage_automation` action=list                                                                | ----------------- |
+| Automation details        | `manage_automation` action=get                                                                 | ----------------- |
+| Create automation         | `manage_automation` action=create                                                              | ----------------- |
+| Edit automation           | `manage_automation` action=update                                                              | ----------------- |
+| Delete automation         | `manage_automation` action=delete                                                              | ----------------- |
+| Enable/disable automation | `manage_automation` action=toggle                                                              | ----------------- |
+| Automation coverage       | `manage_automation` action=coverage (analyze areas/entities without automations, natural/json) | ----------------- |
 
 ### Scripts
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| List scripts | `manage_script` action=list | -- |
-| Script details | `manage_script` action=get | -- |
-| Create script | `manage_script` action=create | -- |
-| Edit script | `manage_script` action=update | -- |
-| Delete script | `manage_script` action=delete | -- |
+| Function       | ha-mcp                         | Official HA MCP                                    |
+| -------------- | ------------------------------ | -------------------------------------------------- |
+| List scripts   | `manage_script` action=list    | -------------------------------------------------- |
+| Script details | `manage_script` action=get     | -------------------------------------------------- |
+| Create script  | `manage_script` action=create  | -------------------------------------------------- |
+| Edit script    | `manage_script` action=update  | -------------------------------------------------- |
+| Delete script  | `manage_script` action=delete  | -------------------------------------------------- |
 | Execute script | `manage_script` action=execute | `ScriptTool` (exposed scripts as individual tools) |
 
 ### Scenes
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| List scenes | `manage_scene` action=list | -- |
-| Scene details | `manage_scene` action=get | -- |
-| Create scene | `manage_scene` action=create | -- |
-| Edit scene | `manage_scene` action=update | -- |
-| Delete scene | `manage_scene` action=delete | -- |
+| Function       | ha-mcp                         | Official HA MCP    |
+| -------------- | ------------------------------ | ------------------ |
+| List scenes    | `manage_scene` action=list     | ------------------ |
+| Scene details  | `manage_scene` action=get      | ------------------ |
+| Create scene   | `manage_scene` action=create   | ------------------ |
+| Edit scene     | `manage_scene` action=update   | ------------------ |
+| Delete scene   | `manage_scene` action=delete   | ------------------ |
 | Activate scene | `manage_scene` action=activate | via Intent/Service |
 
 ### Helpers (Input Helpers)
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| List helpers | `list_helpers`, `manage_helper` action=list | -- |
-| Create helper | `manage_helper` action=create (15 types) | -- |
-| Delete helper | `manage_helper` action=delete | -- |
-| Helper details | `manage_helper` action=get_details (schedule, counter, timer; natural/json) | -- |
-| Helper actions | `helper_action` (toggle, set, increment, etc.) | via `call_service` Intents (limited) |
-| Timer management | `helper_action` (start/pause/cancel/finish) | Timer Intents (HassStartTimer, etc.) |
+| Function         | ha-mcp                                                                      | Official HA MCP                      |
+| ---------------- | --------------------------------------------------------------------------- | ------------------------------------ |
+| List helpers     | `list_helpers`, `manage_helper` action=list                                 | ------------------------------------ |
+| Create helper    | `manage_helper` action=create (15 types)                                    | ------------------------------------ |
+| Delete helper    | `manage_helper` action=delete                                               | ------------------------------------ |
+| Helper details   | `manage_helper` action=get_details (schedule, counter, timer; natural/json) | ------------------------------------ |
+| Helper actions   | `helper_action` (toggle, set, increment, etc.)                              | via `call_service` Intents (limited) |
+| Timer management | `helper_action` (start/pause/cancel/finish)                                 | Timer Intents (HassStartTimer, etc.) |
 
 ### Registry & System
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| Entity registry | `get_registry` type=entities | -- |
-| Device registry | `get_registry` type=devices | -- |
-| Area registry | `get_registry` type=areas | Area context in prompts |
-| Area management | `manage_area` (actions: list, get, create, update, delete; format: natural/json) | -- |
-| List services | `list_services` | -- |
-| System info | `get_system_info` | -- |
-| Validate config | `validate_config` | -- |
-| Config entries | `list_config_entries`, `get_config_entry` | -- |
+| Function        | ha-mcp                                                                           | Official HA MCP         |
+| --------------- | -------------------------------------------------------------------------------- | ----------------------- |
+| Entity registry | `get_registry` type=entities                                                     | ----------------------- |
+| Device registry | `get_registry` type=devices                                                      | ----------------------- |
+| Area registry   | `get_registry` type=areas                                                        | Area context in prompts |
+| Area management | `manage_area` (actions: list, get, create, update, delete; format: natural/json) | ----------------------- |
+| List services   | `list_services`                                                                  | ----------------------- |
+| System info     | `get_system_info`                                                                | ----------------------- |
+| Validate config | `validate_config`                                                                | ----------------------- |
+| Config entries  | `list_config_entries`, `get_config_entry`                                        | ----------------------- |
 
 ### Analysis & Advanced
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| Entity analysis | `analyze_entity` (references in automations/scripts/scenes) | -- |
-| Dependency analysis | `get_entity_dependencies` | -- |
-| Target analysis | `analyze_target` (triggers/conditions/services) | -- |
-| Render Jinja2 templates | `render_template` | -- |
-| Logbook | `get_logbook` (mode: entries, correlation; cause-effect analysis across entities, natural/json) | -- |
-| Statistics (long-term) | `get_statistics` | -- |
-| Lovelace dashboard | `manage_dashboard` (list, get, create, update, delete, save_config; natural/json) | -- |
+| Function                | ha-mcp                                                                                          | Official HA MCP   |
+| ----------------------- | ----------------------------------------------------------------------------------------------- | ----------------- |
+| Entity analysis         | `analyze_entity` (references in automations/scripts/scenes)                                     | ----------------- |
+| Dependency analysis     | `get_entity_dependencies`                                                                       | ----------------- |
+| Target analysis         | `analyze_target` (triggers/conditions/services)                                                 | ----------------- |
+| Render Jinja2 templates | `render_template`                                                                               | ----------------- |
+| Logbook                 | `get_logbook` (mode: entries, correlation; cause-effect analysis across entities, natural/json) | ----------------- |
+| Statistics (long-term)  | `get_statistics`                                                                                | ----------------- |
+| Lovelace dashboard      | `manage_dashboard` (list, get, create, update, delete, save_config; natural/json)               | ----------------- |
 
 ### Media
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| Browse media | `browse_media` | -- |
-| Camera stream URL | `get_camera_stream` | -- |
-| Sign media path | `sign_media_path` | -- |
+| Function          | ha-mcp              | Official HA MCP   |
+| ----------------- | ------------------- | ----------------- |
+| Browse media      | `browse_media`      | ----------------- |
+| Camera stream URL | `get_camera_stream` | ----------------- |
+| Sign media path   | `sign_media_path`   | ----------------- |
+
+### HACS (Community Store)
+
+> **Note**: Requires HACS add-on to be installed
+
+| Function              | ha-mcp                                                                       | Official HA MCP   |
+| --------------------- | ---------------------------------------------------------------------------- | ----------------- |
+| HACS info             | `manage_hacs` action=info                                                    | ----------------- |
+| List repositories     | `manage_hacs` action=list (filter: category, installed_only, pending_update) | ----------------- |
+| Repository details    | `manage_hacs` action=get                                                     | ----------------- |
+| Available releases    | `manage_hacs` action=releases                                                | ----------------- |
+| Release notes         | `manage_hacs` action=release_notes                                           | ----------------- |
+| Critical repositories | `manage_hacs` action=critical                                                | ----------------- |
+| Download/install      | `manage_hacs` action=download (optional version)                             | ----------------- |
+| Uninstall             | `manage_hacs` action=uninstall                                               | ----------------- |
+| Add custom repository | `manage_hacs` action=add_repository                                          | ----------------- |
+| Remove repository     | `manage_hacs` action=remove_repository                                       | ----------------- |
+| Refresh repository    | `manage_hacs` action=refresh                                                 | ----------------- |
+| Toggle beta versions  | `manage_hacs` action=toggle_beta                                             | ----------------- |
 
 ### Calendar & Todo
 
-| Function | ha-mcp | Official HA MCP |
-|----------|--------|-----------------|
-| Calendar events | -- | `CalendarGetEvents` |
-| Todo lists | -- | `TodoGetItems` |
+| Function        | ha-mcp   | Official HA MCP     |
+| --------------- | -------- | ------------------- |
+| Calendar events | -------- | `CalendarGetEvents` |
+| Todo lists      | -------- | `TodoGetItems`      |
 
 ---
 
