@@ -74,8 +74,13 @@ type Client interface {
 	GetCameraStream(ctx context.Context, entityID string) (*StreamInfo, error)
 	BrowseMedia(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
 
-	// Configuration operations
-	GetLovelaceConfig(ctx context.Context) (map[string]any, error)
+	// Dashboard operations
+	GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error)
+	SaveLovelaceConfig(ctx context.Context, urlPath string, config map[string]any) error
+	ListDashboards(ctx context.Context) ([]DashboardEntry, error)
+	CreateDashboard(ctx context.Context, config DashboardConfig) (*DashboardEntry, error)
+	UpdateDashboard(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error)
+	DeleteDashboard(ctx context.Context, dashboardID string) error
 
 	// Statistics operations
 	GetStatistics(ctx context.Context, statIDs []string, period string) ([]StatisticsResult, error)

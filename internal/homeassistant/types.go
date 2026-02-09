@@ -509,3 +509,24 @@ type ConfigEntryFull struct {
 	SupportsUnload         bool           `json:"supports_unload,omitempty"`
 	SupportsRemoveDevice   bool           `json:"supports_remove_device,omitempty"`
 }
+
+// DashboardEntry represents a Home Assistant Lovelace dashboard entry.
+type DashboardEntry struct {
+	ID            string `json:"id"`
+	URLPath       string `json:"url_path"`
+	Title         string `json:"title"`
+	Icon          string `json:"icon,omitempty"`
+	Mode          string `json:"mode"`
+	RequireAdmin  bool   `json:"require_admin"`
+	ShowInSidebar bool   `json:"show_in_sidebar"`
+}
+
+// DashboardConfig represents configuration for creating or updating a dashboard.
+type DashboardConfig struct {
+	URLPath       string `json:"url_path,omitempty"`
+	Title         string `json:"title,omitempty"`
+	Icon          string `json:"icon,omitempty"`
+	Mode          string `json:"mode,omitempty"`
+	RequireAdmin  *bool  `json:"require_admin,omitempty"`
+	ShowInSidebar *bool  `json:"show_in_sidebar,omitempty"`
+}

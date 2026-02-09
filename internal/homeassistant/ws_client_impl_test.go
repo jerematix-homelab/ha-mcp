@@ -2271,7 +2271,7 @@ func TestWSClientImplWithSender_GetLovelaceConfig(t *testing.T) {
 	}
 
 	client := NewWSClientImplWithSender(mock)
-	result, err := client.GetLovelaceConfig(context.Background())
+	result, err := client.GetLovelaceConfig(context.Background(), "")
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -3157,7 +3157,7 @@ func TestWSClientImplWithSender_GetLovelaceConfig_Error(t *testing.T) {
 	}
 
 	client := NewWSClientImplWithSender(mock)
-	_, err := client.GetLovelaceConfig(context.Background())
+	_, err := client.GetLovelaceConfig(context.Background(), "")
 
 	if err == nil || !containsStr(err.Error(), "get lovelace config failed") {
 		t.Errorf("expected get lovelace config failed error, got: %v", err)
@@ -3174,7 +3174,7 @@ func TestWSClientImplWithSender_GetLovelaceConfig_UnmarshalError(t *testing.T) {
 	}
 
 	client := NewWSClientImplWithSender(mock)
-	_, err := client.GetLovelaceConfig(context.Background())
+	_, err := client.GetLovelaceConfig(context.Background(), "")
 
 	if err == nil || !containsStr(err.Error(), "failed to unmarshal") {
 		t.Errorf("expected unmarshal error, got: %v", err)

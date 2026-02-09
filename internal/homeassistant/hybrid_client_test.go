@@ -453,7 +453,12 @@ type mockWSOperations struct {
 	signPathFunc               func(ctx context.Context, path string, expires int) (string, error)
 	getCameraStreamFunc        func(ctx context.Context, entityID string) (*StreamInfo, error)
 	browseMediaFunc            func(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
-	getLovelaceConfigFunc      func(ctx context.Context) (map[string]any, error)
+	getLovelaceConfigFunc      func(ctx context.Context, urlPath string) (map[string]any, error)
+	saveLovelaceConfigFunc     func(ctx context.Context, urlPath string, config map[string]any) error
+	listDashboardsFunc         func(ctx context.Context) ([]DashboardEntry, error)
+	createDashboardFunc        func(ctx context.Context, config DashboardConfig) (*DashboardEntry, error)
+	updateDashboardFunc        func(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error)
+	deleteDashboardFunc        func(ctx context.Context, dashboardID string) error
 	getStatisticsFunc          func(ctx context.Context, statIDs []string, period string) ([]StatisticsResult, error)
 	getTriggersForTargetFunc   func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
 	getConditionsForTargetFunc func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
@@ -685,11 +690,46 @@ func (m *mockWSOperations) BrowseMedia(ctx context.Context, mediaContentID strin
 	return nil, nil
 }
 
-func (m *mockWSOperations) GetLovelaceConfig(ctx context.Context) (map[string]any, error) {
+func (m *mockWSOperations) GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error) {
 	if m.getLovelaceConfigFunc != nil {
-		return m.getLovelaceConfigFunc(ctx)
+		return m.getLovelaceConfigFunc(ctx, urlPath)
 	}
 	return nil, nil
+}
+
+func (m *mockWSOperations) SaveLovelaceConfig(ctx context.Context, urlPath string, config map[string]any) error {
+	if m.saveLovelaceConfigFunc != nil {
+		return m.saveLovelaceConfigFunc(ctx, urlPath, config)
+	}
+	return nil
+}
+
+func (m *mockWSOperations) ListDashboards(ctx context.Context) ([]DashboardEntry, error) {
+	if m.listDashboardsFunc != nil {
+		return m.listDashboardsFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) CreateDashboard(ctx context.Context, config DashboardConfig) (*DashboardEntry, error) {
+	if m.createDashboardFunc != nil {
+		return m.createDashboardFunc(ctx, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) UpdateDashboard(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error) {
+	if m.updateDashboardFunc != nil {
+		return m.updateDashboardFunc(ctx, dashboardID, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) DeleteDashboard(ctx context.Context, dashboardID string) error {
+	if m.deleteDashboardFunc != nil {
+		return m.deleteDashboardFunc(ctx, dashboardID)
+	}
+	return nil
 }
 
 func (m *mockWSOperations) GetStatistics(ctx context.Context, statIDs []string, period string) ([]StatisticsResult, error) {
@@ -1469,7 +1509,7 @@ func TestHybridClient_WSOperations_Config(t *testing.T) {
 	t.Parallel()
 
 	mockWS := &mockWSOperations{
-		getLovelaceConfigFunc: func(_ context.Context) (map[string]any, error) {
+		getLovelaceConfigFunc: func(_ context.Context, _ string) (map[string]any, error) {
 			return map[string]any{"title": "Home"}, nil
 		},
 		getScheduleConfigFunc: func(_ context.Context, _ string) (map[string]any, error) {
@@ -1480,7 +1520,7 @@ func TestHybridClient_WSOperations_Config(t *testing.T) {
 	client := NewHybridClientWithInterfaces(mockWS, &mockRESTOperations{})
 
 	t.Run("GetLovelaceConfig", func(t *testing.T) {
-		config, err := client.GetLovelaceConfig(context.Background())
+		config, err := client.GetLovelaceConfig(context.Background(), "")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

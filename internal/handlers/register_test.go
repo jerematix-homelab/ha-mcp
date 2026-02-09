@@ -166,8 +166,8 @@ func TestRegisterAllTools(t *testing.T) {
 		"browse_media",
 		// Consolidated entity query tools (query_entities replaces get_states/get_history/get_statistics/list_domains)
 		"query_entities",
-		// Lovelace
-		"get_lovelace_config",
+		// Dashboard (replaces get_lovelace_config)
+		"manage_dashboard",
 		// Consolidated target tools (analyze_target replaces get_triggers/conditions/services_for_target)
 		"analyze_target",
 		// Date/Time

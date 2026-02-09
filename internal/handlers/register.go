@@ -37,7 +37,7 @@ func RegisterMediaTools(registry *mcp.Registry) {
 
 // RegisterLovelaceTools registers all Lovelace dashboard-related tools with the registry.
 func RegisterLovelaceTools(registry *mcp.Registry) {
-	h := NewLovelaceHandlers()
+	h := NewDashboardHandlers()
 	h.RegisterTools(registry)
 }
 

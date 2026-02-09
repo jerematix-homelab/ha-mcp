@@ -86,7 +86,12 @@ type WSOperations interface {
 	SignPath(ctx context.Context, path string, expires int) (string, error)
 	GetCameraStream(ctx context.Context, entityID string) (*StreamInfo, error)
 	BrowseMedia(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
-	GetLovelaceConfig(ctx context.Context) (map[string]any, error)
+	GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error)
+	SaveLovelaceConfig(ctx context.Context, urlPath string, config map[string]any) error
+	ListDashboards(ctx context.Context) ([]DashboardEntry, error)
+	CreateDashboard(ctx context.Context, config DashboardConfig) (*DashboardEntry, error)
+	UpdateDashboard(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error)
+	DeleteDashboard(ctx context.Context, dashboardID string) error
 	GetStatistics(ctx context.Context, statIDs []string, period string) ([]StatisticsResult, error)
 	GetTriggersForTarget(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
 	GetConditionsForTarget(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
@@ -586,12 +591,37 @@ func (c *HybridClient) BrowseMedia(ctx context.Context, mediaContentID string) (
 }
 
 // =============================================================================
-// Configuration Operations (delegated to WebSocket)
+// Dashboard Operations (delegated to WebSocket)
 // =============================================================================
 
 // GetLovelaceConfig retrieves the Lovelace dashboard configuration.
-func (c *HybridClient) GetLovelaceConfig(ctx context.Context) (map[string]any, error) {
-	return c.ws.GetLovelaceConfig(ctx)
+func (c *HybridClient) GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error) {
+	return c.ws.GetLovelaceConfig(ctx, urlPath)
+}
+
+// SaveLovelaceConfig saves configuration for a Lovelace dashboard.
+func (c *HybridClient) SaveLovelaceConfig(ctx context.Context, urlPath string, config map[string]any) error {
+	return c.ws.SaveLovelaceConfig(ctx, urlPath, config)
+}
+
+// ListDashboards retrieves all Lovelace dashboards.
+func (c *HybridClient) ListDashboards(ctx context.Context) ([]DashboardEntry, error) {
+	return c.ws.ListDashboards(ctx)
+}
+
+// CreateDashboard creates a new Lovelace dashboard.
+func (c *HybridClient) CreateDashboard(ctx context.Context, config DashboardConfig) (*DashboardEntry, error) {
+	return c.ws.CreateDashboard(ctx, config)
+}
+
+// UpdateDashboard updates an existing Lovelace dashboard.
+func (c *HybridClient) UpdateDashboard(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error) {
+	return c.ws.UpdateDashboard(ctx, dashboardID, config)
+}
+
+// DeleteDashboard deletes a Lovelace dashboard.
+func (c *HybridClient) DeleteDashboard(ctx context.Context, dashboardID string) error {
+	return c.ws.DeleteDashboard(ctx, dashboardID)
 }
 
 // =============================================================================

@@ -272,8 +272,28 @@ func (m *mockNonCloserClient) GetCameraStream(_ context.Context, _ string) (*Str
 func (m *mockNonCloserClient) BrowseMedia(_ context.Context, _ string) (*MediaBrowseResult, error) {
 	return &MediaBrowseResult{}, nil
 }
-func (m *mockNonCloserClient) GetLovelaceConfig(_ context.Context) (map[string]any, error) {
+func (m *mockNonCloserClient) GetLovelaceConfig(_ context.Context, _ string) (map[string]any, error) {
 	return map[string]any{}, nil
+}
+
+func (m *mockNonCloserClient) SaveLovelaceConfig(_ context.Context, _ string, _ map[string]any) error {
+	return nil
+}
+
+func (m *mockNonCloserClient) ListDashboards(_ context.Context) ([]DashboardEntry, error) {
+	return []DashboardEntry{}, nil
+}
+
+func (m *mockNonCloserClient) CreateDashboard(_ context.Context, _ DashboardConfig) (*DashboardEntry, error) {
+	return &DashboardEntry{}, nil
+}
+
+func (m *mockNonCloserClient) UpdateDashboard(_ context.Context, _ string, _ DashboardConfig) (*DashboardEntry, error) {
+	return &DashboardEntry{}, nil
+}
+
+func (m *mockNonCloserClient) DeleteDashboard(_ context.Context, _ string) error {
+	return nil
 }
 func (m *mockNonCloserClient) GetStatistics(_ context.Context, _ []string, _ string) ([]StatisticsResult, error) {
 	return []StatisticsResult{}, nil
