@@ -81,6 +81,16 @@ func TestQueryEntitiesTool_Schema(t *testing.T) {
 	if len(formatSchema.Enum) != len(expectedFormats) {
 		t.Errorf("format enum has %d values, want %d", len(formatSchema.Enum), len(expectedFormats))
 	}
+
+	// Verify period enum has 5 values
+	periodSchema, ok := tool.InputSchema.Properties["period"]
+	if !ok {
+		t.Fatal("period property not found")
+	}
+	expectedPeriods := 5
+	if len(periodSchema.Enum) != expectedPeriods {
+		t.Errorf("period enum has %d values, want %d", len(periodSchema.Enum), expectedPeriods)
+	}
 }
 
 func TestQueryEntities_MissingMode(t *testing.T) {

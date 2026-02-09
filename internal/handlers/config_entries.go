@@ -46,7 +46,7 @@ func (h *ConfigEntryHandlers) listConfigEntriesTool() mcp.Tool {
 func (h *ConfigEntryHandlers) getConfigEntryTool() mcp.Tool {
 	return mcp.Tool{
 		Name:        "get_config_entry",
-		Description: "Get a single config entry by its entry ID. Returns metadata about the config entry (domain, title, state, capabilities). Use list_entity_registry with verbose=true to find the config_entry_id for a specific entity. Note: Template definitions are stored but not exposed through this API.",
+		Description: "Get a single config entry by its entry ID. Returns metadata about the config entry (domain, title, state, capabilities). Use get_registry with type=entities and verbose=true to find the config_entry_id for a specific entity. Note: Template definitions are stored but not exposed through this API.",
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Config entry identifier",

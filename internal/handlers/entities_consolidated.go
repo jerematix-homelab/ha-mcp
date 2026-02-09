@@ -582,11 +582,11 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 		},
 		"start_time": {
 			Type:        "string",
-			Description: "Start time in RFC3339 format. Only for mode=history",
+			Description: "Start time in RFC3339 format (e.g., '2024-01-15T10:00:00Z'). Only for mode=history",
 		},
 		"end_time": {
 			Type:        "string",
-			Description: "End time in RFC3339 format. Only for mode=history",
+			Description: "End time in RFC3339 format (e.g., '2024-01-15T18:00:00Z'). Only for mode=history",
 		},
 		"hours": {
 			Type:        "number",
@@ -600,6 +600,7 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 		"period": {
 			Type:        "string",
 			Description: "Statistics period: 5minute, hour, day, week, month. Only for mode=statistics",
+			Enum:        []string{"5minute", "hour", "day", "week", "month"},
 		},
 		// Common parameters
 		"verbose": {

@@ -47,7 +47,7 @@ func (h *DashboardHandlers) manageDashboardTool() mcp.Tool {
 Actions:
 - list: List all dashboards
 - get: Get dashboard configuration with optional view filtering (url_path optional)
-- create: Create a new dashboard (requires url_path and title)
+- create: Create a new dashboard (requires url_path, title, and mode)
 - update: Update an existing dashboard (requires dashboard_id)
 - delete: Delete a dashboard (requires dashboard_id)
 - save_config: Save dashboard configuration (requires config, url_path optional)`,
@@ -67,11 +67,11 @@ func (h *DashboardHandlers) buildDashboardSchema() mcp.JSONSchema {
 			},
 			"dashboard_id": {
 				Type:        "string",
-				Description: "Dashboard identifier (e.g., 'lovelace-1'). Required for update/delete.",
+				Description: "HA-generated dashboard identifier (e.g., 'lovelace-xxxx'), returned by list/create. Required for update/delete.",
 			},
 			"url_path": {
 				Type:        "string",
-				Description: "Dashboard URL path (e.g., 'energy'). Required for create. Optional for get/save_config (empty = default dashboard).",
+				Description: "Dashboard URL path (e.g., 'energy', 'leak-sensors'). Use hyphens for multi-word paths. Required for create. Optional for get/save_config (empty = default dashboard).",
 			},
 			"title": {
 				Type:        "string",
@@ -79,19 +79,20 @@ func (h *DashboardHandlers) buildDashboardSchema() mcp.JSONSchema {
 			},
 			"icon": {
 				Type:        "string",
-				Description: "Dashboard icon (e.g., 'mdi:view-dashboard')",
+				Description: "Dashboard icon (e.g., 'mdi:view-dashboard'). Omit rather than set empty.",
 			},
 			"mode": {
 				Type:        "string",
-				Description: "Dashboard mode: storage or yaml",
+				Description: "Dashboard mode: 'storage' or 'yaml'. Required for create.",
+				Enum:        []string{"storage", "yaml"},
 			},
 			"require_admin": {
 				Type:        "boolean",
-				Description: "Whether dashboard requires admin access",
+				Description: "Whether dashboard requires admin access. Defaults to false for create.",
 			},
 			"show_in_sidebar": {
 				Type:        "boolean",
-				Description: "Whether to show dashboard in sidebar",
+				Description: "Whether to show dashboard in sidebar. Defaults to false for create.",
 			},
 			"config": {
 				Type:        "object",
@@ -211,9 +212,24 @@ func (h *DashboardHandlers) handleCreate(
 		return errorResult("title is required for create action"), nil
 	}
 
+	mode, ok := args["mode"].(string)
+	if !ok || mode == "" {
+		return errorResult("mode is required for create action (use 'storage' or 'yaml')"), nil
+	}
+
 	config := buildDashboardConfig(args)
 	config.URLPath = urlPath
 	config.Title = title
+
+	// Default nil booleans to false for create
+	if config.RequireAdmin == nil {
+		falseVal := false
+		config.RequireAdmin = &falseVal
+	}
+	if config.ShowInSidebar == nil {
+		falseVal := false
+		config.ShowInSidebar = &falseVal
+	}
 
 	dashboard, err := client.CreateDashboard(ctx, config)
 	if err != nil {

@@ -129,6 +129,40 @@ func TestManageHelper_CreateInputBoolean(t *testing.T) {
 	runHandlerTestCases(t, tests, h.handleManageHelper)
 }
 
+func TestManageHelper_CreateInputNumber(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "create input_number without min/max",
+			args: map[string]any{
+				"action": "create",
+				"type":   "input_number",
+				"id":     "test_number",
+				"name":   "Test Number",
+			},
+			wantError:    true,
+			wantContains: []string{"min is required"},
+		},
+		{
+			name: "create input_number with min/max",
+			args: map[string]any{
+				"action": "create",
+				"type":   "input_number",
+				"id":     "test_number",
+				"name":   "Test Number",
+				"min":    float64(0),
+				"max":    float64(100),
+			},
+			wantError:    false,
+			wantContains: []string{"input_number.test_number", "created"},
+		},
+	}
+
+	h := NewConsolidatedHelperHandlers()
+	runHandlerTestCases(t, tests, h.handleManageHelper)
+}
+
 func TestManageHelper_CreateCounter(t *testing.T) {
 	t.Parallel()
 

@@ -71,6 +71,7 @@ Safe fields that can be updated:
 				"disabled_by": {
 					Type:        "string",
 					Description: "Disable status (update only): 'user' to disable, 'none' to enable",
+					Enum:        []string{"user", "none"},
 				},
 				"labels": {
 					Type:        "array",
@@ -83,6 +84,7 @@ Safe fields that can be updated:
 					Enum:        []string{"natural", "json"},
 				},
 			},
+			Required: []string{"action"},
 		},
 	}
 }

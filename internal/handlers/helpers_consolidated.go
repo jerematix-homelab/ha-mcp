@@ -55,8 +55,8 @@ var helperTypes = map[string]helperTypeMetadata{
 		platform:           "input_number",
 		entityPrefix:       "input_number",
 		supportedActions:   []string{"set"},
-		requiredFields:     []string{},
-		optionalFields:     []string{"icon", "min", "max", "step", "initial", "mode", "unit_of_measurement"},
+		requiredFields:     []string{"min", "max"},
+		optionalFields:     []string{"icon", "step", "initial", "mode", "unit_of_measurement"},
 		validEntityDomains: []string{"input_number"},
 	},
 	"input_text": {
@@ -212,7 +212,7 @@ Actions:
 - list: List all helpers (optional: format=natural|json, verbose=true|false)
 - create: Create a new helper (requires type, id, name)
 - delete: Delete an existing helper (requires entity_id)
-- get_details: Get schedule details (requires entity_id, only for schedule)`,
+- get_details: Get helper details (requires entity_id; supports schedule, counter, timer)`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Helper management operation",
@@ -238,7 +238,7 @@ Actions:
 				},
 				"entity_id": {
 					Type:        "string",
-					Description: "Full entity ID (required for delete/get_details)",
+					Description: "Full entity ID (required for delete/get_details). Also required as source entity for threshold create.",
 				},
 				"id": {
 					Type:        "string",
@@ -258,11 +258,11 @@ Actions:
 				},
 				"min": {
 					Type:        "number",
-					Description: "Minimum value (input_number)",
+					Description: "Minimum value (required for input_number, optional for input_text)",
 				},
 				"max": {
 					Type:        "number",
-					Description: "Maximum value (input_number)",
+					Description: "Maximum value (required for input_number, optional for input_text)",
 				},
 				"step": {
 					Type:        "number",
@@ -287,11 +287,11 @@ Actions:
 				},
 				"has_date": {
 					Type:        "boolean",
-					Description: "Include date component (input_datetime)",
+					Description: "Include date component. At least one of has_date or has_time must be true for input_datetime.",
 				},
 				"has_time": {
 					Type:        "boolean",
-					Description: "Include time component (input_datetime)",
+					Description: "Include time component. At least one of has_date or has_time must be true for input_datetime.",
 				},
 				"minimum": {
 					Type:        "number",
@@ -1300,37 +1300,51 @@ func buildIntegralConfigConsolidated(config, args map[string]any) {
 
 func validateRequiredFields(helperType string, meta helperTypeMetadata, args map[string]any) error {
 	for _, field := range meta.requiredFields {
-		switch field {
-		case "options":
-			opts, ok := args["options"].([]any)
-			if !ok || len(opts) == 0 {
-				return fmt.Errorf("options is required for %s and must be a non-empty array", helperType)
-			}
-		case "entities":
-			ents, ok := args["entities"].([]any)
-			if !ok || len(ents) == 0 {
-				return fmt.Errorf("entities is required for %s and must be a non-empty array", helperType)
-			}
-		case "state":
-			state, _ := args["state"].(string)
-			if state == "" {
-				return fmt.Errorf("state (Jinja2 template) is required for %s", helperType)
-			}
-		case configKeyEntityID:
-			entityID, _ := args[configKeyEntityID].(string)
-			if entityID == "" {
-				return fmt.Errorf("entity_id (source entity) is required for %s", helperType)
-			}
-		case "source":
-			source, _ := args["source"].(string)
-			if source == "" {
-				return fmt.Errorf("source (source sensor entity ID) is required for %s", helperType)
-			}
-		default:
-			val, _ := args[field].(string)
-			if val == "" {
-				return fmt.Errorf("%s is required for %s", field, helperType)
-			}
+		if err := validateSingleField(field, helperType, args); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//nolint:gocyclo // Validation switch with many specific field types
+func validateSingleField(field, helperType string, args map[string]any) error {
+	switch field {
+	case "options":
+		opts, ok := args["options"].([]any)
+		if !ok || len(opts) == 0 {
+			return fmt.Errorf("options is required for %s and must be a non-empty array", helperType)
+		}
+	case "entities":
+		ents, ok := args["entities"].([]any)
+		if !ok || len(ents) == 0 {
+			return fmt.Errorf("entities is required for %s and must be a non-empty array", helperType)
+		}
+	case "state":
+		state, _ := args["state"].(string)
+		if state == "" {
+			return fmt.Errorf("state (Jinja2 template) is required for %s", helperType)
+		}
+	case configKeyEntityID:
+		entityID, _ := args[configKeyEntityID].(string)
+		if entityID == "" {
+			return fmt.Errorf("entity_id (source entity) is required for %s", helperType)
+		}
+	case "source":
+		source, _ := args["source"].(string)
+		if source == "" {
+			return fmt.Errorf("source (source sensor entity ID) is required for %s", helperType)
+		}
+	case "min", "max":
+		// Check for numeric fields (float64)
+		_, ok := args[field].(float64)
+		if !ok {
+			return fmt.Errorf("%s is required for %s", field, helperType)
+		}
+	default:
+		val, _ := args[field].(string)
+		if val == "" {
+			return fmt.Errorf("%s is required for %s", field, helperType)
 		}
 	}
 	return nil

@@ -86,10 +86,12 @@ func (h *EntityManageHandlers) buildEntityManageSchema() mcp.JSONSchema {
 			"disabled_by": {
 				Type:        "string",
 				Description: "Disable status (update only): 'user' to disable, 'none' to enable",
+				Enum:        []string{"user", "none"},
 			},
 			"hidden_by": {
 				Type:        "string",
 				Description: "Hidden status (update only): 'user' to hide, 'none' to show",
+				Enum:        []string{"user", "none"},
 			},
 			"labels": {
 				Type:        "array",
@@ -107,6 +109,7 @@ func (h *EntityManageHandlers) buildEntityManageSchema() mcp.JSONSchema {
 				Enum:        []string{"natural", "json"},
 			},
 		},
+		Required: []string{"action"},
 	}
 }
 

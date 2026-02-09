@@ -51,7 +51,7 @@ func (h *AutomationHandlers) manageAutomationTool() mcp.Tool {
 Actions:
 - list: List automations (optional filters: state, alias, entity_id; supports verbose, limit, cursor)
 - get: Get details of a specific automation (requires automation_id)
-- create: Create a new automation (requires alias, trigger, action)
+- create: Create a new automation (requires alias, trigger, automation_action)
 - update: Update an existing automation (requires automation_id)
 - delete: Delete an automation (requires automation_id)
 - toggle: Enable or disable an automation (requires automation_id, enabled)

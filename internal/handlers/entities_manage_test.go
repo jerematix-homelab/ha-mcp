@@ -69,6 +69,39 @@ func TestManageEntity_Schema(t *testing.T) {
 		t.Errorf("expected 2 format enum values, got %d", len(formatProp.Enum))
 	}
 
+	// Verify Required field contains "action"
+	if len(tool.InputSchema.Required) == 0 {
+		t.Error("expected Required field to contain action")
+	}
+	foundAction := false
+	for _, req := range tool.InputSchema.Required {
+		if req == "action" {
+			foundAction = true
+			break
+		}
+	}
+	if !foundAction {
+		t.Error("expected 'action' in Required field")
+	}
+
+	// Verify disabled_by enum has 2 values
+	disabledByProp, ok := tool.InputSchema.Properties["disabled_by"]
+	if !ok {
+		t.Fatal("expected 'disabled_by' property in schema")
+	}
+	if len(disabledByProp.Enum) != 2 {
+		t.Errorf("expected 2 disabled_by enum values, got %d", len(disabledByProp.Enum))
+	}
+
+	// Verify hidden_by enum has 2 values
+	hiddenByProp, ok := tool.InputSchema.Properties["hidden_by"]
+	if !ok {
+		t.Fatal("expected 'hidden_by' property in schema")
+	}
+	if len(hiddenByProp.Enum) != 2 {
+		t.Errorf("expected 2 hidden_by enum values, got %d", len(hiddenByProp.Enum))
+	}
+
 	// Verify required properties count
 	if len(tool.InputSchema.Properties) < 10 {
 		t.Errorf("expected at least 10 properties in schema, got %d", len(tool.InputSchema.Properties))
