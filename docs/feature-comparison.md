@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type**             | Standalone Go binary (external server)     | HA integration (built-in)                                   |
 | **Transport**        | HTTP JSON-RPC                              | Streamable HTTP                                             |
 | **HA Communication** | WebSocket + REST API (Hybrid)              | Direct Python API (internal)                                |
-| **Tool Design**      | 28 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
+| **Tool Design**      | 29 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
 | **Authentication**   | Long-Lived Access Token                    | OAuth (IndieAuth) + Long-Lived Token                        |
 | **Entity Access**    | All entities (no filtering)                | Only explicitly exposed entities (Voice Assistant Exposure) |
 
@@ -35,6 +35,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | Entity statistics        | `query_entities` mode=statistics (long-term data, pagination, natural/json)                                                                                 | ------------------------------------------------------- |
 | Presence analysis        | `query_entities` mode=presence (person/tracker correlation, natural/json)                                                                                   | ------------------------------------------------------- |
 | Health detection/cleanup | `query_entities` mode=health (detect unavailable/unknown/disabled/orphaned/stale entities, multi-category filter, action=remove to cleanup, natural/json)   | ------------------------------------------------------- |
+| Device health check      | `query_devices` mode=health (detect disabled/orphaned/error devices, multi-category filter, action=remove to cleanup, natural/json)                         | ------------------------------------------------------- |
 | Cover control            | `call_service` (domain=cover)                                                                                                                               | `HassOpenCover`, `HassCloseCover`                       |
 | Date/Time                | `get_datetime`                                                                                                                                              | `GetDateTime`                                           |
 

@@ -69,6 +69,9 @@ type Client interface {
 	// Entity registry modification operations
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
 
+	// Device registry modification operations
+	RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error
+
 	// Media operations
 	SignPath(ctx context.Context, path string, expires int) (string, error)
 	GetCameraStream(ctx context.Context, entityID string) (*StreamInfo, error)
