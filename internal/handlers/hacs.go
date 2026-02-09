@@ -40,6 +40,7 @@ func (h *HACSHandlers) RegisterTools(registry *mcp.Registry) {
 	registry.RegisterTool(*tool, h.HandleManageHACS)
 }
 
+//nolint:funlen // Schema properties require detailed descriptions for proper tool documentation
 func buildHACSSchema() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "manage_hacs",
@@ -74,8 +75,12 @@ func buildHACSSchema() *mcp.Tool {
 				},
 				"category": {
 					Type:        "string",
-					Description: "Repository category (required for add_repository, optional filter for list)",
+					Description: "Repository category (required for add_repository, client-side filter for list)",
 					Enum:        []string{"integration", "plugin", "theme", "python_script", "appdaemon", "netdaemon"},
+				},
+				"search": {
+					Type:        "string",
+					Description: "Search filter for list action - case-insensitive substring match against name, description, and full_name",
 				},
 				"version": {
 					Type:        "string",
@@ -178,19 +183,24 @@ func (h *HACSHandlers) handleInfo(ctx context.Context, client homeassistant.Clie
 
 func (h *HACSHandlers) handleList(ctx context.Context, client homeassistant.Client, args map[string]any, format string) (*mcp.ToolsCallResult, error) {
 	data := make(map[string]any)
+	// Only server-side filters sent to API
 	if installedOnly, ok := args["installed_only"].(bool); ok {
 		data["installed_only"] = installedOnly
 	}
 	if pendingUpdate, ok := args["pending_update"].(bool); ok {
 		data["pending_update"] = pendingUpdate
 	}
-	if category, ok := args["category"].(string); ok && category != "" {
-		data["category"] = category
-	}
 
 	result, err := client.SendHACSCommand(ctx, "hacs/repositories/list", data)
 	if err != nil {
 		return h.handleHACSError(err), nil
+	}
+
+	// Client-side filters
+	category := getStringArg(args, "category")
+	search := getStringArg(args, "search")
+	if repos, ok := result.([]any); ok {
+		result = filterHACSRepos(repos, category, search)
 	}
 
 	if format == formatJSON {
@@ -584,4 +594,59 @@ func getMapString(m map[string]any, key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+// filterHACSRepos applies client-side filtering to repository list.
+func filterHACSRepos(repos []any, category, search string) []any {
+	if category == "" && search == "" {
+		return repos
+	}
+
+	var filtered []any
+	searchLower := strings.ToLower(search)
+
+	for _, r := range repos {
+		repo, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		// Apply category filter (exact match)
+		if category != "" {
+			repoCategory := getMapString(repo, "category", "")
+			if repoCategory != category {
+				continue
+			}
+		}
+
+		// Apply search filter (substring match)
+		if search != "" {
+			if !matchesHACSSearch(repo, searchLower) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, repo)
+	}
+
+	return filtered
+}
+
+// matchesHACSSearch checks if a repository matches the search query.
+func matchesHACSSearch(repo map[string]any, searchLower string) bool {
+	// Check name
+	name := strings.ToLower(getMapString(repo, "name", ""))
+	if strings.Contains(name, searchLower) {
+		return true
+	}
+
+	// Check description
+	description := strings.ToLower(getMapString(repo, "description", ""))
+	if strings.Contains(description, searchLower) {
+		return true
+	}
+
+	// Check full_name
+	fullName := strings.ToLower(getMapString(repo, "full_name", ""))
+	return strings.Contains(fullName, searchLower)
 }
