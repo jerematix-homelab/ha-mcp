@@ -38,12 +38,17 @@ func (s *DashboardIntegrationTestSuite) TestDashboardLifecycle() {
 		}
 	})
 
+	requireAdmin := false
+	showInSidebar := false
+
 	// Create dashboard
 	dashboardConfig := homeassistant.DashboardConfig{
-		URLPath: urlPath,
-		Title:   "Test Dashboard",
-		Icon:    "mdi:view-dashboard",
-		Mode:    "storage",
+		URLPath:       urlPath,
+		Title:         "Test Dashboard",
+		Icon:          "mdi:view-dashboard",
+		Mode:          "storage",
+		RequireAdmin:  &requireAdmin,
+		ShowInSidebar: &showInSidebar,
 	}
 
 	created, err := s.Client().CreateDashboard(s.Context(), dashboardConfig)
@@ -105,11 +110,17 @@ func (s *DashboardIntegrationTestSuite) TestDashboardWithConfig() {
 		}
 	})
 
+	requireAdmin := false
+	showInSidebar := false
+
 	// Create dashboard
 	dashboardConfig := homeassistant.DashboardConfig{
-		URLPath: urlPath,
-		Title:   "Config Test Dashboard",
-		Mode:    "storage",
+		URLPath:       urlPath,
+		Title:         "Config Test Dashboard",
+		Icon:          "mdi:cog",
+		Mode:          "storage",
+		RequireAdmin:  &requireAdmin,
+		ShowInSidebar: &showInSidebar,
 	}
 
 	created, err := s.Client().CreateDashboard(s.Context(), dashboardConfig)
@@ -227,12 +238,17 @@ func (s *DashboardIntegrationTestSuite) TestMultipleDashboards() {
 		}
 	})
 
+	requireAdmin := false
+	showInSidebar := false
+
 	// Create first dashboard
 	config1 := homeassistant.DashboardConfig{
-		URLPath: urlPath1,
-		Title:   "Dashboard 1",
-		Icon:    "mdi:numeric-1",
-		Mode:    "storage",
+		URLPath:       urlPath1,
+		Title:         "Dashboard 1",
+		Icon:          "mdi:numeric-1",
+		Mode:          "storage",
+		RequireAdmin:  &requireAdmin,
+		ShowInSidebar: &showInSidebar,
 	}
 
 	created1, err := s.Client().CreateDashboard(s.Context(), config1)
@@ -241,10 +257,12 @@ func (s *DashboardIntegrationTestSuite) TestMultipleDashboards() {
 
 	// Create second dashboard
 	config2 := homeassistant.DashboardConfig{
-		URLPath: urlPath2,
-		Title:   "Dashboard 2",
-		Icon:    "mdi:numeric-2",
-		Mode:    "storage",
+		URLPath:       urlPath2,
+		Title:         "Dashboard 2",
+		Icon:          "mdi:numeric-2",
+		Mode:          "storage",
+		RequireAdmin:  &requireAdmin,
+		ShowInSidebar: &showInSidebar,
 	}
 
 	created2, err := s.Client().CreateDashboard(s.Context(), config2)
@@ -291,13 +309,16 @@ func (s *DashboardIntegrationTestSuite) TestDashboardUpdateBooleans() {
 	})
 
 	requireAdmin := false
+	showInSidebar := false
 
 	// Create dashboard with require_admin=false
 	dashboardConfig := homeassistant.DashboardConfig{
-		URLPath:      urlPath,
-		Title:        "Boolean Test Dashboard",
-		Mode:         "storage",
-		RequireAdmin: &requireAdmin,
+		URLPath:       urlPath,
+		Title:         "Boolean Test Dashboard",
+		Icon:          "mdi:test-tube",
+		Mode:          "storage",
+		RequireAdmin:  &requireAdmin,
+		ShowInSidebar: &showInSidebar,
 	}
 
 	created, err := s.Client().CreateDashboard(s.Context(), dashboardConfig)
