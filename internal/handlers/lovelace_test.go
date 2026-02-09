@@ -883,3 +883,108 @@ func TestBuildCompactViews(t *testing.T) {
 		})
 	}
 }
+
+func TestDashboardHandlers_CreateDashboardInitializesSectionLayout(t *testing.T) {
+	t.Parallel()
+
+	// Test that handleCreate attempts to initialize section-based layout
+	// We verify this by checking that SaveLovelaceConfig is called with the correct structure
+
+	h := NewDashboardHandlers()
+	ctx := context.Background()
+
+	var savedConfig map[string]any
+	var savedURLPath string
+	saveCalled := false
+
+	mock := &UniversalMockClient{
+		CreateDashboardFn: func(context.Context, homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+			return &homeassistant.DashboardEntry{
+				ID:            "lovelace-test",
+				URLPath:       "test-dashboard",
+				Title:         "Test Dashboard",
+				Mode:          "storage",
+				RequireAdmin:  false,
+				ShowInSidebar: false,
+			}, nil
+		},
+		SaveLovelaceConfigFn: func(_ context.Context, urlPath string, config map[string]any) error {
+			saveCalled = true
+			savedURLPath = urlPath
+			savedConfig = config
+			return nil
+		},
+	}
+
+	args := map[string]any{
+		"action":   "create",
+		"url_path": "test-dashboard",
+		"title":    "Test Dashboard",
+		"mode":     "storage",
+	}
+
+	result, err := h.handleManageDashboard(ctx, mock, args)
+	if err != nil {
+		t.Fatalf("handleManageDashboard() error = %v", err)
+	}
+
+	if result.IsError {
+		t.Fatalf("handleManageDashboard() returned error result: %s", result.Content[0].Text)
+	}
+
+	// Verify SaveLovelaceConfig was called
+	if !saveCalled {
+		t.Error("SaveLovelaceConfig was not called during dashboard creation")
+	}
+
+	// Verify URL path matches
+	if savedURLPath != "test-dashboard" {
+		t.Errorf("SaveLovelaceConfig called with url_path = %q, want %q", savedURLPath, "test-dashboard")
+	}
+
+	// Verify config structure has modern section layout
+	views, ok := savedConfig["views"].([]any)
+	if !ok || len(views) != 1 {
+		t.Fatalf("Config should have exactly 1 view, got: %v", savedConfig)
+	}
+
+	view := views[0].(map[string]any)
+
+	// Check view title
+	if view["title"] != "Home" {
+		t.Errorf("Default view title = %q, want %q", view["title"], "Home")
+	}
+
+	// Check view type is "sections"
+	viewType, ok := view["type"].(string)
+	if !ok || viewType != "sections" {
+		t.Errorf("View type = %q, want %q (modern section layout)", viewType, "sections")
+	}
+
+	// Check sections exist
+	sections, ok := view["sections"].([]any)
+	if !ok || len(sections) != 1 {
+		t.Fatalf("View should have exactly 1 section, got: %v", view)
+	}
+
+	section := sections[0].(map[string]any)
+
+	// Check section type is grid
+	if section["type"] != "grid" {
+		t.Errorf("Section type = %q, want %q", section["type"], "grid")
+	}
+
+	// Check section has empty cards array
+	cards, ok := section["cards"].([]any)
+	if !ok {
+		t.Error("Section should have cards array")
+	}
+	if len(cards) != 0 {
+		t.Errorf("Section should have empty cards array, got %d cards", len(cards))
+	}
+
+	// Verify view does NOT have root-level cards (legacy format)
+	if _, hasCards := view["cards"]; hasCards {
+		t.Error("View should not have root-level 'cards' field (legacy format)")
+	}
+}
