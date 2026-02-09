@@ -1,0 +1,334 @@
+//go:build integration
+
+package integration
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/suite"
+	"github.com/zorak1103/ha-mcp/internal/homeassistant"
+)
+
+type DashboardIntegrationTestSuite struct {
+	DashboardTestSuite
+}
+
+func TestDashboardIntegration(t *testing.T) {
+	suite.Run(t, new(DashboardIntegrationTestSuite))
+}
+
+// generateDashboardURLPath creates a test URL path with dashes instead of underscores
+// to avoid potential issues with HA rejecting underscores in URL paths.
+func generateDashboardURLPath(name string) string {
+	id := GenerateTestID(name)
+	// Replace underscores with dashes for URL path
+	return strings.ReplaceAll(id, "_", "-")
+}
+
+func (s *DashboardIntegrationTestSuite) TestDashboardLifecycle() {
+	urlPath := generateDashboardURLPath("dash")
+
+	var dashboardID string
+
+	s.RegisterCleanup(func() {
+		if dashboardID != "" {
+			_ = s.Client().DeleteDashboard(s.Context(), dashboardID)
+		}
+	})
+
+	// Create dashboard
+	dashboardConfig := homeassistant.DashboardConfig{
+		URLPath: urlPath,
+		Title:   "Test Dashboard",
+		Icon:    "mdi:view-dashboard",
+		Mode:    "storage",
+	}
+
+	created, err := s.Client().CreateDashboard(s.Context(), dashboardConfig)
+	s.Require().NoError(err, "Failed to create dashboard")
+	s.Require().NotNil(created)
+	s.Equal(urlPath, created.URLPath)
+	s.Equal("Test Dashboard", created.Title)
+	s.Equal("mdi:view-dashboard", created.Icon)
+
+	dashboardID = created.ID
+
+	// Allow time for dashboard to register
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify dashboard appears in list
+	dashboard, err := s.FindDashboardByURLPath(urlPath)
+	s.Require().NoError(err, "Dashboard should appear in list")
+	s.Equal("Test Dashboard", dashboard.Title)
+	s.Equal("mdi:view-dashboard", dashboard.Icon)
+
+	// Update dashboard (title + icon)
+	updateConfig := homeassistant.DashboardConfig{
+		Title: "Updated Dashboard",
+		Icon:  "mdi:cog",
+	}
+
+	updated, err := s.Client().UpdateDashboard(s.Context(), dashboardID, updateConfig)
+	s.Require().NoError(err, "Failed to update dashboard")
+	s.Equal("Updated Dashboard", updated.Title)
+	s.Equal("mdi:cog", updated.Icon)
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify update
+	dashboard, err = s.FindDashboardByURLPath(urlPath)
+	s.Require().NoError(err)
+	s.Equal("Updated Dashboard", dashboard.Title)
+	s.Equal("mdi:cog", dashboard.Icon)
+
+	// Delete dashboard
+	err = s.Client().DeleteDashboard(s.Context(), dashboardID)
+	s.Require().NoError(err, "Failed to delete dashboard")
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify dashboard is gone
+	_, err = s.FindDashboardByURLPath(urlPath)
+	s.Error(err, "Dashboard should be deleted from list")
+}
+
+func (s *DashboardIntegrationTestSuite) TestDashboardWithConfig() {
+	urlPath := generateDashboardURLPath("dash-config")
+
+	var dashboardID string
+
+	s.RegisterCleanup(func() {
+		if dashboardID != "" {
+			_ = s.Client().DeleteDashboard(s.Context(), dashboardID)
+		}
+	})
+
+	// Create dashboard
+	dashboardConfig := homeassistant.DashboardConfig{
+		URLPath: urlPath,
+		Title:   "Config Test Dashboard",
+		Mode:    "storage",
+	}
+
+	created, err := s.Client().CreateDashboard(s.Context(), dashboardConfig)
+	s.Require().NoError(err, "Failed to create dashboard")
+
+	dashboardID = created.ID
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Save Lovelace config with a view and card
+	lovelaceConfig := map[string]any{
+		"views": []any{
+			map[string]any{
+				"title": "Test View",
+				"path":  "test",
+				"cards": []any{
+					map[string]any{
+						"type":   "markdown",
+						"content": "This is a test card",
+					},
+				},
+			},
+		},
+	}
+
+	err = s.Client().SaveLovelaceConfig(s.Context(), urlPath, lovelaceConfig)
+	s.Require().NoError(err, "Failed to save Lovelace config")
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Retrieve and verify config
+	retrievedConfig, err := s.Client().GetLovelaceConfig(s.Context(), urlPath)
+	s.Require().NoError(err, "Failed to get Lovelace config")
+	s.NotNil(retrievedConfig)
+
+	// Verify views exist
+	views, ok := retrievedConfig["views"].([]any)
+	s.Require().True(ok, "Config should have views")
+	s.Require().Len(views, 1, "Should have 1 view")
+
+	view := views[0].(map[string]any)
+	s.Equal("Test View", view["title"])
+	s.Equal("test", view["path"])
+
+	// Verify cards exist
+	cards, ok := view["cards"].([]any)
+	s.Require().True(ok, "View should have cards")
+	s.Require().Len(cards, 1, "Should have 1 card")
+
+	card := cards[0].(map[string]any)
+	s.Equal("markdown", card["type"])
+	s.Equal("This is a test card", card["content"])
+
+	// Cleanup
+	_ = s.Client().DeleteDashboard(s.Context(), dashboardID)
+}
+
+func (s *DashboardIntegrationTestSuite) TestDashboardWithAllOptions() {
+	urlPath := generateDashboardURLPath("dash-opts")
+
+	var dashboardID string
+
+	s.RegisterCleanup(func() {
+		if dashboardID != "" {
+			_ = s.Client().DeleteDashboard(s.Context(), dashboardID)
+		}
+	})
+
+	requireAdmin := true
+	showInSidebar := true
+
+	// Create dashboard with all options
+	dashboardConfig := homeassistant.DashboardConfig{
+		URLPath:       urlPath,
+		Title:         "Full Options Dashboard",
+		Icon:          "mdi:star",
+		Mode:          "storage",
+		RequireAdmin:  &requireAdmin,
+		ShowInSidebar: &showInSidebar,
+	}
+
+	created, err := s.Client().CreateDashboard(s.Context(), dashboardConfig)
+	s.Require().NoError(err, "Failed to create dashboard with all options")
+	s.Require().NotNil(created)
+
+	dashboardID = created.ID
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify all fields
+	dashboard, err := s.FindDashboardByURLPath(urlPath)
+	s.Require().NoError(err)
+	s.Equal("Full Options Dashboard", dashboard.Title)
+	s.Equal("mdi:star", dashboard.Icon)
+	s.Equal("storage", dashboard.Mode)
+	s.True(dashboard.RequireAdmin)
+	s.True(dashboard.ShowInSidebar)
+
+	// Cleanup
+	_ = s.Client().DeleteDashboard(s.Context(), dashboardID)
+}
+
+func (s *DashboardIntegrationTestSuite) TestMultipleDashboards() {
+	urlPath1 := generateDashboardURLPath("dash-1")
+	urlPath2 := generateDashboardURLPath("dash-2")
+
+	var dashboardID1, dashboardID2 string
+
+	s.RegisterCleanup(func() {
+		if dashboardID1 != "" {
+			_ = s.Client().DeleteDashboard(s.Context(), dashboardID1)
+		}
+		if dashboardID2 != "" {
+			_ = s.Client().DeleteDashboard(s.Context(), dashboardID2)
+		}
+	})
+
+	// Create first dashboard
+	config1 := homeassistant.DashboardConfig{
+		URLPath: urlPath1,
+		Title:   "Dashboard 1",
+		Icon:    "mdi:numeric-1",
+		Mode:    "storage",
+	}
+
+	created1, err := s.Client().CreateDashboard(s.Context(), config1)
+	s.Require().NoError(err, "Failed to create dashboard 1")
+	dashboardID1 = created1.ID
+
+	// Create second dashboard
+	config2 := homeassistant.DashboardConfig{
+		URLPath: urlPath2,
+		Title:   "Dashboard 2",
+		Icon:    "mdi:numeric-2",
+		Mode:    "storage",
+	}
+
+	created2, err := s.Client().CreateDashboard(s.Context(), config2)
+	s.Require().NoError(err, "Failed to create dashboard 2")
+	dashboardID2 = created2.ID
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify both dashboards exist in list
+	dashboard1, err := s.FindDashboardByURLPath(urlPath1)
+	s.Require().NoError(err, "Dashboard 1 should exist")
+	s.Equal("Dashboard 1", dashboard1.Title)
+
+	dashboard2, err := s.FindDashboardByURLPath(urlPath2)
+	s.Require().NoError(err, "Dashboard 2 should exist")
+	s.Equal("Dashboard 2", dashboard2.Title)
+
+	// Delete both dashboards
+	err = s.Client().DeleteDashboard(s.Context(), dashboardID1)
+	s.Require().NoError(err, "Failed to delete dashboard 1")
+
+	err = s.Client().DeleteDashboard(s.Context(), dashboardID2)
+	s.Require().NoError(err, "Failed to delete dashboard 2")
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify both are gone
+	_, err = s.FindDashboardByURLPath(urlPath1)
+	s.Error(err, "Dashboard 1 should be deleted")
+
+	_, err = s.FindDashboardByURLPath(urlPath2)
+	s.Error(err, "Dashboard 2 should be deleted")
+}
+
+func (s *DashboardIntegrationTestSuite) TestDashboardUpdateBooleans() {
+	urlPath := generateDashboardURLPath("dash-bool")
+
+	var dashboardID string
+
+	s.RegisterCleanup(func() {
+		if dashboardID != "" {
+			_ = s.Client().DeleteDashboard(s.Context(), dashboardID)
+		}
+	})
+
+	requireAdmin := false
+
+	// Create dashboard with require_admin=false
+	dashboardConfig := homeassistant.DashboardConfig{
+		URLPath:      urlPath,
+		Title:        "Boolean Test Dashboard",
+		Mode:         "storage",
+		RequireAdmin: &requireAdmin,
+	}
+
+	created, err := s.Client().CreateDashboard(s.Context(), dashboardConfig)
+	s.Require().NoError(err, "Failed to create dashboard")
+
+	dashboardID = created.ID
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify require_admin is false
+	dashboard, err := s.FindDashboardByURLPath(urlPath)
+	s.Require().NoError(err)
+	s.False(dashboard.RequireAdmin, "RequireAdmin should be false initially")
+
+	// Update to require_admin=true
+	requireAdminTrue := true
+	updateConfig := homeassistant.DashboardConfig{
+		RequireAdmin: &requireAdminTrue,
+	}
+
+	updated, err := s.Client().UpdateDashboard(s.Context(), dashboardID, updateConfig)
+	s.Require().NoError(err, "Failed to update dashboard")
+	s.True(updated.RequireAdmin, "RequireAdmin should be updated to true")
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Verify the toggle
+	dashboard, err = s.FindDashboardByURLPath(urlPath)
+	s.Require().NoError(err)
+	s.True(dashboard.RequireAdmin, "RequireAdmin should be true after update")
+
+	// Cleanup
+	_ = s.Client().DeleteDashboard(s.Context(), dashboardID)
+}

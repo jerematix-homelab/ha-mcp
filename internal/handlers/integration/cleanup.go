@@ -62,6 +62,16 @@ func CleanupAllTestEntities(ctx context.Context, client homeassistant.Client) er
 		errors = append(errors, fmt.Sprintf("scenes: %v", err))
 	}
 
+	// Clean up areas
+	if err := cleanupTestAreas(ctx, client); err != nil {
+		errors = append(errors, fmt.Sprintf("areas: %v", err))
+	}
+
+	// Clean up dashboards
+	if err := cleanupTestDashboards(ctx, client); err != nil {
+		errors = append(errors, fmt.Sprintf("dashboards: %v", err))
+	}
+
 	if len(errors) > 0 {
 		return fmt.Errorf("cleanup errors: %s", strings.Join(errors, "; "))
 	}
@@ -296,6 +306,95 @@ func deleteSceneWithRetry(ctx context.Context, client homeassistant.Client, scen
 	return lastErr
 }
 
+// cleanupTestAreas removes all test areas.
+func cleanupTestAreas(ctx context.Context, client homeassistant.Client) error {
+	areas, err := client.GetAreaRegistry(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get area registry: %w", err)
+	}
+
+	var errors []string
+
+	for _, area := range areas {
+		if !IsTestEntity(area.AreaID) {
+			continue
+		}
+
+		if err := deleteAreaWithRetry(ctx, client, area.AreaID); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", area.AreaID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to delete areas: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
+// cleanupTestDashboards removes all test dashboards.
+func cleanupTestDashboards(ctx context.Context, client homeassistant.Client) error {
+	dashboards, err := client.ListDashboards(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to list dashboards: %w", err)
+	}
+
+	var errors []string
+
+	for _, dashboard := range dashboards {
+		// Use URLPath for test identification (user-controlled), not dashboard ID (HA-generated)
+		if !IsTestEntity(dashboard.URLPath) {
+			continue
+		}
+
+		// Use dashboard ID for API delete calls
+		if err := deleteDashboardWithRetry(ctx, client, dashboard.ID); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", dashboard.URLPath, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to delete dashboards: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
+// deleteAreaWithRetry attempts to delete an area with retry logic.
+func deleteAreaWithRetry(ctx context.Context, client homeassistant.Client, areaID string) error {
+	if err := ValidateTestEntityID(areaID); err != nil {
+		return err
+	}
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := client.DeleteArea(ctx, areaID); err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// deleteDashboardWithRetry attempts to delete a dashboard with retry logic.
+func deleteDashboardWithRetry(ctx context.Context, client homeassistant.Client, dashboardID string) error {
+	// Note: We don't validate dashboardID here because it's HA-generated (like "lovelace-xxxx")
+	// The validation was done on URLPath in cleanupTestDashboards
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := client.DeleteDashboard(ctx, dashboardID); err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
 // CountTestEntities returns the number of test entities still present.
 // Used for verification after cleanup.
 func CountTestEntities(ctx context.Context, client homeassistant.Client) (int, []string, error) {
@@ -312,4 +411,40 @@ func CountTestEntities(ctx context.Context, client homeassistant.Client) (int, [
 	}
 
 	return len(testEntities), testEntities, nil
+}
+
+// CountTestAreas returns the number of test areas still present.
+// Used for verification after cleanup.
+func CountTestAreas(ctx context.Context, client homeassistant.Client) (int, []string, error) {
+	areas, err := client.GetAreaRegistry(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get area registry: %w", err)
+	}
+
+	var testAreas []string
+	for _, area := range areas {
+		if IsTestEntity(area.AreaID) {
+			testAreas = append(testAreas, area.AreaID)
+		}
+	}
+
+	return len(testAreas), testAreas, nil
+}
+
+// CountTestDashboards returns the number of test dashboards still present.
+// Used for verification after cleanup.
+func CountTestDashboards(ctx context.Context, client homeassistant.Client) (int, []string, error) {
+	dashboards, err := client.ListDashboards(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to list dashboards: %w", err)
+	}
+
+	var testDashboards []string
+	for _, dashboard := range dashboards {
+		if IsTestEntity(dashboard.URLPath) {
+			testDashboards = append(testDashboards, dashboard.URLPath)
+		}
+	}
+
+	return len(testDashboards), testDashboards, nil
 }
