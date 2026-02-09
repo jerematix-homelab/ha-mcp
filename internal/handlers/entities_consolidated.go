@@ -507,7 +507,7 @@ func (h *ConsolidatedEntityQueryHandlers) queryEntitiesTool() mcp.Tool {
 }
 
 func queryEntitiesDescription() string {
-	return `Query Home Assistant entities (states, history, statistics, domains).
+	return `Query Home Assistant entities (states, history, statistics, domains, health).
 
 Modes:
 - current: Get current entity states with optional filters (domain, state, name_contains, pagination)
@@ -515,12 +515,16 @@ Modes:
 - statistics: Get long-term statistics for entities (requires statistic_ids array)
 - domains: List all available entity domains with counts
 - presence: Analyze person entities and device tracker correlation
+- health: Detect problematic entities and optionally remove them from the registry
 
 Examples:
 - Get all lights: {"mode": "current", "domain": "light"}
 - Get history: {"mode": "history", "entity_id": "sensor.temperature", "hours": 6}
 - Get statistics: {"mode": "statistics", "statistic_ids": ["sensor.energy"]}
-- List domains: {"mode": "domains"}`
+- List domains: {"mode": "domains"}
+- Health check: {"mode": "health"}
+- Health filtered: {"mode": "health", "categories": ["unavailable", "unknown"]}
+- Remove dead entities: {"mode": "health", "action": "remove", "entity_ids": ["sensor.dead1"]}`
 }
 
 //nolint:funlen // Schema definition naturally long
@@ -528,8 +532,8 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 	return map[string]mcp.JSONSchema{
 		"mode": {
 			Type:        "string",
-			Enum:        []string{"current", "history", "statistics", "domains", "presence"},
-			Description: "Query mode: current (states), history, statistics, domains, or presence",
+			Enum:        []string{"current", "history", "statistics", "domains", "presence", "health"},
+			Description: "Query mode: current (states), history, statistics, domains, presence, or health",
 		},
 		"format": {
 			Type:        "string",
@@ -610,6 +614,28 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 			Type:        "string",
 			Description: "Pagination cursor from previous response",
 		},
+		// Health mode parameters
+		"action": {
+			Type:        "string",
+			Enum:        []string{"analyze", "remove"},
+			Description: "Health action: 'analyze' (default) to detect issues, 'remove' to delete entities from registry. Only for mode=health",
+		},
+		"categories": {
+			Type:        "array",
+			Description: "Filter by one or more health issue categories. Only for mode=health with action=analyze. Example: ['unavailable', 'unknown', 'stale']",
+			Items: &mcp.JSONSchema{
+				Type: "string",
+				Enum: []string{"unavailable", "unknown", "disabled", "orphaned_integration", "orphaned_device", "integration_error", "registry_only", "stale"},
+			},
+		},
+		"stale_days": {
+			Type:        "number",
+			Description: "Number of days for stale entity detection (default: 30). Only for mode=health with action=analyze",
+		},
+		"entity_ids": {
+			Type:        "array",
+			Description: "Array of entity IDs to remove from registry. Required for mode=health with action=remove",
+		},
 	}
 }
 
@@ -635,8 +661,10 @@ func (h *ConsolidatedEntityQueryHandlers) handleQueryEntities(
 		return h.handleDomains(ctx, client, args)
 	case "presence":
 		return h.handlePresence(ctx, client, args)
+	case "health":
+		return h.handleHealth(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("Invalid mode %q. Must be one of: current, history, statistics, domains, presence", mode)), nil
+		return errorResult(fmt.Sprintf("Invalid mode %q. Must be one of: current, history, statistics, domains, presence, health", mode)), nil
 	}
 }
 

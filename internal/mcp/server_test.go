@@ -143,6 +143,10 @@ func (m *mockHAClient) GetAreaRegistry(_ context.Context) ([]homeassistant.AreaR
 	return nil, nil
 }
 
+func (m *mockHAClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockHAClient) SignPath(_ context.Context, _ string, _ int) (string, error) {
 	return "", nil
 }

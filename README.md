@@ -436,7 +436,7 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool | Description |
 |------|-------------|
-| `query_entities` | Consolidated entity queries (mode: current, history, statistics, domains, presence; format: natural/json; group_by: domain, area_id, device_class, integration) |
+| `query_entities` | Consolidated entity queries (mode: current, history, statistics, domains, presence, health; format: natural/json; group_by: domain, area_id, device_class, integration; health: analyze/remove dead entities with multi-category filter) |
 | `get_state` | Get state of a specific entity (format: natural/json) |
 | `analyze_entity` | Analyze entity usage in automations, scripts, and scenes (format: natural/json) |
 | `get_entity_dependencies` | Find all entities an automation/script depends on (format: natural/json) |
@@ -940,8 +940,9 @@ ha-mcp/
 │   │   ├── analysis_snapshot.go # Parallel data fetching for analysis
 │   │   ├── entities.go          # Entity tool handlers (get_state)
 │   │   ├── analysis.go          # Analysis tool handlers (analyze_entity, get_entity_dependencies)
-│   │   ├── entities_consolidated.go # Consolidated query_entities tool (current/history/statistics/domains/presence)
-│   │   ├── entities_presence.go # Presence analysis for query_entities
+│   │   ├── entities_consolidated.go # Consolidated query_entities tool (current/history/statistics/domains/presence/health)
+│   │   ├── entities_presence.go # Presence analysis for query_entities (mode=presence)
+│   │   ├── entities_health.go   # Health mode: detect and remove dead entities (mode=health)
 │   │   ├── automations.go       # Consolidated manage_automation tool
 │   │   ├── automations_coverage.go # Automation coverage analysis
 │   │   ├── helpers.go           # list_helpers tool handler

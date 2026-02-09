@@ -34,6 +34,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | Entity history | `query_entities` mode=history (time range, filter, pagination, natural/json) | -- |
 | Entity statistics | `query_entities` mode=statistics (long-term data, pagination, natural/json) | -- |
 | Presence analysis | `query_entities` mode=presence (person/tracker correlation, natural/json) | -- |
+| Health detection/cleanup | `query_entities` mode=health (detect unavailable/unknown/disabled/orphaned/stale entities, multi-category filter, action=remove to cleanup, natural/json) | -- |
 | Cover control | `call_service` (domain=cover) | `HassOpenCover`, `HassCloseCover` |
 | Date/Time | `get_datetime` | `GetDateTime` |
 

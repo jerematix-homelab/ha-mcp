@@ -61,6 +61,9 @@ type Client interface {
 	GetDeviceRegistry(ctx context.Context) ([]DeviceRegistryEntry, error)
 	GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry, error)
 
+	// Entity registry modification operations
+	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
+
 	// Media operations
 	SignPath(ctx context.Context, path string, expires int) (string, error)
 	GetCameraStream(ctx context.Context, entityID string) (*StreamInfo, error)
