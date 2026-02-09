@@ -52,6 +52,11 @@ func TestHACSHandlers_RegisterTools(t *testing.T) {
 	if len(formatProp.Enum) != 2 {
 		t.Errorf("expected 2 format options, got %d", len(formatProp.Enum))
 	}
+
+	// Verify search property exists
+	if _, found := schema.Properties["search"]; !found {
+		t.Error("search property not found in schema")
+	}
 }
 
 func TestHACSHandlers_HandleManageHACS(t *testing.T) {
@@ -162,13 +167,173 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.SendHACSCommandFn = func(_ context.Context, _ string, data map[string]any) (any, error) {
-					if data["category"] != "plugin" {
-						return nil, fmt.Errorf("expected category filter")
+					// Verify category is NOT sent to API (client-side filter only)
+					if _, exists := data["category"]; exists {
+						return nil, fmt.Errorf("category should not be sent to API - client-side filter only")
 					}
-					return []any{}, nil
+					// Return repos with mixed categories
+					return []any{
+						map[string]any{
+							"id":       "1",
+							"name":     "plugin-repo",
+							"category": "plugin",
+						},
+						map[string]any{
+							"id":       "2",
+							"name":     "integration-repo",
+							"category": "integration",
+						},
+					}, nil
 				}
 			},
-			wantContains: []string{"[]"},
+			wantContains:    []string{"plugin-repo"},
+			wantNotContains: []string{"integration-repo"},
+		},
+		{
+			name: "list_search_filter",
+			args: map[string]any{
+				"action": "list",
+				"search": "TRV",
+				"format": "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return []any{
+						map[string]any{
+							"id":          "1",
+							"name":        "Better TRV Controls",
+							"category":    "integration",
+							"description": "Advanced heating control",
+						},
+						map[string]any{
+							"id":          "2",
+							"name":        "Lovelace Card",
+							"category":    "plugin",
+							"description": "Custom dashboard card",
+						},
+					}, nil
+				}
+			},
+			wantContains:    []string{"Better TRV Controls"},
+			wantNotContains: []string{"Lovelace Card"},
+		},
+		{
+			name: "list_search_by_description",
+			args: map[string]any{
+				"action": "list",
+				"search": "heating",
+				"format": "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return []any{
+						map[string]any{
+							"id":          "1",
+							"name":        "TRV Controller",
+							"category":    "integration",
+							"description": "Smart heating management",
+						},
+						map[string]any{
+							"id":          "2",
+							"name":        "Weather Card",
+							"category":    "plugin",
+							"description": "Display weather info",
+						},
+					}, nil
+				}
+			},
+			wantContains:    []string{"TRV Controller"},
+			wantNotContains: []string{"Weather Card"},
+		},
+		{
+			name: "list_combined_filters",
+			args: map[string]any{
+				"action":   "list",
+				"category": "integration",
+				"search":   "climate",
+				"format":   "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return []any{
+						map[string]any{
+							"id":          "1",
+							"name":        "Climate Controller",
+							"category":    "integration",
+							"description": "Climate control",
+						},
+						map[string]any{
+							"id":          "2",
+							"name":        "Climate Card",
+							"category":    "plugin",
+							"description": "Display climate info",
+						},
+						map[string]any{
+							"id":          "3",
+							"name":        "Light Control",
+							"category":    "integration",
+							"description": "Smart lighting",
+						},
+					}, nil
+				}
+			},
+			wantContains:    []string{"Climate Controller"},
+			wantNotContains: []string{"Climate Card", "Light Control"},
+		},
+		{
+			name: "list_no_results_after_filter",
+			args: map[string]any{
+				"action":   "list",
+				"category": "theme",
+				"format":   "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return []any{
+						map[string]any{
+							"id":       "1",
+							"name":     "plugin-repo",
+							"category": "plugin",
+						},
+					}, nil
+				}
+			},
+			wantContains: []string{"No repositories found"},
+		},
+		{
+			name: "list_combined_server_and_client_filters",
+			args: map[string]any{
+				"action":         "list",
+				"installed_only": true,
+				"category":       "integration",
+				"format":         "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(_ context.Context, _ string, data map[string]any) (any, error) {
+					// Verify installed_only is sent to API
+					if !data["installed_only"].(bool) {
+						return nil, fmt.Errorf("expected installed_only filter")
+					}
+					// Verify category is NOT sent to API
+					if _, exists := data["category"]; exists {
+						return nil, fmt.Errorf("category should not be sent to API")
+					}
+					return []any{
+						map[string]any{
+							"id":       "1",
+							"name":     "installed-integration",
+							"category": "integration",
+						},
+						map[string]any{
+							"id":       "2",
+							"name":     "installed-plugin",
+							"category": "plugin",
+						},
+					}, nil
+				}
+			},
+			wantContains:    []string{"installed-integration"},
+			wantNotContains: []string{"installed-plugin"},
 		},
 
 		// =============================================================================
