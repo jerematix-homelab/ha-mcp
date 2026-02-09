@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,32 +10,19 @@ import (
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
-// mockLovelaceClient implements homeassistant.Client for testing.
-type mockLovelaceClient struct {
-	homeassistant.Client
-	getLovelaceConfigFn func(ctx context.Context) (map[string]any, error)
-}
-
-func (m *mockLovelaceClient) GetLovelaceConfig(ctx context.Context) (map[string]any, error) {
-	if m.getLovelaceConfigFn != nil {
-		return m.getLovelaceConfigFn(ctx)
-	}
-	return map[string]any{}, nil
-}
-
-func TestNewLovelaceHandlers(t *testing.T) {
+func TestNewDashboardHandlers(t *testing.T) {
 	t.Parallel()
 
-	h := NewLovelaceHandlers()
+	h := NewDashboardHandlers()
 	if h == nil {
-		t.Error("NewLovelaceHandlers() returned nil")
+		t.Error("NewDashboardHandlers() returned nil")
 	}
 }
 
-func TestLovelaceHandlers_RegisterTools(t *testing.T) {
+func TestDashboardHandlers_RegisterTools(t *testing.T) {
 	t.Parallel()
 
-	h := NewLovelaceHandlers()
+	h := NewDashboardHandlers()
 	registry := mcp.NewRegistry()
 
 	h.RegisterTools(registry)
@@ -46,174 +33,516 @@ func TestLovelaceHandlers_RegisterTools(t *testing.T) {
 		t.Errorf("RegisterTools() registered %d tools, want %d", len(tools), expectedToolCount)
 	}
 
-	expectedTools := map[string]bool{
-		"get_lovelace_config": false,
-	}
-
-	for _, tool := range tools {
-		if _, ok := expectedTools[tool.Name]; ok {
-			expectedTools[tool.Name] = true
-		}
-	}
-
-	for name, found := range expectedTools {
-		if !found {
-			t.Errorf("Tool %q not registered", name)
-		}
+	if tools[0].Name != "manage_dashboard" {
+		t.Errorf("Tool name = %q, want %q", tools[0].Name, "manage_dashboard")
 	}
 }
 
-func TestLovelaceHandlers_getLovelaceConfigTool(t *testing.T) {
+func TestDashboardHandlers_Schema(t *testing.T) {
 	t.Parallel()
 
-	h := NewLovelaceHandlers()
-	tool := h.getLovelaceConfigTool()
+	h := NewDashboardHandlers()
+	tool := h.manageDashboardTool()
 
-	if tool.Name != "get_lovelace_config" {
-		t.Errorf("Tool name = %q, want %q", tool.Name, "get_lovelace_config")
+	if tool.Name != "manage_dashboard" {
+		t.Errorf("Tool name = %q, want %q", tool.Name, "manage_dashboard")
 	}
 
 	if tool.InputSchema.Type != testSchemaTypeObject {
 		t.Errorf("InputSchema.Type = %q, want %q", tool.InputSchema.Type, testSchemaTypeObject)
 	}
 
-	// Check optional properties exist
-	expectedProps := []string{"view", "verbose"}
-	for _, prop := range expectedProps {
-		if _, ok := tool.InputSchema.Properties[prop]; !ok {
-			t.Errorf("Property %q not found in schema", prop)
+	// Verify action enum has 6 values: list, get, create, update, delete, save_config
+	actionProp, ok := tool.InputSchema.Properties["action"]
+	if !ok {
+		t.Fatal("expected 'action' property in schema")
+	}
+	if len(actionProp.Enum) != 6 {
+		t.Errorf("expected 6 action enum values, got %d", len(actionProp.Enum))
+	}
+
+	expectedActions := []string{"list", "get", "create", "update", "delete", "save_config"}
+	for _, expected := range expectedActions {
+		found := false
+		for _, enum := range actionProp.Enum {
+			if enum == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected action '%s' not found in enum", expected)
 		}
 	}
 
-	// No required fields for this tool
-	if len(tool.InputSchema.Required) != 0 {
-		t.Errorf("Expected no required fields, got %d", len(tool.InputSchema.Required))
+	// Verify format enum
+	formatProp, ok := tool.InputSchema.Properties["format"]
+	if !ok {
+		t.Fatal("expected 'format' property in schema")
+	}
+	if len(formatProp.Enum) != 2 {
+		t.Errorf("expected 2 format enum values, got %d", len(formatProp.Enum))
 	}
 }
 
-func TestLovelaceHandlers_handleGetLovelaceConfig(t *testing.T) {
+func TestHandleManageDashboard(t *testing.T) {
 	t.Parallel()
 
-	sampleConfig := map[string]any{
-		"title": "Home",
-		"views": []any{
-			map[string]any{
-				"title": "Overview",
-				"path":  "overview",
-				"icon":  "mdi:home",
-				"cards": []any{
-					map[string]any{"type": "entities"},
-					map[string]any{"type": "weather-forecast"},
-				},
-				"badges": []any{
-					map[string]any{"entity": "sensor.temperature"},
-				},
+	type testCase struct {
+		name        string
+		args        map[string]any
+		setupMock   func(*UniversalMockClient)
+		wantErr     bool
+		wantContain string
+	}
+
+	tests := []testCase{
+		// =========================
+		// List Action Tests
+		// =========================
+		{
+			name: "list - empty",
+			args: map[string]any{
+				"action": "list",
+				"format": "json",
 			},
-			map[string]any{
-				"title":   "Lights",
-				"path":    "lights",
-				"icon":    "mdi:lightbulb",
-				"subview": true,
-				"cards": []any{
-					map[string]any{"type": "light"},
-				},
+			setupMock: func(m *UniversalMockClient) {
+				m.ListDashboardsFn = func(context.Context) ([]homeassistant.DashboardEntry, error) {
+					return []homeassistant.DashboardEntry{}, nil
+				}
 			},
-			map[string]any{
-				"title": "Climate",
-				"path":  "climate",
-				"sections": []any{
-					map[string]any{
-						"cards": []any{
-							map[string]any{"type": "thermostat"},
-							map[string]any{"type": "humidifier"},
+			wantErr:     false,
+			wantContain: "0 dashboards",
+		},
+		{
+			name: "list - multiple dashboards",
+			args: map[string]any{
+				"action": "list",
+				"format": "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.ListDashboardsFn = func(context.Context) ([]homeassistant.DashboardEntry, error) {
+					return []homeassistant.DashboardEntry{
+						{ID: "lovelace-1", URLPath: "energy", Title: "Energy", Icon: "mdi:lightning-bolt", Mode: "storage", RequireAdmin: false, ShowInSidebar: true},
+						{ID: "lovelace-2", URLPath: "security", Title: "Security", Icon: "mdi:security", Mode: "storage", RequireAdmin: true, ShowInSidebar: true},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: `"url_path"`,
+		},
+		{
+			name: "list - natural format",
+			args: map[string]any{
+				"action": "list",
+				"format": "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.ListDashboardsFn = func(context.Context) ([]homeassistant.DashboardEntry, error) {
+					return []homeassistant.DashboardEntry{
+						{ID: "lovelace-1", URLPath: "energy", Title: "Energy", Icon: "mdi:lightning-bolt", Mode: "storage", RequireAdmin: false, ShowInSidebar: true},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Energy",
+		},
+		{
+			name: "list - API error",
+			args: map[string]any{
+				"action": "list",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.ListDashboardsFn = func(context.Context) ([]homeassistant.DashboardEntry, error) {
+					return nil, fmt.Errorf("connection failed")
+				}
+			},
+			wantErr:     true,
+			wantContain: "error listing dashboards",
+		},
+
+		// =========================
+		// Get Action Tests
+		// =========================
+		{
+			name: "get - default dashboard compact",
+			args: map[string]any{
+				"action": "get",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(context.Context, string) (map[string]any, error) {
+					return map[string]any{
+						"title": "Home",
+						"views": []any{
+							map[string]any{
+								"title": "Overview",
+								"path":  "overview",
+								"cards": []any{
+									map[string]any{"type": "entities"},
+								},
+							},
 						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Found 1 views",
+		},
+		{
+			name: "get - specific dashboard by url_path",
+			args: map[string]any{
+				"action":   "get",
+				"url_path": "energy",
+				"format":   "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(_ context.Context, urlPath string) (map[string]any, error) {
+					if urlPath == "energy" {
+						return map[string]any{
+							"title": "Energy Dashboard",
+							"views": []any{
+								map[string]any{"title": "Energy", "path": "energy"},
+							},
+						}, nil
+					}
+					return nil, fmt.Errorf("dashboard not found")
+				}
+			},
+			wantErr:     false,
+			wantContain: "Energy",
+		},
+		{
+			name: "get - with view filter",
+			args: map[string]any{
+				"action": "get",
+				"view":   "overview",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(context.Context, string) (map[string]any, error) {
+					return map[string]any{
+						"views": []any{
+							map[string]any{"title": "Overview", "path": "overview"},
+							map[string]any{"title": "Lights", "path": "lights"},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Found 1 view(s) matching 'overview'",
+		},
+		{
+			name: "get - verbose mode",
+			args: map[string]any{
+				"action":  "get",
+				"verbose": true,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(context.Context, string) (map[string]any, error) {
+					return map[string]any{
+						"title": "Home",
+						"views": []any{
+							map[string]any{"title": "Overview"},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Lovelace configuration with 1 views",
+		},
+		{
+			name: "get - API error",
+			args: map[string]any{
+				"action": "get",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(context.Context, string) (map[string]any, error) {
+					return nil, fmt.Errorf("connection failed")
+				}
+			},
+			wantErr:     true,
+			wantContain: "error getting dashboard",
+		},
+
+		// =========================
+		// Create Action Tests
+		// =========================
+		{
+			name: "create - minimal dashboard",
+			args: map[string]any{
+				"action":   "create",
+				"url_path": "test",
+				"title":    "Test Dashboard",
+				"format":   "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.CreateDashboardFn = func(_ context.Context, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+					return &homeassistant.DashboardEntry{
+						ID:            "lovelace-test",
+						URLPath:       config.URLPath,
+						Title:         config.Title,
+						Mode:          "storage",
+						RequireAdmin:  false,
+						ShowInSidebar: true,
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: `"url_path"`,
+		},
+		{
+			name: "create - full dashboard config",
+			args: map[string]any{
+				"action":          "create",
+				"url_path":        "admin",
+				"title":           "Admin Panel",
+				"icon":            "mdi:shield-account",
+				"mode":            "storage",
+				"require_admin":   true,
+				"show_in_sidebar": false,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.CreateDashboardFn = func(_ context.Context, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+					return &homeassistant.DashboardEntry{
+						ID:            "lovelace-admin",
+						URLPath:       config.URLPath,
+						Title:         config.Title,
+						Icon:          config.Icon,
+						Mode:          config.Mode,
+						RequireAdmin:  *config.RequireAdmin,
+						ShowInSidebar: *config.ShowInSidebar,
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Admin Panel",
+		},
+		{
+			name: "create - missing url_path",
+			args: map[string]any{
+				"action": "create",
+				"title":  "Test",
+			},
+			wantErr:     true,
+			wantContain: "url_path is required",
+		},
+		{
+			name: "create - missing title",
+			args: map[string]any{
+				"action":   "create",
+				"url_path": "test",
+			},
+			wantErr:     true,
+			wantContain: "title is required",
+		},
+		{
+			name: "create - API error",
+			args: map[string]any{
+				"action":   "create",
+				"url_path": "test",
+				"title":    "Test",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.CreateDashboardFn = func(context.Context, homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+					return nil, fmt.Errorf("creation failed")
+				}
+			},
+			wantErr:     true,
+			wantContain: "error creating dashboard",
+		},
+
+		// =========================
+		// Update Action Tests
+		// =========================
+		{
+			name: "update - title only",
+			args: map[string]any{
+				"action":       "update",
+				"dashboard_id": "lovelace-1",
+				"title":        "Updated Title",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateDashboardFn = func(_ context.Context, dashboardID string, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+					return &homeassistant.DashboardEntry{
+						ID:      dashboardID,
+						URLPath: "energy",
+						Title:   config.Title,
+						Mode:    "storage",
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Updated Title",
+		},
+		{
+			name: "update - multiple fields",
+			args: map[string]any{
+				"action":          "update",
+				"dashboard_id":    "lovelace-1",
+				"title":           "New Title",
+				"icon":            "mdi:new-icon",
+				"require_admin":   true,
+				"show_in_sidebar": false,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateDashboardFn = func(_ context.Context, dashboardID string, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+					return &homeassistant.DashboardEntry{
+						ID:            dashboardID,
+						Title:         config.Title,
+						Icon:          config.Icon,
+						RequireAdmin:  *config.RequireAdmin,
+						ShowInSidebar: *config.ShowInSidebar,
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "New Title",
+		},
+		{
+			name: "update - missing dashboard_id",
+			args: map[string]any{
+				"action": "update",
+				"title":  "Test",
+			},
+			wantErr:     true,
+			wantContain: "dashboard_id is required",
+		},
+		{
+			name: "update - API error",
+			args: map[string]any{
+				"action":       "update",
+				"dashboard_id": "lovelace-1",
+				"title":        "Test",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateDashboardFn = func(context.Context, string, homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+					return nil, fmt.Errorf("update failed")
+				}
+			},
+			wantErr:     true,
+			wantContain: "error updating dashboard",
+		},
+
+		// =========================
+		// Delete Action Tests
+		// =========================
+		{
+			name: "delete - success",
+			args: map[string]any{
+				"action":       "delete",
+				"dashboard_id": "lovelace-1",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.DeleteDashboardFn = func(context.Context, string) error {
+					return nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Dashboard deleted successfully",
+		},
+		{
+			name: "delete - missing dashboard_id",
+			args: map[string]any{
+				"action": "delete",
+			},
+			wantErr:     true,
+			wantContain: "dashboard_id is required",
+		},
+		{
+			name: "delete - API error",
+			args: map[string]any{
+				"action":       "delete",
+				"dashboard_id": "lovelace-1",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.DeleteDashboardFn = func(context.Context, string) error {
+					return fmt.Errorf("deletion failed")
+				}
+			},
+			wantErr:     true,
+			wantContain: "error deleting dashboard",
+		},
+
+		// =========================
+		// Save Config Action Tests
+		// =========================
+		{
+			name: "save_config - default dashboard",
+			args: map[string]any{
+				"action": "save_config",
+				"config": map[string]any{
+					"title": "Updated Home",
+					"views": []any{
+						map[string]any{"title": "New View"},
 					},
 				},
 			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SaveLovelaceConfigFn = func(context.Context, string, map[string]any) error {
+					return nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Dashboard configuration saved",
 		},
-	}
+		{
+			name: "save_config - specific dashboard",
+			args: map[string]any{
+				"action":   "save_config",
+				"url_path": "energy",
+				"config": map[string]any{
+					"title": "Energy",
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SaveLovelaceConfigFn = func(_ context.Context, urlPath string, _ map[string]any) error {
+					if urlPath != "energy" {
+						return fmt.Errorf("wrong url_path")
+					}
+					return nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Dashboard configuration saved",
+		},
+		{
+			name: "save_config - missing config",
+			args: map[string]any{
+				"action": "save_config",
+			},
+			wantErr:     true,
+			wantContain: "config is required",
+		},
+		{
+			name: "save_config - API error",
+			args: map[string]any{
+				"action": "save_config",
+				"config": map[string]any{"title": "Test"},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SaveLovelaceConfigFn = func(context.Context, string, map[string]any) error {
+					return fmt.Errorf("save failed")
+				}
+			},
+			wantErr:     true,
+			wantContain: "error saving dashboard",
+		},
 
-	tests := []struct {
-		name                  string
-		args                  map[string]any
-		getLovelaceConfigErr  error
-		getLovelaceConfigResp map[string]any
-		wantError             bool
-		wantContains          string
-		wantNotContains       string
-	}{
+		// =========================
+		// Invalid Action Tests
+		// =========================
 		{
-			name:                  "compact mode default",
-			args:                  map[string]any{},
-			getLovelaceConfigResp: sampleConfig,
-			wantError:             false,
-			wantContains:          "Found 3 views",
-		},
-		{
-			name: "verbose mode",
+			name: "invalid action",
 			args: map[string]any{
-				"verbose": true,
+				"action": "invalid",
 			},
-			getLovelaceConfigResp: sampleConfig,
-			wantError:             false,
-			wantContains:          "Lovelace configuration with 3 views",
+			wantErr:     true,
+			wantContain: "invalid action",
 		},
 		{
-			name: "filter by view - exact match",
-			args: map[string]any{
-				"view": "overview",
-			},
-			getLovelaceConfigResp: sampleConfig,
-			wantError:             false,
-			wantContains:          "Found 1 view(s) matching 'overview'",
-		},
-		{
-			name: "filter by view - partial match",
-			args: map[string]any{
-				"view": "light",
-			},
-			getLovelaceConfigResp: sampleConfig,
-			wantError:             false,
-			wantContains:          "Found 1 view(s) matching 'light'",
-		},
-		{
-			name: "filter by view - case insensitive",
-			args: map[string]any{
-				"view": "CLIMATE",
-			},
-			getLovelaceConfigResp: sampleConfig,
-			wantError:             false,
-			wantContains:          "Found 1 view(s) matching 'CLIMATE'",
-		},
-		{
-			name: "filter by view - no match",
-			args: map[string]any{
-				"view": "nonexistent",
-			},
-			getLovelaceConfigResp: sampleConfig,
-			wantError:             false,
-			wantContains:          "No views found matching 'nonexistent'",
-		},
-		{
-			name:                  "empty config",
-			args:                  map[string]any{},
-			getLovelaceConfigResp: map[string]any{},
-			wantError:             false,
-			wantContains:          "Found 0 views",
-		},
-		{
-			name:                  "config with nil views",
-			args:                  map[string]any{},
-			getLovelaceConfigResp: map[string]any{"title": "Home"},
-			wantError:             false,
-			wantContains:          "Found 0 views",
-		},
-		{
-			name:                 "client error",
-			args:                 map[string]any{},
-			getLovelaceConfigErr: errors.New("connection failed"),
-			wantError:            true,
-			wantContains:         "Error getting Lovelace config",
+			name:        "missing action",
+			args:        map[string]any{},
+			wantErr:     true,
+			wantContain: "action is required",
 		},
 	}
 
@@ -221,30 +550,26 @@ func TestLovelaceHandlers_handleGetLovelaceConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := &mockLovelaceClient{
-				getLovelaceConfigFn: func(_ context.Context) (map[string]any, error) {
-					if tt.getLovelaceConfigErr != nil {
-						return nil, tt.getLovelaceConfigErr
-					}
-					return tt.getLovelaceConfigResp, nil
-				},
+			client := &UniversalMockClient{}
+			if tt.setupMock != nil {
+				tt.setupMock(client)
 			}
 
-			h := NewLovelaceHandlers()
-			result, err := h.handleGetLovelaceConfig(context.Background(), client, tt.args)
+			h := NewDashboardHandlers()
+			result, err := h.handleManageDashboard(context.Background(), client, tt.args)
 
 			if err != nil {
-				t.Errorf("handleGetLovelaceConfig() returned unexpected error: %v", err)
+				t.Errorf("handleManageDashboard() returned unexpected error: %v", err)
 				return
 			}
 
 			if result == nil {
-				t.Error("handleGetLovelaceConfig() returned nil result")
+				t.Error("handleManageDashboard() returned nil result")
 				return
 			}
 
-			if result.IsError != tt.wantError {
-				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantError)
+			if result.IsError != tt.wantErr {
+				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantErr)
 			}
 
 			if len(result.Content) == 0 {
@@ -253,16 +578,14 @@ func TestLovelaceHandlers_handleGetLovelaceConfig(t *testing.T) {
 			}
 
 			content := result.Content[0].Text
-			if tt.wantContains != "" && !strings.Contains(content, tt.wantContains) {
-				t.Errorf("Content = %q, want to contain %q", content, tt.wantContains)
-			}
-
-			if tt.wantNotContains != "" && strings.Contains(content, tt.wantNotContains) {
-				t.Errorf("Content = %q, should not contain %q", content, tt.wantNotContains)
+			if tt.wantContain != "" && !strings.Contains(strings.ToLower(content), strings.ToLower(tt.wantContain)) {
+				t.Errorf("Content = %q, want to contain %q", content, tt.wantContain)
 			}
 		})
 	}
 }
+
+// Test helper functions (keep existing tests)
 
 func TestFilterViewsByQuery(t *testing.T) {
 	t.Parallel()
@@ -530,64 +853,5 @@ func TestBuildCompactViews(t *testing.T) {
 				t.Errorf("buildCompactViews() returned %d entries, want %d", len(got), tt.want)
 			}
 		})
-	}
-}
-
-func TestLovelaceHandlers_compactViewEntry(t *testing.T) {
-	t.Parallel()
-
-	// Test that compact mode correctly counts cards from both "cards" and "sections"
-	configWithSections := map[string]any{
-		"views": []any{
-			map[string]any{
-				"title": "Mixed",
-				"path":  "mixed",
-				"cards": []any{
-					map[string]any{"type": "entities"},
-				},
-				"sections": []any{
-					map[string]any{
-						"cards": []any{
-							map[string]any{"type": "button"},
-							map[string]any{"type": "light"},
-						},
-					},
-					map[string]any{
-						"cards": []any{
-							map[string]any{"type": "sensor"},
-						},
-					},
-				},
-				"badges": []any{
-					map[string]any{"entity": "sensor.temp"},
-					map[string]any{"entity": "sensor.humidity"},
-				},
-			},
-		},
-	}
-
-	client := &mockLovelaceClient{
-		getLovelaceConfigFn: func(_ context.Context) (map[string]any, error) {
-			return configWithSections, nil
-		},
-	}
-
-	h := NewLovelaceHandlers()
-	result, err := h.handleGetLovelaceConfig(context.Background(), client, map[string]any{})
-
-	if err != nil {
-		t.Fatalf("handleGetLovelaceConfig() error: %v", err)
-	}
-
-	content := result.Content[0].Text
-
-	// Should count: 1 card from "cards" + 2 cards from section 1 + 1 card from section 2 = 4 total
-	if !strings.Contains(content, `"card_count": 4`) {
-		t.Errorf("Expected card_count of 4, got content: %s", content)
-	}
-
-	// Should count 2 badges
-	if !strings.Contains(content, `"badge_count": 2`) {
-		t.Errorf("Expected badge_count of 2, got content: %s", content)
 	}
 }

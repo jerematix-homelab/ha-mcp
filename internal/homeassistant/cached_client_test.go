@@ -163,7 +163,29 @@ func (m *mockClient) GetCameraStream(ctx context.Context, entityID string) (*Str
 func (m *mockClient) BrowseMedia(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error) {
 	return nil, nil
 }
-func (m *mockClient) GetLovelaceConfig(ctx context.Context) (map[string]any, error) { return nil, nil }
+func (m *mockClient) GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error) {
+	return nil, nil
+}
+
+func (m *mockClient) SaveLovelaceConfig(ctx context.Context, urlPath string, config map[string]any) error {
+	return nil
+}
+
+func (m *mockClient) ListDashboards(ctx context.Context) ([]DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) CreateDashboard(ctx context.Context, config DashboardConfig) (*DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) UpdateDashboard(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) DeleteDashboard(ctx context.Context, dashboardID string) error {
+	return nil
+}
 func (m *mockClient) GetStatistics(ctx context.Context, statIDs []string, period string) ([]StatisticsResult, error) {
 	return nil, nil
 }

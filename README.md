@@ -539,11 +539,11 @@ Universal tool for runtime helper operations:
 | `get_camera_stream` | Get camera stream URL for an entity |
 | `sign_media_path` | Sign a media path for authenticated access |
 
-#### Lovelace Tools
+#### Dashboard Tools
 
 | Tool | Description |
 |------|-------------|
-| `get_lovelace_config` | Get the Lovelace dashboard configuration |
+| `manage_dashboard` | Manage Lovelace dashboards - list, get, create, update, delete, save configuration |
 
 #### Template Tools
 

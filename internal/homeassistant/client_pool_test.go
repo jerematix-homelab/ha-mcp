@@ -200,8 +200,28 @@ func (m *mockClientForPool) GetCameraStream(_ context.Context, _ string) (*Strea
 func (m *mockClientForPool) BrowseMedia(_ context.Context, _ string) (*MediaBrowseResult, error) {
 	return nil, nil
 }
-func (m *mockClientForPool) GetLovelaceConfig(_ context.Context) (map[string]any, error) {
+func (m *mockClientForPool) GetLovelaceConfig(_ context.Context, _ string) (map[string]any, error) {
 	return nil, nil
+}
+
+func (m *mockClientForPool) SaveLovelaceConfig(_ context.Context, _ string, _ map[string]any) error {
+	return nil
+}
+
+func (m *mockClientForPool) ListDashboards(_ context.Context) ([]DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) CreateDashboard(_ context.Context, _ DashboardConfig) (*DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) UpdateDashboard(_ context.Context, _ string, _ DashboardConfig) (*DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) DeleteDashboard(_ context.Context, _ string) error {
+	return nil
 }
 func (m *mockClientForPool) GetStatistics(_ context.Context, _ []string, _ string) ([]StatisticsResult, error) {
 	return nil, nil

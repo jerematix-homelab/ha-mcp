@@ -70,8 +70,13 @@ type UniversalMockClient struct {
 	GetCameraStreamFn func(ctx context.Context, entityID string) (*homeassistant.StreamInfo, error)
 	BrowseMediaFn     func(ctx context.Context, mediaContentID string) (*homeassistant.MediaBrowseResult, error)
 
-	// Configuration operations
-	GetLovelaceConfigFn func(ctx context.Context) (map[string]any, error)
+	// Dashboard operations
+	GetLovelaceConfigFn  func(ctx context.Context, urlPath string) (map[string]any, error)
+	SaveLovelaceConfigFn func(ctx context.Context, urlPath string, config map[string]any) error
+	ListDashboardsFn     func(ctx context.Context) ([]homeassistant.DashboardEntry, error)
+	CreateDashboardFn    func(ctx context.Context, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error)
+	UpdateDashboardFn    func(ctx context.Context, dashboardID string, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error)
+	DeleteDashboardFn    func(ctx context.Context, dashboardID string) error
 
 	// Statistics operations
 	GetStatisticsFn func(ctx context.Context, statIDs []string, period string) ([]homeassistant.StatisticsResult, error)
@@ -368,13 +373,48 @@ func (m *UniversalMockClient) BrowseMedia(ctx context.Context, mediaContentID st
 	return &homeassistant.MediaBrowseResult{}, nil
 }
 
-// Configuration operations implementation
+// Dashboard operations implementation
 
-func (m *UniversalMockClient) GetLovelaceConfig(ctx context.Context) (map[string]any, error) {
+func (m *UniversalMockClient) GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error) {
 	if m.GetLovelaceConfigFn != nil {
-		return m.GetLovelaceConfigFn(ctx)
+		return m.GetLovelaceConfigFn(ctx, urlPath)
 	}
 	return map[string]any{}, nil
+}
+
+func (m *UniversalMockClient) SaveLovelaceConfig(ctx context.Context, urlPath string, config map[string]any) error {
+	if m.SaveLovelaceConfigFn != nil {
+		return m.SaveLovelaceConfigFn(ctx, urlPath, config)
+	}
+	return nil
+}
+
+func (m *UniversalMockClient) ListDashboards(ctx context.Context) ([]homeassistant.DashboardEntry, error) {
+	if m.ListDashboardsFn != nil {
+		return m.ListDashboardsFn(ctx)
+	}
+	return []homeassistant.DashboardEntry{}, nil
+}
+
+func (m *UniversalMockClient) CreateDashboard(ctx context.Context, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+	if m.CreateDashboardFn != nil {
+		return m.CreateDashboardFn(ctx, config)
+	}
+	return &homeassistant.DashboardEntry{}, nil
+}
+
+func (m *UniversalMockClient) UpdateDashboard(ctx context.Context, dashboardID string, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+	if m.UpdateDashboardFn != nil {
+		return m.UpdateDashboardFn(ctx, dashboardID, config)
+	}
+	return &homeassistant.DashboardEntry{}, nil
+}
+
+func (m *UniversalMockClient) DeleteDashboard(ctx context.Context, dashboardID string) error {
+	if m.DeleteDashboardFn != nil {
+		return m.DeleteDashboardFn(ctx, dashboardID)
+	}
+	return nil
 }
 
 // Statistics operations implementation

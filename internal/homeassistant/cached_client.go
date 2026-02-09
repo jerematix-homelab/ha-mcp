@@ -559,8 +559,33 @@ func (c *CachedClient) BrowseMedia(ctx context.Context, mediaContentID string) (
 }
 
 //nolint:revive // Delegated method
-func (c *CachedClient) GetLovelaceConfig(ctx context.Context) (map[string]any, error) {
-	return c.client.GetLovelaceConfig(ctx)
+func (c *CachedClient) GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error) {
+	return c.client.GetLovelaceConfig(ctx, urlPath)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) SaveLovelaceConfig(ctx context.Context, urlPath string, cfg map[string]any) error {
+	return c.client.SaveLovelaceConfig(ctx, urlPath, cfg)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) ListDashboards(ctx context.Context) ([]DashboardEntry, error) {
+	return c.client.ListDashboards(ctx)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) CreateDashboard(ctx context.Context, cfg DashboardConfig) (*DashboardEntry, error) {
+	return c.client.CreateDashboard(ctx, cfg)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) UpdateDashboard(ctx context.Context, dashboardID string, cfg DashboardConfig) (*DashboardEntry, error) {
+	return c.client.UpdateDashboard(ctx, dashboardID, cfg)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) DeleteDashboard(ctx context.Context, dashboardID string) error {
+	return c.client.DeleteDashboard(ctx, dashboardID)
 }
 
 //nolint:revive // Delegated method

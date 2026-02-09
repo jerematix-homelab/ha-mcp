@@ -106,7 +106,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | Render Jinja2 templates | `render_template` | -- |
 | Logbook | `get_logbook` (mode: entries, correlation; cause-effect analysis across entities, natural/json) | -- |
 | Statistics (long-term) | `get_statistics` | -- |
-| Lovelace dashboard | `get_lovelace_config` | -- |
+| Lovelace dashboard | `manage_dashboard` (list, get, create, update, delete, save_config; natural/json) | -- |
 
 ### Media
 

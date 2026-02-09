@@ -171,8 +171,28 @@ func (m *mockHAClient) BrowseMedia(_ context.Context, _ string) (*homeassistant.
 	return nil, nil
 }
 
-func (m *mockHAClient) GetLovelaceConfig(_ context.Context) (map[string]any, error) {
+func (m *mockHAClient) GetLovelaceConfig(_ context.Context, _ string) (map[string]any, error) {
 	return nil, nil
+}
+
+func (m *mockHAClient) SaveLovelaceConfig(_ context.Context, _ string, _ map[string]any) error {
+	return nil
+}
+
+func (m *mockHAClient) ListDashboards(_ context.Context) ([]homeassistant.DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) CreateDashboard(_ context.Context, _ homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) UpdateDashboard(_ context.Context, _ string, _ homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) DeleteDashboard(_ context.Context, _ string) error {
+	return nil
 }
 
 func (m *mockHAClient) GetStatistics(_ context.Context, _ []string, _ string) ([]homeassistant.StatisticsResult, error) {

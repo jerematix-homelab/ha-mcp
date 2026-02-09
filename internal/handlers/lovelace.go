@@ -11,40 +11,373 @@ import (
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
-// LovelaceHandlers provides handlers for Home Assistant Lovelace dashboard operations.
-type LovelaceHandlers struct{}
+// Dashboard action constants.
+const (
+	dashboardActionList       = "list"
+	dashboardActionGet        = "get"
+	dashboardActionCreate     = "create"
+	dashboardActionUpdate     = "update"
+	dashboardActionDelete     = "delete"
+	dashboardActionSaveConfig = "save_config"
+)
 
-// NewLovelaceHandlers creates a new LovelaceHandlers instance.
-func NewLovelaceHandlers() *LovelaceHandlers {
-	return &LovelaceHandlers{}
+// DashboardHandlers provides handlers for dashboard-related MCP tools.
+type DashboardHandlers struct{}
+
+// NewDashboardHandlers creates a new DashboardHandlers instance.
+func NewDashboardHandlers() *DashboardHandlers {
+	return &DashboardHandlers{}
 }
 
-// RegisterTools registers all lovelace-related tools with the registry.
-func (h *LovelaceHandlers) RegisterTools(registry *mcp.Registry) {
-	registry.RegisterTool(h.getLovelaceConfigTool(), h.handleGetLovelaceConfig)
+// RegisterTools registers the consolidated manage_dashboard tool with the registry.
+func (h *DashboardHandlers) RegisterTools(registry *mcp.Registry) {
+	registry.RegisterTool(h.manageDashboardTool(), h.handleManageDashboard)
 }
 
-// getLovelaceConfigTool returns the tool definition for getting Lovelace configuration.
-func (h *LovelaceHandlers) getLovelaceConfigTool() mcp.Tool {
+// =============================================================================
+// Tool Definition
+// =============================================================================
+
+func (h *DashboardHandlers) manageDashboardTool() mcp.Tool {
+	schema := h.buildDashboardSchema()
 	return mcp.Tool{
-		Name:        "get_lovelace_config",
-		Description: "Get the Lovelace dashboard configuration. By default returns a compact overview of views. Use 'view' filter to get a specific view, and 'verbose' for full details.",
-		InputSchema: mcp.JSONSchema{
-			Type:        "object",
-			Description: "Filter and output options for Lovelace configuration",
-			Properties: map[string]mcp.JSONSchema{
-				"view": {
-					Type:        "string",
-					Description: "Filter by view path or title (case-insensitive, partial match). Returns full details for matching views.",
-				},
-				"verbose": {
-					Type:        "boolean",
-					Description: "If true, return full configuration including all cards. Default: false (compact overview with view names and card counts)",
-				},
-			},
-		},
+		Name: "manage_dashboard",
+		Description: `Manage Home Assistant Lovelace dashboards - list, get, create, update, delete, or save configuration.
+
+Actions:
+- list: List all dashboards
+- get: Get dashboard configuration with optional view filtering (url_path optional)
+- create: Create a new dashboard (requires url_path and title)
+- update: Update an existing dashboard (requires dashboard_id)
+- delete: Delete a dashboard (requires dashboard_id)
+- save_config: Save dashboard configuration (requires config, url_path optional)`,
+		InputSchema: schema,
 	}
 }
+
+func (h *DashboardHandlers) buildDashboardSchema() mcp.JSONSchema {
+	return mcp.JSONSchema{
+		Type:        "object",
+		Description: "Dashboard management operation",
+		Properties: map[string]mcp.JSONSchema{
+			"action": {
+				Type:        "string",
+				Description: "Operation to perform: list, get, create, update, delete, save_config",
+				Enum:        []string{"list", "get", "create", "update", "delete", "save_config"},
+			},
+			"dashboard_id": {
+				Type:        "string",
+				Description: "Dashboard identifier (e.g., 'lovelace-1'). Required for update/delete.",
+			},
+			"url_path": {
+				Type:        "string",
+				Description: "Dashboard URL path (e.g., 'energy'). Required for create. Optional for get/save_config (empty = default dashboard).",
+			},
+			"title": {
+				Type:        "string",
+				Description: "Dashboard title (required for create, optional for update)",
+			},
+			"icon": {
+				Type:        "string",
+				Description: "Dashboard icon (e.g., 'mdi:view-dashboard')",
+			},
+			"mode": {
+				Type:        "string",
+				Description: "Dashboard mode: storage or yaml",
+			},
+			"require_admin": {
+				Type:        "boolean",
+				Description: "Whether dashboard requires admin access",
+			},
+			"show_in_sidebar": {
+				Type:        "boolean",
+				Description: "Whether to show dashboard in sidebar",
+			},
+			"config": {
+				Type:        "object",
+				Description: "Dashboard configuration object (for save_config action)",
+			},
+			"view": {
+				Type:        "string",
+				Description: "Filter by view path or title (for get action, case-insensitive, partial match)",
+			},
+			"verbose": {
+				Type:        "boolean",
+				Description: "If true, return full configuration including all cards (for get action). Default: false (compact overview)",
+			},
+			"format": {
+				Type:        "string",
+				Description: "Output format: 'natural' (default, human-readable) or 'json' (structured data)",
+				Enum:        []string{"natural", "json"},
+			},
+		},
+		Required: []string{"action"},
+	}
+}
+
+// =============================================================================
+// Main Dispatcher
+// =============================================================================
+
+func (h *DashboardHandlers) handleManageDashboard(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	action, ok := args["action"].(string)
+	if !ok {
+		return errorResult("action is required and must be a string"), nil
+	}
+
+	switch action {
+	case dashboardActionList:
+		return h.handleList(ctx, client, args)
+	case dashboardActionGet:
+		return h.handleGet(ctx, client, args)
+	case dashboardActionCreate:
+		return h.handleCreate(ctx, client, args)
+	case dashboardActionUpdate:
+		return h.handleUpdate(ctx, client, args)
+	case dashboardActionDelete:
+		return h.handleDelete(ctx, client, args)
+	case dashboardActionSaveConfig:
+		return h.handleSaveConfig(ctx, client, args)
+	default:
+		return errorResult(fmt.Sprintf("invalid action: %s. Valid actions: list, get, create, update, delete, save_config", action)), nil
+	}
+}
+
+// =============================================================================
+// Action Handlers
+// =============================================================================
+
+func (h *DashboardHandlers) handleList(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	dashboards, err := client.ListDashboards(ctx)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error listing dashboards: %v", err)), nil
+	}
+
+	formatStr, _ := args["format"].(string)
+	if formatStr == formatJSON {
+		return h.formatListJSON(dashboards)
+	}
+	return h.formatListNatural(dashboards)
+}
+
+func (h *DashboardHandlers) handleGet(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	urlPath, _ := args["url_path"].(string)
+	viewFilter, _ := args["view"].(string)
+	verbose, _ := args["verbose"].(bool)
+
+	config, err := client.GetLovelaceConfig(ctx, urlPath)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error getting dashboard configuration: %v", err)), nil
+	}
+
+	views, _ := config["views"].([]any)
+
+	if viewFilter != "" {
+		return h.handleFilteredViews(views, viewFilter)
+	}
+
+	if verbose {
+		summary := fmt.Sprintf("Lovelace configuration with %d views", len(views))
+		return formatLovelaceResponse(config, summary)
+	}
+
+	return h.handleCompactViews(views)
+}
+
+func (h *DashboardHandlers) handleCreate(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	urlPath, ok := args["url_path"].(string)
+	if !ok || urlPath == "" {
+		return errorResult("url_path is required for create action"), nil
+	}
+
+	title, ok := args["title"].(string)
+	if !ok || title == "" {
+		return errorResult("title is required for create action"), nil
+	}
+
+	config := buildDashboardConfig(args)
+	config.URLPath = urlPath
+	config.Title = title
+
+	dashboard, err := client.CreateDashboard(ctx, config)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error creating dashboard: %v", err)), nil
+	}
+
+	formatStr, _ := args["format"].(string)
+	if formatStr == formatJSON {
+		return h.formatDashboardJSON(dashboard, "Dashboard created successfully")
+	}
+	return h.formatDashboardNatural(dashboard, "Dashboard created successfully")
+}
+
+func (h *DashboardHandlers) handleUpdate(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	dashboardID, ok := args["dashboard_id"].(string)
+	if !ok || dashboardID == "" {
+		return errorResult("dashboard_id is required for update action"), nil
+	}
+
+	config := buildDashboardConfig(args)
+
+	dashboard, err := client.UpdateDashboard(ctx, dashboardID, config)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error updating dashboard: %v", err)), nil
+	}
+
+	formatStr, _ := args["format"].(string)
+	if formatStr == formatJSON {
+		return h.formatDashboardJSON(dashboard, "Dashboard updated successfully")
+	}
+	return h.formatDashboardNatural(dashboard, "Dashboard updated successfully")
+}
+
+func (h *DashboardHandlers) handleDelete(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	dashboardID, ok := args["dashboard_id"].(string)
+	if !ok || dashboardID == "" {
+		return errorResult("dashboard_id is required for delete action"), nil
+	}
+
+	err := client.DeleteDashboard(ctx, dashboardID)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error deleting dashboard: %v", err)), nil
+	}
+
+	return successResult(fmt.Sprintf("Dashboard deleted successfully: %s", dashboardID)), nil
+}
+
+func (h *DashboardHandlers) handleSaveConfig(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	config, ok := args["config"].(map[string]any)
+	if !ok {
+		return errorResult("config is required for save_config action"), nil
+	}
+
+	urlPath, _ := args["url_path"].(string)
+
+	err := client.SaveLovelaceConfig(ctx, urlPath, config)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error saving dashboard configuration: %v", err)), nil
+	}
+
+	target := "default dashboard"
+	if urlPath != "" {
+		target = fmt.Sprintf("dashboard '%s'", urlPath)
+	}
+	return successResult(fmt.Sprintf("Dashboard configuration saved successfully for %s", target)), nil
+}
+
+// =============================================================================
+// Formatting Methods
+// =============================================================================
+
+func (h *DashboardHandlers) formatListJSON(dashboards []homeassistant.DashboardEntry) (*mcp.ToolsCallResult, error) {
+	result := map[string]any{
+		"count":      len(dashboards),
+		"dashboards": dashboards,
+	}
+
+	output, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return errorResult(fmt.Sprintf("error formatting dashboards: %v", err)), nil
+	}
+
+	summary := fmt.Sprintf("Found %d dashboards", len(dashboards))
+	return successResult(summary + "\n\n" + string(output)), nil
+}
+
+func (h *DashboardHandlers) formatListNatural(dashboards []homeassistant.DashboardEntry) (*mcp.ToolsCallResult, error) {
+	if len(dashboards) == 0 {
+		return successResult("No dashboards found"), nil
+	}
+
+	var parts []string
+	parts = append(parts, fmt.Sprintf("Found %d dashboard(s):\n", len(dashboards)))
+
+	for i, d := range dashboards {
+		var attrs []string
+		if d.Icon != "" {
+			attrs = append(attrs, fmt.Sprintf("icon: %s", d.Icon))
+		}
+		if d.RequireAdmin {
+			attrs = append(attrs, "admin required")
+		}
+		if d.ShowInSidebar {
+			attrs = append(attrs, "in sidebar")
+		}
+
+		attrStr := ""
+		if len(attrs) > 0 {
+			attrStr = fmt.Sprintf(" [%s]", strings.Join(attrs, ", "))
+		}
+
+		parts = append(parts, fmt.Sprintf("%d. %s (/%s) - ID: %s, Mode: %s%s",
+			i+1, d.Title, d.URLPath, d.ID, d.Mode, attrStr))
+	}
+
+	return successResult(strings.Join(parts, "\n")), nil
+}
+
+func (h *DashboardHandlers) formatDashboardJSON(dashboard *homeassistant.DashboardEntry, message string) (*mcp.ToolsCallResult, error) {
+	output, err := json.MarshalIndent(dashboard, "", "  ")
+	if err != nil {
+		return errorResult(fmt.Sprintf("error formatting dashboard: %v", err)), nil
+	}
+
+	return successResult(message + "\n\n" + string(output)), nil
+}
+
+func (h *DashboardHandlers) formatDashboardNatural(dashboard *homeassistant.DashboardEntry, message string) (*mcp.ToolsCallResult, error) {
+	var parts []string
+	parts = append(parts,
+		message,
+		"",
+		fmt.Sprintf("Dashboard: %s", dashboard.Title),
+		fmt.Sprintf("URL Path: /%s", dashboard.URLPath),
+		fmt.Sprintf("ID: %s", dashboard.ID),
+		fmt.Sprintf("Mode: %s", dashboard.Mode),
+	)
+
+	if dashboard.Icon != "" {
+		parts = append(parts, fmt.Sprintf("Icon: %s", dashboard.Icon))
+	}
+	parts = append(parts,
+		fmt.Sprintf("Require Admin: %t", dashboard.RequireAdmin),
+		fmt.Sprintf("Show in Sidebar: %t", dashboard.ShowInSidebar),
+	)
+
+	return successResult(strings.Join(parts, "\n")), nil
+}
+
+// =============================================================================
+// Helper Functions (preserved from original implementation)
+// =============================================================================
 
 // compactViewEntry represents a minimal view entry for compact output.
 type compactViewEntry struct {
@@ -150,40 +483,8 @@ func formatLovelaceResponse(data any, summary string) (*mcp.ToolsCallResult, err
 	}, nil
 }
 
-// handleGetLovelaceConfig handles requests to get Lovelace dashboard configuration.
-func (h *LovelaceHandlers) handleGetLovelaceConfig(
-	ctx context.Context,
-	client homeassistant.Client,
-	args map[string]any,
-) (*mcp.ToolsCallResult, error) {
-	config, err := client.GetLovelaceConfig(ctx)
-	if err != nil {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent(fmt.Sprintf("Error getting Lovelace config: %v", err)),
-			},
-			IsError: true,
-		}, nil
-	}
-
-	viewFilter, _ := args["view"].(string)
-	verbose, _ := args["verbose"].(bool)
-	views, _ := config["views"].([]any)
-
-	if viewFilter != "" {
-		return h.handleFilteredViews(views, viewFilter)
-	}
-
-	if verbose {
-		summary := fmt.Sprintf("Lovelace configuration with %d views", len(views))
-		return formatLovelaceResponse(config, summary)
-	}
-
-	return h.handleCompactViews(views)
-}
-
 // handleFilteredViews handles requests with a view filter.
-func (h *LovelaceHandlers) handleFilteredViews(views []any, filter string) (*mcp.ToolsCallResult, error) {
+func (h *DashboardHandlers) handleFilteredViews(views []any, filter string) (*mcp.ToolsCallResult, error) {
 	filteredViews := filterViewsByQuery(views, filter)
 
 	if len(filteredViews) == 0 {
@@ -199,8 +500,31 @@ func (h *LovelaceHandlers) handleFilteredViews(views []any, filter string) (*mcp
 }
 
 // handleCompactViews handles requests for compact view output.
-func (h *LovelaceHandlers) handleCompactViews(views []any) (*mcp.ToolsCallResult, error) {
+func (h *DashboardHandlers) handleCompactViews(views []any) (*mcp.ToolsCallResult, error) {
 	compact := buildCompactViews(views)
 	summary := fmt.Sprintf("Found %d views", len(compact)) + VerboseHint
 	return formatLovelaceResponse(compact, summary)
+}
+
+// buildDashboardConfig builds a DashboardConfig from args map.
+func buildDashboardConfig(args map[string]any) homeassistant.DashboardConfig {
+	config := homeassistant.DashboardConfig{}
+
+	if title, ok := args["title"].(string); ok {
+		config.Title = title
+	}
+	if icon, ok := args["icon"].(string); ok {
+		config.Icon = icon
+	}
+	if mode, ok := args["mode"].(string); ok {
+		config.Mode = mode
+	}
+	if requireAdmin, ok := args["require_admin"].(bool); ok {
+		config.RequireAdmin = &requireAdmin
+	}
+	if showInSidebar, ok := args["show_in_sidebar"].(bool); ok {
+		config.ShowInSidebar = &showInSidebar
+	}
+
+	return config
 }
