@@ -917,8 +917,13 @@ func (c *wsClientImpl) BrowseMedia(ctx context.Context, mediaContentID string) (
 // =============================================================================
 
 // GetLovelaceConfig retrieves the Lovelace dashboard configuration.
-func (c *wsClientImpl) GetLovelaceConfig(ctx context.Context) (map[string]any, error) {
-	result, err := c.ws.SendCommand(ctx, "lovelace/config", nil)
+func (c *wsClientImpl) GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error) {
+	params := make(map[string]any)
+	if urlPath != "" {
+		params["url_path"] = urlPath
+	}
+
+	result, err := c.ws.SendCommand(ctx, "lovelace/config", params)
 	if err != nil {
 		return nil, fmt.Errorf("get lovelace config failed: %w", err)
 	}
@@ -929,6 +934,107 @@ func (c *wsClientImpl) GetLovelaceConfig(ctx context.Context) (map[string]any, e
 	}
 
 	return config, nil
+}
+
+// SaveLovelaceConfig saves configuration for a Lovelace dashboard.
+func (c *wsClientImpl) SaveLovelaceConfig(ctx context.Context, urlPath string, config map[string]any) error {
+	params := map[string]any{
+		"config": config,
+	}
+	if urlPath != "" {
+		params["url_path"] = urlPath
+	}
+
+	_, err := c.ws.SendCommand(ctx, "lovelace/config/save", params)
+	if err != nil {
+		return fmt.Errorf("save lovelace config failed: %w", err)
+	}
+
+	return nil
+}
+
+// ListDashboards retrieves all Lovelace dashboards.
+func (c *wsClientImpl) ListDashboards(ctx context.Context) ([]DashboardEntry, error) {
+	result, err := c.ws.SendCommand(ctx, "lovelace/dashboards/list", nil)
+	if err != nil {
+		return nil, fmt.Errorf("list dashboards failed: %w", err)
+	}
+
+	var dashboards []DashboardEntry
+	if err := json.Unmarshal(result.Result, &dashboards); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal dashboards: %w", err)
+	}
+
+	return dashboards, nil
+}
+
+// CreateDashboard creates a new Lovelace dashboard.
+func (c *wsClientImpl) CreateDashboard(ctx context.Context, config DashboardConfig) (*DashboardEntry, error) {
+	params := map[string]any{
+		"url_path":        config.URLPath,
+		"title":           config.Title,
+		"icon":            config.Icon,
+		"mode":            config.Mode,
+		"require_admin":   config.RequireAdmin,
+		"show_in_sidebar": config.ShowInSidebar,
+	}
+
+	result, err := c.ws.SendCommand(ctx, "lovelace/dashboards/create", params)
+	if err != nil {
+		return nil, fmt.Errorf("create dashboard failed: %w", err)
+	}
+
+	var dashboard DashboardEntry
+	if err := json.Unmarshal(result.Result, &dashboard); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal dashboard: %w", err)
+	}
+
+	return &dashboard, nil
+}
+
+// UpdateDashboard updates an existing Lovelace dashboard.
+func (c *wsClientImpl) UpdateDashboard(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error) {
+	params := map[string]any{
+		"dashboard_id": dashboardID,
+	}
+	if config.Title != "" {
+		params["title"] = config.Title
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.RequireAdmin != nil {
+		params["require_admin"] = *config.RequireAdmin
+	}
+	if config.ShowInSidebar != nil {
+		params["show_in_sidebar"] = *config.ShowInSidebar
+	}
+
+	result, err := c.ws.SendCommand(ctx, "lovelace/dashboards/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("update dashboard failed: %w", err)
+	}
+
+	var dashboard DashboardEntry
+	if err := json.Unmarshal(result.Result, &dashboard); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal dashboard: %w", err)
+	}
+
+	return &dashboard, nil
+}
+
+// DeleteDashboard deletes a Lovelace dashboard.
+func (c *wsClientImpl) DeleteDashboard(ctx context.Context, dashboardID string) error {
+	params := map[string]any{
+		"dashboard_id": dashboardID,
+	}
+
+	_, err := c.ws.SendCommand(ctx, "lovelace/dashboards/delete", params)
+	if err != nil {
+		return fmt.Errorf("delete dashboard failed: %w", err)
+	}
+
+	return nil
 }
 
 // =============================================================================
