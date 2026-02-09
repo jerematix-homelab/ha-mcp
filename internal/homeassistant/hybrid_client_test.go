@@ -467,6 +467,7 @@ type mockWSOperations struct {
 	getScheduleConfigFunc      func(ctx context.Context, scheduleID string) (map[string]any, error)
 	getConfigEntriesFunc       func(ctx context.Context, domain string) ([]ConfigEntryFull, error)
 	getConfigEntryFunc         func(ctx context.Context, entryID string) (*ConfigEntryFull, error)
+	sendHACSCommandFunc        func(ctx context.Context, command string, data map[string]any) (any, error)
 }
 
 func (m *mockWSOperations) GetStates(ctx context.Context) ([]Entity, error) {
@@ -784,6 +785,13 @@ func (m *mockWSOperations) GetConfigEntries(ctx context.Context, domain string) 
 func (m *mockWSOperations) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
 	if m.getConfigEntryFunc != nil {
 		return m.getConfigEntryFunc(ctx, entryID)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error) {
+	if m.sendHACSCommandFunc != nil {
+		return m.sendHACSCommandFunc(ctx, command, data)
 	}
 	return nil, nil
 }

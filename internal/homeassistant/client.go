@@ -112,6 +112,9 @@ type Client interface {
 
 	// Configuration validation operations
 	CheckConfig(ctx context.Context) (*ConfigCheckResult, error)
+
+	// HACS operations
+	SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error)
 }
 
 // APIError represents an error response from the Home Assistant API.

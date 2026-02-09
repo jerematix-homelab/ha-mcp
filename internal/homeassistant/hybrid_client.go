@@ -100,6 +100,7 @@ type WSOperations interface {
 	GetScheduleConfig(ctx context.Context, scheduleID string) (map[string]any, error)
 	GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error)
 	GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error)
+	SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error)
 }
 
 // RESTOperations is an interface for REST client operations.
@@ -723,6 +724,15 @@ func (c *HybridClient) GetLogbook(ctx context.Context, startTime, endTime, entit
 // CheckConfig validates the Home Assistant configuration.
 func (c *HybridClient) CheckConfig(ctx context.Context) (*ConfigCheckResult, error) {
 	return c.rest.CheckConfig(ctx)
+}
+
+// =============================================================================
+// HACS Operations (delegated to WebSocket)
+// =============================================================================
+
+// SendHACSCommand sends a generic HACS WebSocket command.
+func (c *HybridClient) SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error) {
+	return c.ws.SendHACSCommand(ctx, command, data)
 }
 
 // =============================================================================

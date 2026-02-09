@@ -643,6 +643,11 @@ func (c *CachedClient) GetConfigEntry(ctx context.Context, entryID string) (*Con
 	return c.client.GetConfigEntry(ctx, entryID)
 }
 
+//nolint:revive // Delegated method
+func (c *CachedClient) SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error) {
+	return c.client.SendHACSCommand(ctx, command, data)
+}
+
 // Close implements ClientCloser interface.
 func (c *CachedClient) Close() error {
 	return CloseClient(c.client)

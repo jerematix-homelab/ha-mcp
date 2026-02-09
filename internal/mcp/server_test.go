@@ -247,6 +247,10 @@ func (m *mockHAClient) GetConfigEntry(_ context.Context, _ string) (*homeassista
 	return nil, nil
 }
 
+func (m *mockHAClient) SendHACSCommand(_ context.Context, _ string, _ map[string]any) (any, error) {
+	return nil, nil
+}
+
 func TestNewServer(t *testing.T) {
 	t.Parallel()
 
