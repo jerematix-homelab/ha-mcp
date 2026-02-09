@@ -162,13 +162,13 @@ func validateSortAndGroup(params stateFilterParams) error {
 	}
 	if params.groupBy != "" {
 		validGroups := map[string]bool{
-			groupByDomain:  true,
-			groupByAreaID:  true,
-			"device_class": true,
-			"integration":  true,
+			groupByDomain:       true,
+			groupByAreaID:       true,
+			"device_class":      true,
+			platformIntegration: true,
 		}
 		if !validGroups[params.groupBy] {
-			return fmt.Errorf("invalid group_by %q, must be one of: domain, area_id, device_class, integration", params.groupBy)
+			return fmt.Errorf("invalid group_by %q, must be one of: domain, area_id, device_class, %s", params.groupBy, platformIntegration)
 		}
 	}
 	return nil
@@ -702,7 +702,7 @@ func (h *ConsolidatedEntityQueryHandlers) handleCurrent(
 		if filterParams.groupBy == "device_class" {
 			return h.formatStatesNaturalByDeviceClass(paginated, filterParams)
 		}
-		if filterParams.groupBy == "integration" {
+		if filterParams.groupBy == platformIntegration {
 			return h.formatStatesNaturalByIntegration(ctx, client, paginated, filterParams)
 		}
 		return h.formatStatesNatural(ctx, paginated, filterParams)
