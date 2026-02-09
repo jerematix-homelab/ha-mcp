@@ -249,16 +249,18 @@ type SceneState struct {
 
 // EntityRegistryEntry represents an entry in the Home Assistant entity registry.
 type EntityRegistryEntry struct {
-	EntityID      string `json:"entity_id"`
-	Platform      string `json:"platform"`
-	ConfigEntryID string `json:"config_entry_id,omitempty"`
-	DeviceID      string `json:"device_id,omitempty"`
-	AreaID        string `json:"area_id,omitempty"`
-	DisabledBy    string `json:"disabled_by,omitempty"`
-	HiddenBy      string `json:"hidden_by,omitempty"`
-	Name          string `json:"name,omitempty"`
-	Icon          string `json:"icon,omitempty"`
-	UniqueID      string `json:"unique_id,omitempty"`
+	EntityID      string   `json:"entity_id"`
+	Platform      string   `json:"platform"`
+	ConfigEntryID string   `json:"config_entry_id,omitempty"`
+	DeviceID      string   `json:"device_id,omitempty"`
+	AreaID        string   `json:"area_id,omitempty"`
+	DisabledBy    string   `json:"disabled_by,omitempty"`
+	HiddenBy      string   `json:"hidden_by,omitempty"`
+	Name          string   `json:"name,omitempty"`
+	Icon          string   `json:"icon,omitempty"`
+	UniqueID      string   `json:"unique_id,omitempty"`
+	Labels        []string `json:"labels,omitempty"`
+	Aliases       []string `json:"aliases,omitempty"`
 }
 
 // DeviceRegistryEntry represents an entry in the Home Assistant device registry.
@@ -276,6 +278,7 @@ type DeviceRegistryEntry struct {
 	NameByUser       string                 `json:"name_by_user,omitempty"`
 	DisabledBy       string                 `json:"disabled_by,omitempty"`
 	ConfigurationURL string                 `json:"configuration_url,omitempty"`
+	Labels           []string               `json:"labels,omitempty"`
 }
 
 // AreaRegistryEntry represents an entry in the Home Assistant area registry.
@@ -287,6 +290,27 @@ type AreaRegistryEntry struct {
 	FloorID string   `json:"floor_id,omitempty"`
 	Icon    string   `json:"icon,omitempty"`
 	Labels  []string `json:"labels,omitempty"`
+}
+
+// EntityRegistryUpdateConfig represents configuration for updating an entity registry entry.
+// Fields use pointer types to distinguish "not provided" from "set to empty".
+type EntityRegistryUpdateConfig struct {
+	Name       *string  `json:"name,omitempty"`
+	Icon       *string  `json:"icon,omitempty"`
+	AreaID     *string  `json:"area_id,omitempty"`
+	DisabledBy *string  `json:"disabled_by,omitempty"`
+	HiddenBy   *string  `json:"hidden_by,omitempty"`
+	Labels     []string `json:"labels,omitempty"`
+	Aliases    []string `json:"aliases,omitempty"`
+}
+
+// DeviceRegistryUpdateConfig represents configuration for updating a device registry entry.
+// Fields use pointer types to distinguish "not provided" from "set to empty".
+type DeviceRegistryUpdateConfig struct {
+	NameByUser *string  `json:"name_by_user,omitempty"`
+	AreaID     *string  `json:"area_id,omitempty"`
+	DisabledBy *string  `json:"disabled_by,omitempty"`
+	Labels     []string `json:"labels,omitempty"`
 }
 
 // AreaConfig represents configuration for creating or updating an area.

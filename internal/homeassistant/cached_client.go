@@ -399,6 +399,24 @@ func (c *CachedClient) RemoveDeviceConfigEntry(ctx context.Context, deviceID, co
 	return err
 }
 
+// UpdateEntityRegistryEntry updates an entity and invalidates entity registry cache.
+func (c *CachedClient) UpdateEntityRegistryEntry(ctx context.Context, entityID string, cfg EntityRegistryUpdateConfig) (*EntityRegistryEntry, error) {
+	entry, err := c.client.UpdateEntityRegistryEntry(ctx, entityID, cfg)
+	if err == nil {
+		c.invalidateEntityRegistryCache()
+	}
+	return entry, err
+}
+
+// UpdateDeviceRegistryEntry updates a device and invalidates device registry cache.
+func (c *CachedClient) UpdateDeviceRegistryEntry(ctx context.Context, deviceID string, cfg DeviceRegistryUpdateConfig) (*DeviceRegistryEntry, error) {
+	entry, err := c.client.UpdateDeviceRegistryEntry(ctx, deviceID, cfg)
+	if err == nil {
+		c.invalidateDeviceRegistryCache()
+	}
+	return entry, err
+}
+
 // CreateArea creates an area and invalidates area registry cache.
 func (c *CachedClient) CreateArea(ctx context.Context, cfg AreaConfig) (*AreaRegistryEntry, error) {
 	entry, err := c.client.CreateArea(ctx, cfg)
@@ -432,6 +450,20 @@ func (c *CachedClient) invalidateAreaRegistryCache() {
 	defer c.mu.Unlock()
 	c.areaRegistryCache = nil
 	c.logger.Debug("Area registry cache invalidated")
+}
+
+func (c *CachedClient) invalidateEntityRegistryCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entityRegistryCache = nil
+	c.logger.Debug("Entity registry cache invalidated")
+}
+
+func (c *CachedClient) invalidateDeviceRegistryCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.deviceRegistryCache = nil
+	c.logger.Debug("Device registry cache invalidated")
 }
 
 // Delegated methods - all other Client interface methods delegate to the underlying client.

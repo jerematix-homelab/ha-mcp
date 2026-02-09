@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 28 specialized tools for advanced automation, scripts, scenes, helpers, devices, and areas
+- **Power User Focus**: 30 specialized tools for advanced automation, scripts, scenes, helpers, devices, and areas
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -448,6 +448,8 @@ Authorization: Bearer <your-ha-access-token>
 | --------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `get_registry`        | Query registries (type: entities, devices, areas, all; format: natural/json)                                 |
 | `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; format: natural/json for list/get) |
+| `manage_entity`       | Entity registry management (actions: get, update; update fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases; format: natural/json) |
+| `manage_device`       | Device registry management (actions: get, update; update fields: name_by_user, area_id, disabled_by, labels; format: natural/json) |
 | `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain                           |
 | `get_config_entry`    | Get a single config entry by entry ID                                                                        |
 
@@ -1040,6 +1042,7 @@ Some Home Assistant operations have limitations:
 - **Scripts**: REST API works, but `script.reload` service call is needed after create/update for entity to appear immediately
 - **Automations/Scenes**: REST API stores config, but entity may not appear until Home Assistant restart or reload
 - **Config Entry helpers**: Template, threshold, derivative, integration, and group helpers use HTTP-based Config Entry Flow (automatically handled by ha-mcp)
+- **Entity/Device Registry CREATE operations**: `get_registry` and `query_devices` support UPDATE and DELETE but not CREATE. This is by design—entities and devices are created by integrations (Zigbee, Z-Wave, MQTT, etc.), not manually. Creating registry entries without a backing integration produces orphaned entries that cause errors. UPDATE operations (renaming, area assignment, icons, device class, enable/disable) are safe as they modify metadata only. DELETE operations are essential for cleaning up stale/orphaned entries via `query_entities` health mode and `query_devices` health mode.
 
 ## License
 

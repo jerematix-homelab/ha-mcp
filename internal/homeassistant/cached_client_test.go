@@ -86,8 +86,16 @@ func (m *mockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID str
 	return nil
 }
 
+func (m *mockClient) UpdateEntityRegistryEntry(_ context.Context, _ string, _ EntityRegistryUpdateConfig) (*EntityRegistryEntry, error) {
+	return nil, nil
+}
+
 func (m *mockClient) RemoveDeviceConfigEntry(_ context.Context, _, _ string) error {
 	return nil
+}
+
+func (m *mockClient) UpdateDeviceRegistryEntry(_ context.Context, _ string, _ DeviceRegistryUpdateConfig) (*DeviceRegistryEntry, error) {
+	return nil, nil
 }
 
 func (m *mockClient) CreateHelper(ctx context.Context, helper HelperConfig) error {
@@ -638,5 +646,91 @@ func TestCachedClient_InvalidationAfterDeleteArea(t *testing.T) {
 	}
 	if mock.areaRegistryCallCount != 2 {
 		t.Errorf("Expected 2 API calls (cache invalidated), got %d", mock.areaRegistryCallCount)
+	}
+}
+
+func TestCachedClient_InvalidationAfterUpdateEntityRegistry(t *testing.T) {
+	mock := &mockClient{}
+	cfg := config.CacheConfig{
+		Enabled:         true,
+		ServicesTTLMin:  60,
+		ConfigTTLMin:    30,
+		EntityRegTTLMin: 10,
+		DeviceRegTTLMin: 10,
+		AreaRegTTLMin:   30,
+	}
+	logger := logging.New(logging.LevelError)
+	client := NewCachedClient(mock, cfg, logger)
+
+	ctx := context.Background()
+
+	// Populate entity registry cache
+	_, err := client.GetEntityRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetEntityRegistry failed: %v", err)
+	}
+	if mock.entityRegistryCallCount != 1 {
+		t.Errorf("Expected 1 API call, got %d", mock.entityRegistryCallCount)
+	}
+
+	// Update an entity - should invalidate cache
+	name := "New Name"
+	_, err = client.UpdateEntityRegistryEntry(ctx, "light.living_room", EntityRegistryUpdateConfig{
+		Name: &name,
+	})
+	if err != nil {
+		t.Fatalf("UpdateEntityRegistryEntry failed: %v", err)
+	}
+
+	// Next call should hit API again (cache invalidated)
+	_, err = client.GetEntityRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetEntityRegistry failed: %v", err)
+	}
+	if mock.entityRegistryCallCount != 2 {
+		t.Errorf("Expected 2 API calls (cache invalidated), got %d", mock.entityRegistryCallCount)
+	}
+}
+
+func TestCachedClient_InvalidationAfterUpdateDeviceRegistry(t *testing.T) {
+	mock := &mockClient{}
+	cfg := config.CacheConfig{
+		Enabled:         true,
+		ServicesTTLMin:  60,
+		ConfigTTLMin:    30,
+		EntityRegTTLMin: 10,
+		DeviceRegTTLMin: 10,
+		AreaRegTTLMin:   30,
+	}
+	logger := logging.New(logging.LevelError)
+	client := NewCachedClient(mock, cfg, logger)
+
+	ctx := context.Background()
+
+	// Populate device registry cache
+	_, err := client.GetDeviceRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetDeviceRegistry failed: %v", err)
+	}
+	if mock.deviceRegistryCallCount != 1 {
+		t.Errorf("Expected 1 API call, got %d", mock.deviceRegistryCallCount)
+	}
+
+	// Update a device - should invalidate cache
+	name := "New Device Name"
+	_, err = client.UpdateDeviceRegistryEntry(ctx, "abc123", DeviceRegistryUpdateConfig{
+		NameByUser: &name,
+	})
+	if err != nil {
+		t.Fatalf("UpdateDeviceRegistryEntry failed: %v", err)
+	}
+
+	// Next call should hit API again (cache invalidated)
+	_, err = client.GetDeviceRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetDeviceRegistry failed: %v", err)
+	}
+	if mock.deviceRegistryCallCount != 2 {
+		t.Errorf("Expected 2 API calls (cache invalidated), got %d", mock.deviceRegistryCallCount)
 	}
 }

@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type**             | Standalone Go binary (external server)     | HA integration (built-in)                                   |
 | **Transport**        | HTTP JSON-RPC                              | Streamable HTTP                                             |
 | **HA Communication** | WebSocket + REST API (Hybrid)              | Direct Python API (internal)                                |
-| **Tool Design**      | 29 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
+| **Tool Design**      | 30 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
 | **Authentication**   | Long-Lived Access Token                    | OAuth (IndieAuth) + Long-Lived Token                        |
 | **Entity Access**    | All entities (no filtering)                | Only explicitly exposed entities (Voice Assistant Exposure) |
 
@@ -88,11 +88,13 @@ This document compares the features of `ha-mcp` (this project) with the official
 
 | Function        | ha-mcp                                                                           | Official HA MCP         |
 | --------------- | -------------------------------------------------------------------------------- | ----------------------- |
-| Entity registry | `get_registry` type=entities                                                     | ----------------------- |
-| Device registry | `get_registry` type=devices                                                      | ----------------------- |
-| Area registry   | `get_registry` type=areas                                                        | Area context in prompts |
-| Area management | `manage_area` (actions: list, get, create, update, delete; format: natural/json) | ----------------------- |
-| List services   | `list_services`                                                                  | ----------------------- |
+| Entity registry        | `get_registry` type=entities                                                                                 | ----------------------- |
+| Entity registry update | `manage_entity` (actions: get, update; fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases) | ----------------------- |
+| Device registry        | `get_registry` type=devices                                                                                  | ----------------------- |
+| Device registry update | `manage_device` (actions: get, update; fields: name_by_user, area_id, disabled_by, labels)                   | ----------------------- |
+| Area registry          | `get_registry` type=areas                                                                                    | Area context in prompts |
+| Area management        | `manage_area` (actions: list, get, create, update, delete; format: natural/json)                             | ----------------------- |
+| List services          | `list_services`                                                                                              | ----------------------- |
 | System info     | `get_system_info`                                                                | ----------------------- |
 | Validate config | `validate_config`                                                                | ----------------------- |
 | Config entries  | `list_config_entries`, `get_config_entry`                                        | ----------------------- |

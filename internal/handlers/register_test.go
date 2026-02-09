@@ -130,6 +130,38 @@ func TestRegisterDatetimeTools(t *testing.T) {
 	}
 }
 
+func TestRegisterEntityManageTools(t *testing.T) {
+	t.Parallel()
+
+	registry := mcp.NewRegistry()
+	RegisterEntityManageTools(registry)
+
+	tools := registry.ListTools()
+	if len(tools) != 1 {
+		t.Errorf("RegisterEntityManageTools() registered %d tools, want 1", len(tools))
+	}
+
+	if len(tools) > 0 && tools[0].Name != "manage_entity" {
+		t.Errorf("RegisterEntityManageTools() registered %q, want %q", tools[0].Name, "manage_entity")
+	}
+}
+
+func TestRegisterDeviceManageTools(t *testing.T) {
+	t.Parallel()
+
+	registry := mcp.NewRegistry()
+	RegisterDeviceManageTools(registry)
+
+	tools := registry.ListTools()
+	if len(tools) != 1 {
+		t.Errorf("RegisterDeviceManageTools() registered %d tools, want 1", len(tools))
+	}
+
+	if len(tools) > 0 && tools[0].Name != "manage_device" {
+		t.Errorf("RegisterDeviceManageTools() registered %q, want %q", tools[0].Name, "manage_device")
+	}
+}
+
 func TestRegisterAllTools(t *testing.T) {
 	t.Parallel()
 
@@ -140,8 +172,8 @@ func TestRegisterAllTools(t *testing.T) {
 
 	// RegisterAllTools should register a significant number of tools
 	// At minimum, we expect tools from all major handler categories
-	// After consolidation: 42+ helper tools reduced to 2
-	const minExpectedTools = 25 // Conservative minimum after consolidation
+	// After consolidation: 42+ helper tools reduced to 2, +2 for entity/device manage
+	const minExpectedTools = 27 // Conservative minimum after consolidation and additions
 	if len(tools) < minExpectedTools {
 		t.Errorf("RegisterAllTools() registered %d tools, want at least %d", len(tools), minExpectedTools)
 	}
@@ -162,6 +194,9 @@ func TestRegisterAllTools(t *testing.T) {
 		"helper_action",
 		// Consolidated registry tools (get_registry replaces list_entity/device/area_registry)
 		"get_registry",
+		// Registry management tools
+		"manage_entity",
+		"manage_device",
 		// Media
 		"browse_media",
 		// Consolidated entity query tools (query_entities replaces get_states/get_history/get_statistics/list_domains)
