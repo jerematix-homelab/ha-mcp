@@ -447,6 +447,9 @@ type mockWSOperations struct {
 	getEntityRegistryFunc      func(ctx context.Context) ([]EntityRegistryEntry, error)
 	getDeviceRegistryFunc      func(ctx context.Context) ([]DeviceRegistryEntry, error)
 	getAreaRegistryFunc        func(ctx context.Context) ([]AreaRegistryEntry, error)
+	createAreaFunc             func(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error)
+	updateAreaFunc             func(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
+	deleteAreaFunc             func(ctx context.Context, areaID string) error
 	signPathFunc               func(ctx context.Context, path string, expires int) (string, error)
 	getCameraStreamFunc        func(ctx context.Context, entityID string) (*StreamInfo, error)
 	browseMediaFunc            func(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
@@ -634,6 +637,27 @@ func (m *mockWSOperations) GetAreaRegistry(ctx context.Context) ([]AreaRegistryE
 		return m.getAreaRegistryFunc(ctx)
 	}
 	return nil, nil
+}
+
+func (m *mockWSOperations) CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error) {
+	if m.createAreaFunc != nil {
+		return m.createAreaFunc(ctx, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error) {
+	if m.updateAreaFunc != nil {
+		return m.updateAreaFunc(ctx, areaID, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) DeleteArea(ctx context.Context, areaID string) error {
+	if m.deleteAreaFunc != nil {
+		return m.deleteAreaFunc(ctx, areaID)
+	}
+	return nil
 }
 
 func (m *mockWSOperations) RemoveEntityRegistryEntry(_ context.Context, _ string) error {

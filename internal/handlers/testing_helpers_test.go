@@ -60,6 +60,9 @@ type UniversalMockClient struct {
 	GetEntityRegistryFn         func(ctx context.Context) ([]homeassistant.EntityRegistryEntry, error)
 	GetDeviceRegistryFn         func(ctx context.Context) ([]homeassistant.DeviceRegistryEntry, error)
 	GetAreaRegistryFn           func(ctx context.Context) ([]homeassistant.AreaRegistryEntry, error)
+	CreateAreaFn                func(ctx context.Context, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error)
+	UpdateAreaFn                func(ctx context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error)
+	DeleteAreaFn                func(ctx context.Context, areaID string) error
 	RemoveEntityRegistryEntryFn func(ctx context.Context, entityID string) error
 
 	// Media operations
@@ -312,6 +315,27 @@ func (m *UniversalMockClient) GetAreaRegistry(ctx context.Context) ([]homeassist
 		return m.GetAreaRegistryFn(ctx)
 	}
 	return []homeassistant.AreaRegistryEntry{}, nil
+}
+
+func (m *UniversalMockClient) CreateArea(ctx context.Context, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
+	if m.CreateAreaFn != nil {
+		return m.CreateAreaFn(ctx, config)
+	}
+	return &homeassistant.AreaRegistryEntry{AreaID: "area_123", Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) UpdateArea(ctx context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
+	if m.UpdateAreaFn != nil {
+		return m.UpdateAreaFn(ctx, areaID, config)
+	}
+	return &homeassistant.AreaRegistryEntry{AreaID: areaID, Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) DeleteArea(ctx context.Context, areaID string) error {
+	if m.DeleteAreaFn != nil {
+		return m.DeleteAreaFn(ctx, areaID)
+	}
+	return nil
 }
 
 func (m *UniversalMockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {

@@ -79,6 +79,9 @@ type WSOperations interface {
 	GetEntityRegistry(ctx context.Context) ([]EntityRegistryEntry, error)
 	GetDeviceRegistry(ctx context.Context) ([]DeviceRegistryEntry, error)
 	GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry, error)
+	CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error)
+	UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
+	DeleteArea(ctx context.Context, areaID string) error
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
 	SignPath(ctx context.Context, path string, expires int) (string, error)
 	GetCameraStream(ctx context.Context, entityID string) (*StreamInfo, error)
@@ -541,6 +544,21 @@ func (c *HybridClient) GetDeviceRegistry(ctx context.Context) ([]DeviceRegistryE
 // GetAreaRegistry retrieves the area registry.
 func (c *HybridClient) GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry, error) {
 	return c.ws.GetAreaRegistry(ctx)
+}
+
+// CreateArea creates a new area in the area registry.
+func (c *HybridClient) CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error) {
+	return c.ws.CreateArea(ctx, config)
+}
+
+// UpdateArea updates an existing area in the area registry.
+func (c *HybridClient) UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error) {
+	return c.ws.UpdateArea(ctx, areaID, config)
+}
+
+// DeleteArea deletes an area from the area registry.
+func (c *HybridClient) DeleteArea(ctx context.Context, areaID string) error {
+	return c.ws.DeleteArea(ctx, areaID)
 }
 
 // RemoveEntityRegistryEntry removes an entity from the entity registry.

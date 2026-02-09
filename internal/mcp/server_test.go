@@ -143,6 +143,18 @@ func (m *mockHAClient) GetAreaRegistry(_ context.Context) ([]homeassistant.AreaR
 	return nil, nil
 }
 
+func (m *mockHAClient) CreateArea(_ context.Context, _ homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) UpdateArea(_ context.Context, _ string, _ homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) DeleteArea(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockHAClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

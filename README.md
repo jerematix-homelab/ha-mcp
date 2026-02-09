@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 26 specialized tools for advanced automation, scripts, scenes, and helpers
+- **Power User Focus**: 27 specialized tools for advanced automation, scripts, scenes, helpers, and areas
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -446,6 +446,7 @@ Authorization: Bearer <your-ha-access-token>
 | Tool | Description |
 |------|-------------|
 | `get_registry` | Query registries (type: entities, devices, areas, all; format: natural/json) |
+| `manage_area` | Consolidated area management (actions: list, get, create, update, delete; format: natural/json for list/get) |
 | `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain |
 | `get_config_entry` | Get a single config entry by entry ID |
 
@@ -592,7 +593,7 @@ Most tools support two output formats via the `format` parameter:
 - **`json`**: Structured JSON output for backward compatibility and programmatic access
   - Example: `{"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 204, ...}}`
 
-**Tools with format support**: `query_entities`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_helper`, `helper_action`
+**Tools with format support**: `query_entities`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_helper`, `helper_action`
 
 ### Example Requests
 

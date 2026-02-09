@@ -119,6 +119,7 @@ func (c *CachedClient) InvalidateRegistryCaches() {
 	defer c.mu.Unlock()
 	c.entityRegistryCache = nil
 	c.deviceRegistryCache = nil
+	c.areaRegistryCache = nil
 	c.logger.Debug("Registry caches invalidated")
 }
 
@@ -387,6 +388,41 @@ func (c *CachedClient) RemoveEntityRegistryEntry(ctx context.Context, entityID s
 		c.InvalidateRegistryCaches()
 	}
 	return err
+}
+
+// CreateArea creates an area and invalidates area registry cache.
+func (c *CachedClient) CreateArea(ctx context.Context, cfg AreaConfig) (*AreaRegistryEntry, error) {
+	entry, err := c.client.CreateArea(ctx, cfg)
+	if err == nil {
+		c.invalidateAreaRegistryCache()
+	}
+	return entry, err
+}
+
+// UpdateArea updates an area and invalidates area registry cache.
+func (c *CachedClient) UpdateArea(ctx context.Context, areaID string, cfg AreaConfig) (*AreaRegistryEntry, error) {
+	entry, err := c.client.UpdateArea(ctx, areaID, cfg)
+	if err == nil {
+		c.invalidateAreaRegistryCache()
+	}
+	return entry, err
+}
+
+// DeleteArea deletes an area and invalidates area registry cache.
+func (c *CachedClient) DeleteArea(ctx context.Context, areaID string) error {
+	err := c.client.DeleteArea(ctx, areaID)
+	if err == nil {
+		c.invalidateAreaRegistryCache()
+	}
+	return err
+}
+
+// invalidateAreaRegistryCache clears the area registry cache.
+func (c *CachedClient) invalidateAreaRegistryCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.areaRegistryCache = nil
+	c.logger.Debug("Area registry cache invalidated")
 }
 
 // Delegated methods - all other Client interface methods delegate to the underlying client.

@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type** | Standalone Go binary (external server) | HA integration (built-in) |
 | **Transport** | HTTP JSON-RPC | Streamable HTTP |
 | **HA Communication** | WebSocket + REST API (Hybrid) | Direct Python API (internal) |
-| **Tool Design** | 26 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
+| **Tool Design** | 27 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools) |
 | **Authentication** | Long-Lived Access Token | OAuth (IndieAuth) + Long-Lived Token |
 | **Entity Access** | All entities (no filtering) | Only explicitly exposed entities (Voice Assistant Exposure) |
 
@@ -90,6 +90,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | Entity registry | `get_registry` type=entities | -- |
 | Device registry | `get_registry` type=devices | -- |
 | Area registry | `get_registry` type=areas | Area context in prompts |
+| Area management | `manage_area` (actions: list, get, create, update, delete; format: natural/json) | -- |
 | List services | `list_services` | -- |
 | System info | `get_system_info` | -- |
 | Validate config | `validate_config` | -- |

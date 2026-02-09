@@ -61,6 +61,11 @@ type Client interface {
 	GetDeviceRegistry(ctx context.Context) ([]DeviceRegistryEntry, error)
 	GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry, error)
 
+	// Area registry modification operations
+	CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error)
+	UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
+	DeleteArea(ctx context.Context, areaID string) error
+
 	// Entity registry modification operations
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
 
