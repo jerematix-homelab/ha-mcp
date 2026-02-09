@@ -1241,3 +1241,25 @@ func (c *wsClientImpl) GetConfigEntry(ctx context.Context, entryID string) (*Con
 	}
 	return &wrapper.ConfigEntry, nil
 }
+
+// =============================================================================
+// HACS Operations
+// =============================================================================
+
+// SendHACSCommand sends a generic HACS WebSocket command.
+// HACS is an optional third-party add-on, so commands may fail if not installed.
+// The result is returned as untyped JSON since HACS responses vary by command.
+func (c *wsClientImpl) SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error) {
+	result, err := c.ws.SendCommand(ctx, command, data)
+	if err != nil {
+		return nil, fmt.Errorf("hacs command failed: %w", err)
+	}
+
+	// Return raw JSON result - HACS responses are untyped
+	var response any
+	if err := json.Unmarshal(result.Result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal hacs response: %w", err)
+	}
+
+	return response, nil
+}
