@@ -191,6 +191,9 @@ func (m *mockClientForPool) DeleteArea(_ context.Context, _ string) error { retu
 func (m *mockClientForPool) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }
+func (m *mockClientForPool) RemoveDeviceConfigEntry(_ context.Context, _, _ string) error {
+	return nil
+}
 func (m *mockClientForPool) SignPath(_ context.Context, _ string, _ int) (string, error) {
 	return "", nil
 }

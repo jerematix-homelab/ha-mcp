@@ -86,6 +86,10 @@ func (m *mockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID str
 	return nil
 }
 
+func (m *mockClient) RemoveDeviceConfigEntry(_ context.Context, _, _ string) error {
+	return nil
+}
+
 func (m *mockClient) CreateHelper(ctx context.Context, helper HelperConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

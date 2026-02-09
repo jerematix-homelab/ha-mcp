@@ -762,6 +762,16 @@ func (c *wsClientImpl) RemoveEntityRegistryEntry(ctx context.Context, entityID s
 	return err
 }
 
+// RemoveDeviceConfigEntry removes a config entry from a device.
+// When all config entries are removed, Home Assistant deletes the device.
+func (c *wsClientImpl) RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error {
+	_, err := c.ws.SendCommand(ctx, "config/device_registry/remove_config_entry", map[string]any{
+		"device_id":       deviceID,
+		"config_entry_id": configEntryID,
+	})
+	return err
+}
+
 // CreateArea creates a new area in the area registry.
 func (c *wsClientImpl) CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error) {
 	params := make(map[string]any)

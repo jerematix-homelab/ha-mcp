@@ -670,6 +670,10 @@ func (m *mockWSOperations) RemoveEntityRegistryEntry(_ context.Context, _ string
 	return nil
 }
 
+func (m *mockWSOperations) RemoveDeviceConfigEntry(_ context.Context, _, _ string) error {
+	return nil
+}
+
 func (m *mockWSOperations) SignPath(ctx context.Context, path string, expires int) (string, error) {
 	if m.signPathFunc != nil {
 		return m.signPathFunc(ctx, path, expires)

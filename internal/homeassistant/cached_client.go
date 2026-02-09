@@ -390,6 +390,15 @@ func (c *CachedClient) RemoveEntityRegistryEntry(ctx context.Context, entityID s
 	return err
 }
 
+// RemoveDeviceConfigEntry removes a config entry from a device and invalidates registry caches.
+func (c *CachedClient) RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error {
+	err := c.client.RemoveDeviceConfigEntry(ctx, deviceID, configEntryID)
+	if err == nil {
+		c.InvalidateRegistryCaches()
+	}
+	return err
+}
+
 // CreateArea creates an area and invalidates area registry cache.
 func (c *CachedClient) CreateArea(ctx context.Context, cfg AreaConfig) (*AreaRegistryEntry, error) {
 	entry, err := c.client.CreateArea(ctx, cfg)

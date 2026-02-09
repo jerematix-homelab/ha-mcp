@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 27 specialized tools for advanced automation, scripts, scenes, helpers, and areas
+- **Power User Focus**: 28 specialized tools for advanced automation, scripts, scenes, helpers, devices, and areas
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -437,6 +437,7 @@ Authorization: Bearer <your-ha-access-token>
 | Tool                      | Description                                                                                                                                                                                                                              |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `query_entities`          | Consolidated entity queries (mode: current, history, statistics, domains, presence, health; format: natural/json; group_by: domain, area_id, device_class, integration; health: analyze/remove dead entities with multi-category filter) |
+| `query_devices`           | Device health check (mode: health; action: analyze/remove; format: natural/json; categories: disabled, orphaned_config_entry, config_entry_error, no_entities, no_config_entries; manufacturer filter)                                   |
 | `get_state`               | Get state of a specific entity (format: natural/json)                                                                                                                                                                                    |
 | `analyze_entity`          | Analyze entity usage in automations, scripts, and scenes (format: natural/json)                                                                                                                                                          |
 | `get_entity_dependencies` | Find all entities an automation/script depends on (format: natural/json)                                                                                                                                                                 |
@@ -608,7 +609,7 @@ Most tools support two output formats via the `format` parameter:
 - **`json`**: Structured JSON output for backward compatibility and programmatic access
   - Example: `{"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 204, ...}}`
 
-**Tools with format support**: `query_entities`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_helper`, `helper_action`, `manage_hacs`
+**Tools with format support**: `query_entities`, `query_devices`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_helper`, `helper_action`, `manage_hacs`
 
 ### Example Requests
 
@@ -959,6 +960,8 @@ ha-mcp/
 │   │   ├── entities_consolidated.go # Consolidated query_entities tool (current/history/statistics/domains/presence/health)
 │   │   ├── entities_presence.go # Presence analysis for query_entities (mode=presence)
 │   │   ├── entities_health.go   # Health mode: detect and remove dead entities (mode=health)
+│   │   ├── devices_consolidated.go # Consolidated query_devices tool (health)
+│   │   ├── devices_health.go    # Device health: detect and remove problematic devices
 │   │   ├── automations.go       # Consolidated manage_automation tool
 │   │   ├── automations_coverage.go # Automation coverage analysis
 │   │   ├── helpers.go           # list_helpers tool handler

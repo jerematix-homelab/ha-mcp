@@ -263,6 +263,9 @@ func (m *mockNonCloserClient) DeleteArea(_ context.Context, _ string) error {
 func (m *mockNonCloserClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }
+func (m *mockNonCloserClient) RemoveDeviceConfigEntry(_ context.Context, _, _ string) error {
+	return nil
+}
 func (m *mockNonCloserClient) SignPath(_ context.Context, _ string, _ int) (string, error) {
 	return "", nil
 }

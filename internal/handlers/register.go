@@ -97,6 +97,12 @@ func RegisterAreaTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
+// RegisterDeviceQueryTools registers all device query tools with the registry.
+func RegisterDeviceQueryTools(registry *mcp.Registry) {
+	h := NewDeviceQueryHandlers()
+	h.RegisterTools(registry)
+}
+
 // RegisterAllTools registers all available tool handlers with the registry.
 // All handlers use the WebSocket API for communication with Home Assistant.
 func RegisterAllTools(registry *mcp.Registry) {
@@ -121,6 +127,9 @@ func RegisterAllTools(registry *mcp.Registry) {
 
 	// Entity query tools (consolidated: query_entities replaces get_states/get_history/get_statistics/list_domains)
 	RegisterConsolidatedEntityQueryTools(registry)
+
+	// Device query tools (query_devices for device health check)
+	RegisterDeviceQueryTools(registry)
 
 	// Media and advanced handlers
 	RegisterMediaTools(registry)

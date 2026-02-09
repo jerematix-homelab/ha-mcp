@@ -64,6 +64,7 @@ type UniversalMockClient struct {
 	UpdateAreaFn                func(ctx context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error)
 	DeleteAreaFn                func(ctx context.Context, areaID string) error
 	RemoveEntityRegistryEntryFn func(ctx context.Context, entityID string) error
+	RemoveDeviceConfigEntryFn   func(ctx context.Context, deviceID, configEntryID string) error
 
 	// Media operations
 	SignPathFn        func(ctx context.Context, path string, expires int) (string, error)
@@ -349,6 +350,13 @@ func (m *UniversalMockClient) DeleteArea(ctx context.Context, areaID string) err
 func (m *UniversalMockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
 	if m.RemoveEntityRegistryEntryFn != nil {
 		return m.RemoveEntityRegistryEntryFn(ctx, entityID)
+	}
+	return nil
+}
+
+func (m *UniversalMockClient) RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error {
+	if m.RemoveDeviceConfigEntryFn != nil {
+		return m.RemoveDeviceConfigEntryFn(ctx, deviceID, configEntryID)
 	}
 	return nil
 }

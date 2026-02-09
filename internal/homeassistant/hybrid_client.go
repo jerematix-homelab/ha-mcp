@@ -83,6 +83,7 @@ type WSOperations interface {
 	UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
 	DeleteArea(ctx context.Context, areaID string) error
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
+	RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error
 	SignPath(ctx context.Context, path string, expires int) (string, error)
 	GetCameraStream(ctx context.Context, entityID string) (*StreamInfo, error)
 	BrowseMedia(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
@@ -570,6 +571,11 @@ func (c *HybridClient) DeleteArea(ctx context.Context, areaID string) error {
 // RemoveEntityRegistryEntry removes an entity from the entity registry.
 func (c *HybridClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
 	return c.ws.RemoveEntityRegistryEntry(ctx, entityID)
+}
+
+// RemoveDeviceConfigEntry removes a config entry from a device.
+func (c *HybridClient) RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error {
+	return c.ws.RemoveDeviceConfigEntry(ctx, deviceID, configEntryID)
 }
 
 // =============================================================================
