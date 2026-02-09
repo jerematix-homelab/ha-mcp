@@ -63,7 +63,7 @@ Actions:
 				},
 				"script_id": {
 					Type:        "string",
-					Description: "Script identifier. Accepts: entity_id (script.xyz) or alias/friendly_name (case-insensitive partial match). Required for get/create/update/delete/execute.",
+					Description: "Script identifier. For create: use bare ID without 'script.' prefix (e.g., 'morning_routine'). For other actions: accepts entity_id (script.xyz) or alias/friendly_name (case-insensitive partial match).",
 				},
 				"alias": {
 					Type:        "string",
@@ -113,7 +113,7 @@ Actions:
 func (h *ScriptHandlers) callServiceTool() mcp.Tool {
 	return mcp.Tool{
 		Name:        "call_service",
-		Description: "Call any Home Assistant service",
+		Description: "Call any Home Assistant service. Pass entity_id and service parameters inside the 'data' object.",
 		InputSchema: mcp.JSONSchema{
 			Type: "object",
 			Properties: map[string]mcp.JSONSchema{
@@ -127,7 +127,7 @@ func (h *ScriptHandlers) callServiceTool() mcp.Tool {
 				},
 				"data": {
 					Type:        "object",
-					Description: "Service data including entity_id and other parameters",
+					Description: "Service data object. Include entity_id and parameters here (e.g., {\"entity_id\": \"light.living_room\", \"brightness\": 255})",
 				},
 				"format": {
 					Type:        "string",

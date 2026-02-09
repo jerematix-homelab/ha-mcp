@@ -83,6 +83,15 @@ func TestDashboardHandlers_Schema(t *testing.T) {
 	if len(formatProp.Enum) != 2 {
 		t.Errorf("expected 2 format enum values, got %d", len(formatProp.Enum))
 	}
+
+	// Verify mode enum has 2 values
+	modeProp, ok := tool.InputSchema.Properties["mode"]
+	if !ok {
+		t.Fatal("expected 'mode' property in schema")
+	}
+	if len(modeProp.Enum) != 2 {
+		t.Errorf("expected 2 mode enum values, got %d", len(modeProp.Enum))
+	}
 }
 
 func TestHandleManageDashboard(t *testing.T) {
@@ -272,10 +281,18 @@ func TestHandleManageDashboard(t *testing.T) {
 				"action":   "create",
 				"url_path": "test",
 				"title":    "Test Dashboard",
+				"mode":     "storage",
 				"format":   "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.CreateDashboardFn = func(_ context.Context, config homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {
+					// Verify defaults are set
+					if config.RequireAdmin == nil {
+						return nil, fmt.Errorf("RequireAdmin should not be nil")
+					}
+					if config.ShowInSidebar == nil {
+						return nil, fmt.Errorf("ShowInSidebar should not be nil")
+					}
 					return &homeassistant.DashboardEntry{
 						ID:            "lovelace-test",
 						URLPath:       config.URLPath,
@@ -335,11 +352,22 @@ func TestHandleManageDashboard(t *testing.T) {
 			wantContain: "title is required",
 		},
 		{
+			name: "create - missing mode",
+			args: map[string]any{
+				"action":   "create",
+				"url_path": "test",
+				"title":    "Test",
+			},
+			wantErr:     true,
+			wantContain: "mode is required",
+		},
+		{
 			name: "create - API error",
 			args: map[string]any{
 				"action":   "create",
 				"url_path": "test",
 				"title":    "Test",
+				"mode":     "storage",
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.CreateDashboardFn = func(context.Context, homeassistant.DashboardConfig) (*homeassistant.DashboardEntry, error) {

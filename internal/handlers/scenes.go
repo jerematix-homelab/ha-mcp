@@ -61,7 +61,7 @@ Actions:
 				},
 				"scene_id": {
 					Type:        "string",
-					Description: "Scene identifier. Accepts: entity_id (scene.xyz) or friendly_name (case-insensitive partial match). Required for get/create/update/delete/activate.",
+					Description: "Scene identifier. For create: use bare ID without 'scene.' prefix (e.g., 'movie_night'). For other actions: accepts entity_id (scene.xyz) or friendly_name (case-insensitive partial match).",
 				},
 				"name": {
 					Type:        "string",
