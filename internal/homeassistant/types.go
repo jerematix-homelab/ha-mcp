@@ -284,6 +284,19 @@ type AreaRegistryEntry struct {
 	Name    string   `json:"name"`
 	Picture string   `json:"picture,omitempty"`
 	Aliases []string `json:"aliases,omitempty"`
+	FloorID string   `json:"floor_id,omitempty"`
+	Icon    string   `json:"icon,omitempty"`
+	Labels  []string `json:"labels,omitempty"`
+}
+
+// AreaConfig represents configuration for creating or updating an area.
+type AreaConfig struct {
+	Name    string   `json:"name,omitempty"`
+	Icon    string   `json:"icon,omitempty"`
+	Picture string   `json:"picture,omitempty"`
+	FloorID string   `json:"floor_id,omitempty"`
+	Aliases []string `json:"aliases,omitempty"`
+	Labels  []string `json:"labels,omitempty"`
 }
 
 // StreamInfo represents camera stream information from Home Assistant.

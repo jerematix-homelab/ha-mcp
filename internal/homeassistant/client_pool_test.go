@@ -181,6 +181,13 @@ func (m *mockClientForPool) GetDeviceRegistry(_ context.Context) ([]DeviceRegist
 func (m *mockClientForPool) GetAreaRegistry(_ context.Context) ([]AreaRegistryEntry, error) {
 	return nil, nil
 }
+func (m *mockClientForPool) CreateArea(_ context.Context, _ AreaConfig) (*AreaRegistryEntry, error) {
+	return nil, nil
+}
+func (m *mockClientForPool) UpdateArea(_ context.Context, _ string, _ AreaConfig) (*AreaRegistryEntry, error) {
+	return nil, nil
+}
+func (m *mockClientForPool) DeleteArea(_ context.Context, _ string) error { return nil }
 func (m *mockClientForPool) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

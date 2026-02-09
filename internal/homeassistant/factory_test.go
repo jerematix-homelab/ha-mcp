@@ -251,6 +251,15 @@ func (m *mockNonCloserClient) GetDeviceRegistry(_ context.Context) ([]DeviceRegi
 func (m *mockNonCloserClient) GetAreaRegistry(_ context.Context) ([]AreaRegistryEntry, error) {
 	return []AreaRegistryEntry{}, nil
 }
+func (m *mockNonCloserClient) CreateArea(_ context.Context, _ AreaConfig) (*AreaRegistryEntry, error) {
+	return &AreaRegistryEntry{}, nil
+}
+func (m *mockNonCloserClient) UpdateArea(_ context.Context, _ string, _ AreaConfig) (*AreaRegistryEntry, error) {
+	return &AreaRegistryEntry{}, nil
+}
+func (m *mockNonCloserClient) DeleteArea(_ context.Context, _ string) error {
+	return nil
+}
 func (m *mockNonCloserClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

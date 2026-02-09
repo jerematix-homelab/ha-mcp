@@ -754,6 +754,99 @@ func (c *wsClientImpl) GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry
 	return entries, nil
 }
 
+// RemoveEntityRegistryEntry removes an entity from the entity registry.
+func (c *wsClientImpl) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
+	_, err := c.ws.SendCommand(ctx, "config/entity_registry/remove", map[string]any{
+		"entity_id": entityID,
+	})
+	return err
+}
+
+// CreateArea creates a new area in the area registry.
+func (c *wsClientImpl) CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error) {
+	params := make(map[string]any)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.Picture != "" {
+		params["picture"] = config.Picture
+	}
+	if config.FloorID != "" {
+		params["floor_id"] = config.FloorID
+	}
+	if config.Aliases != nil {
+		params["aliases"] = config.Aliases
+	}
+	if config.Labels != nil {
+		params["labels"] = config.Labels
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/area_registry/create", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create area: %w", err)
+	}
+
+	var entry AreaRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal created area: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// UpdateArea updates an existing area in the area registry.
+func (c *wsClientImpl) UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error) {
+	params := map[string]any{
+		"area_id": areaID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.Picture != "" {
+		params["picture"] = config.Picture
+	}
+	if config.FloorID != "" {
+		params["floor_id"] = config.FloorID
+	}
+	if config.Aliases != nil {
+		params["aliases"] = config.Aliases
+	}
+	if config.Labels != nil {
+		params["labels"] = config.Labels
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/area_registry/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update area: %w", err)
+	}
+
+	var entry AreaRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated area: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// DeleteArea deletes an area from the area registry.
+func (c *wsClientImpl) DeleteArea(ctx context.Context, areaID string) error {
+	_, err := c.ws.SendCommand(ctx, "config/area_registry/delete", map[string]any{
+		"area_id": areaID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete area: %w", err)
+	}
+	return nil
+}
+
 // =============================================================================
 // Media Operations (WebSocket-only)
 // =============================================================================

@@ -18,6 +18,9 @@ type mockClient struct {
 	entityRegistryCallCount int
 	deviceRegistryCallCount int
 	areaRegistryCallCount   int
+	createAreaCallCount     int
+	updateAreaCallCount     int
+	deleteAreaCallCount     int
 	createHelperCallCount   int
 	deleteHelperCallCount   int
 	mu                      sync.Mutex
@@ -56,6 +59,27 @@ func (m *mockClient) GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry, 
 	defer m.mu.Unlock()
 	m.areaRegistryCallCount++
 	return []AreaRegistryEntry{{AreaID: "area1", Name: "Living Room"}}, nil
+}
+
+func (m *mockClient) CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.createAreaCallCount++
+	return &AreaRegistryEntry{AreaID: "area_new", Name: config.Name}, nil
+}
+
+func (m *mockClient) UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.updateAreaCallCount++
+	return &AreaRegistryEntry{AreaID: areaID, Name: config.Name}, nil
+}
+
+func (m *mockClient) DeleteArea(ctx context.Context, areaID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.deleteAreaCallCount++
+	return nil
 }
 
 func (m *mockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
@@ -465,5 +489,125 @@ func TestCachedClient_AllCachedMethods(t *testing.T) {
 				t.Errorf("%s: expected 1 call (cached), got %d", tt.name, cachedCount)
 			}
 		})
+	}
+}
+
+func TestCachedClient_InvalidationAfterCreateArea(t *testing.T) {
+	mock := &mockClient{}
+	cfg := config.CacheConfig{
+		Enabled:         true,
+		ServicesTTLMin:  60,
+		ConfigTTLMin:    30,
+		EntityRegTTLMin: 10,
+		DeviceRegTTLMin: 10,
+		AreaRegTTLMin:   30,
+	}
+	logger := logging.New(logging.LevelError)
+	client := NewCachedClient(mock, cfg, logger)
+
+	ctx := context.Background()
+
+	// Populate area registry cache
+	_, err := client.GetAreaRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetAreaRegistry failed: %v", err)
+	}
+	if mock.areaRegistryCallCount != 1 {
+		t.Errorf("Expected 1 API call, got %d", mock.areaRegistryCallCount)
+	}
+
+	// Create an area - should invalidate cache
+	_, err = client.CreateArea(ctx, AreaConfig{Name: "New Room"})
+	if err != nil {
+		t.Fatalf("CreateArea failed: %v", err)
+	}
+
+	// Next call should hit API again (cache invalidated)
+	_, err = client.GetAreaRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetAreaRegistry failed: %v", err)
+	}
+	if mock.areaRegistryCallCount != 2 {
+		t.Errorf("Expected 2 API calls (cache invalidated), got %d", mock.areaRegistryCallCount)
+	}
+}
+
+func TestCachedClient_InvalidationAfterUpdateArea(t *testing.T) {
+	mock := &mockClient{}
+	cfg := config.CacheConfig{
+		Enabled:         true,
+		ServicesTTLMin:  60,
+		ConfigTTLMin:    30,
+		EntityRegTTLMin: 10,
+		DeviceRegTTLMin: 10,
+		AreaRegTTLMin:   30,
+	}
+	logger := logging.New(logging.LevelError)
+	client := NewCachedClient(mock, cfg, logger)
+
+	ctx := context.Background()
+
+	// Populate area registry cache
+	_, err := client.GetAreaRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetAreaRegistry failed: %v", err)
+	}
+	if mock.areaRegistryCallCount != 1 {
+		t.Errorf("Expected 1 API call, got %d", mock.areaRegistryCallCount)
+	}
+
+	// Update an area - should invalidate cache
+	_, err = client.UpdateArea(ctx, "living_room", AreaConfig{Name: "Living Room Updated"})
+	if err != nil {
+		t.Fatalf("UpdateArea failed: %v", err)
+	}
+
+	// Next call should hit API again (cache invalidated)
+	_, err = client.GetAreaRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetAreaRegistry failed: %v", err)
+	}
+	if mock.areaRegistryCallCount != 2 {
+		t.Errorf("Expected 2 API calls (cache invalidated), got %d", mock.areaRegistryCallCount)
+	}
+}
+
+func TestCachedClient_InvalidationAfterDeleteArea(t *testing.T) {
+	mock := &mockClient{}
+	cfg := config.CacheConfig{
+		Enabled:         true,
+		ServicesTTLMin:  60,
+		ConfigTTLMin:    30,
+		EntityRegTTLMin: 10,
+		DeviceRegTTLMin: 10,
+		AreaRegTTLMin:   30,
+	}
+	logger := logging.New(logging.LevelError)
+	client := NewCachedClient(mock, cfg, logger)
+
+	ctx := context.Background()
+
+	// Populate area registry cache
+	_, err := client.GetAreaRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetAreaRegistry failed: %v", err)
+	}
+	if mock.areaRegistryCallCount != 1 {
+		t.Errorf("Expected 1 API call, got %d", mock.areaRegistryCallCount)
+	}
+
+	// Delete an area - should invalidate cache
+	err = client.DeleteArea(ctx, "old_room")
+	if err != nil {
+		t.Fatalf("DeleteArea failed: %v", err)
+	}
+
+	// Next call should hit API again (cache invalidated)
+	_, err = client.GetAreaRegistry(ctx)
+	if err != nil {
+		t.Fatalf("GetAreaRegistry failed: %v", err)
+	}
+	if mock.areaRegistryCallCount != 2 {
+		t.Errorf("Expected 2 API calls (cache invalidated), got %d", mock.areaRegistryCallCount)
 	}
 }
