@@ -4,6 +4,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -115,6 +116,22 @@ func (s *IntegrationTestSuite) TearDownSuite() {
 		s.T().Errorf("Test entities still remain after cleanup: %v", entities)
 	}
 
+	// Verify no test areas remain
+	areaCount, areas, err := CountTestAreas(cleanupCtx, s.client)
+	if err != nil {
+		s.T().Logf("Failed to verify area cleanup: %v", err)
+	} else if areaCount > 0 {
+		s.T().Errorf("Test areas still remain after cleanup: %v", areas)
+	}
+
+	// Verify no test dashboards remain
+	dashboardCount, dashboards, err := CountTestDashboards(cleanupCtx, s.client)
+	if err != nil {
+		s.T().Logf("Failed to verify dashboard cleanup: %v", err)
+	} else if dashboardCount > 0 {
+		s.T().Errorf("Test dashboards still remain after cleanup: %v", dashboards)
+	}
+
 	if s.cancel != nil {
 		s.cancel()
 	}
@@ -202,4 +219,46 @@ type ScriptTestSuite struct {
 // SceneTestSuite is a specialized suite for scene tests.
 type SceneTestSuite struct {
 	IntegrationTestSuite
+}
+
+// AreaTestSuite is a specialized suite for area tests.
+type AreaTestSuite struct {
+	IntegrationTestSuite
+}
+
+// FindAreaByID finds an area by ID in the area registry.
+func (s *AreaTestSuite) FindAreaByID(areaID string) (*homeassistant.AreaRegistryEntry, error) {
+	areas, err := s.Client().GetAreaRegistry(s.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, area := range areas {
+		if area.AreaID == areaID {
+			return &area, nil
+		}
+	}
+
+	return nil, fmt.Errorf("area %s not found in registry", areaID)
+}
+
+// DashboardTestSuite is a specialized suite for dashboard tests.
+type DashboardTestSuite struct {
+	IntegrationTestSuite
+}
+
+// FindDashboardByURLPath finds a dashboard by URL path in the dashboard list.
+func (s *DashboardTestSuite) FindDashboardByURLPath(urlPath string) (*homeassistant.DashboardEntry, error) {
+	dashboards, err := s.Client().ListDashboards(s.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dashboard := range dashboards {
+		if dashboard.URLPath == urlPath {
+			return &dashboard, nil
+		}
+	}
+
+	return nil, fmt.Errorf("dashboard with url_path %s not found", urlPath)
 }
