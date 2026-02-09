@@ -380,6 +380,15 @@ func (c *CachedClient) DeleteHelper(ctx context.Context, helperID string) error 
 	return err
 }
 
+// RemoveEntityRegistryEntry removes an entity and invalidates registry caches.
+func (c *CachedClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
+	err := c.client.RemoveEntityRegistryEntry(ctx, entityID)
+	if err == nil {
+		c.InvalidateRegistryCaches()
+	}
+	return err
+}
+
 // Delegated methods - all other Client interface methods delegate to the underlying client.
 // These methods are pass-through implementations that don't require caching.
 

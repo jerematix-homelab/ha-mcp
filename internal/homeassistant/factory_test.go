@@ -251,6 +251,9 @@ func (m *mockNonCloserClient) GetDeviceRegistry(_ context.Context) ([]DeviceRegi
 func (m *mockNonCloserClient) GetAreaRegistry(_ context.Context) ([]AreaRegistryEntry, error) {
 	return []AreaRegistryEntry{}, nil
 }
+func (m *mockNonCloserClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
+	return nil
+}
 func (m *mockNonCloserClient) SignPath(_ context.Context, _ string, _ int) (string, error) {
 	return "", nil
 }

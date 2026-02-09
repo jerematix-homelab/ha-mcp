@@ -181,6 +181,9 @@ func (m *mockClientForPool) GetDeviceRegistry(_ context.Context) ([]DeviceRegist
 func (m *mockClientForPool) GetAreaRegistry(_ context.Context) ([]AreaRegistryEntry, error) {
 	return nil, nil
 }
+func (m *mockClientForPool) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
+	return nil
+}
 func (m *mockClientForPool) SignPath(_ context.Context, _ string, _ int) (string, error) {
 	return "", nil
 }

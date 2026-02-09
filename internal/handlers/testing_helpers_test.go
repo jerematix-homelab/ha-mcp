@@ -57,9 +57,10 @@ type UniversalMockClient struct {
 	CallServiceFn func(ctx context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error)
 
 	// Registry operations
-	GetEntityRegistryFn func(ctx context.Context) ([]homeassistant.EntityRegistryEntry, error)
-	GetDeviceRegistryFn func(ctx context.Context) ([]homeassistant.DeviceRegistryEntry, error)
-	GetAreaRegistryFn   func(ctx context.Context) ([]homeassistant.AreaRegistryEntry, error)
+	GetEntityRegistryFn         func(ctx context.Context) ([]homeassistant.EntityRegistryEntry, error)
+	GetDeviceRegistryFn         func(ctx context.Context) ([]homeassistant.DeviceRegistryEntry, error)
+	GetAreaRegistryFn           func(ctx context.Context) ([]homeassistant.AreaRegistryEntry, error)
+	RemoveEntityRegistryEntryFn func(ctx context.Context, entityID string) error
 
 	// Media operations
 	SignPathFn        func(ctx context.Context, path string, expires int) (string, error)
@@ -311,6 +312,13 @@ func (m *UniversalMockClient) GetAreaRegistry(ctx context.Context) ([]homeassist
 		return m.GetAreaRegistryFn(ctx)
 	}
 	return []homeassistant.AreaRegistryEntry{}, nil
+}
+
+func (m *UniversalMockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
+	if m.RemoveEntityRegistryEntryFn != nil {
+		return m.RemoveEntityRegistryEntryFn(ctx, entityID)
+	}
+	return nil
 }
 
 // Media operations implementation

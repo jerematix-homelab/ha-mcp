@@ -58,6 +58,10 @@ func (m *mockClient) GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry, 
 	return []AreaRegistryEntry{{AreaID: "area1", Name: "Living Room"}}, nil
 }
 
+func (m *mockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
+	return nil
+}
+
 func (m *mockClient) CreateHelper(ctx context.Context, helper HelperConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

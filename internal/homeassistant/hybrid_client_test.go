@@ -636,6 +636,10 @@ func (m *mockWSOperations) GetAreaRegistry(ctx context.Context) ([]AreaRegistryE
 	return nil, nil
 }
 
+func (m *mockWSOperations) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockWSOperations) SignPath(ctx context.Context, path string, expires int) (string, error) {
 	if m.signPathFunc != nil {
 		return m.signPathFunc(ctx, path, expires)
