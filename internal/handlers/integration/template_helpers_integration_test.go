@@ -223,3 +223,148 @@ func (s *TemplateHelperIntegrationTestSuite) TestTemplateSensorWithStateClass() 
 
 // Note: TestTemplateBinarySensorWithDelay removed because delay_on/delay_off
 // are not supported by the Config Entry Flow API (only available in YAML config)
+
+func (s *TemplateHelperIntegrationTestSuite) TestTemplateSensorWithIcon() {
+	// Test that icons are correctly set for Config Entry Flow helpers
+	// Icons are filtered from the create flow and set via Entity Registry after creation
+	sourceName := GenerateTestID("tmpl_icon_src")
+	sourceEntityID := BuildEntityID("input_number", sourceName)
+	templateName := GenerateTestID("tmpl_icon")
+	templateEntityID := BuildEntityID("sensor", templateName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+		_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+	})
+
+	// Create source input_number
+	sourceConfig := homeassistant.HelperConfig{
+		Platform: "input_number",
+		Config: map[string]any{
+			"name":    sourceName,
+			"min":     0.0,
+			"max":     100.0,
+			"initial": 42.0,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), sourceConfig)
+	s.Require().NoError(err, "Failed to create source input_number")
+
+	_, err = s.WaitForEntity(sourceEntityID, 5*time.Second)
+	s.Require().NoError(err, "Source input_number did not appear")
+
+	// Create template sensor with custom icon
+	templateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"name":                templateName,
+			"state":               "{{ states('" + sourceEntityID + "') | float }}",
+			"icon":                "mdi:thermometer",
+			"unit_of_measurement": "units",
+		},
+	}
+
+	err = s.Client().CreateHelper(s.Context(), templateConfig)
+	s.Require().NoError(err, "Failed to create template sensor with icon")
+
+	entity, err := s.WaitForEntity(templateEntityID, 5*time.Second)
+	s.Require().NoError(err, "Template sensor did not appear")
+	s.NotNil(entity)
+
+	// Verify the sensor exists and has a state
+	s.NotEmpty(entity.State, "Template sensor should have a state")
+
+	// Wait a bit for registry update to be visible
+	time.Sleep(2 * time.Second)
+
+	// Verify icon was set via Entity Registry
+	// Get entity registry to check icon field
+	registry, err := s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err, "Failed to get entity registry")
+
+	var foundEntry *homeassistant.EntityRegistryEntry
+	for i := range registry {
+		if registry[i].EntityID == templateEntityID {
+			foundEntry = &registry[i]
+			break
+		}
+	}
+
+	s.Require().NotNil(foundEntry, "Template sensor should exist in entity registry")
+	s.T().Logf("Registry entry: EntityID=%s, Icon=%s, Platform=%s", foundEntry.EntityID, foundEntry.Icon, foundEntry.Platform)
+	s.Equal("mdi:thermometer", foundEntry.Icon, "Icon should be set to mdi:thermometer")
+
+	// Cleanup
+	_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+	_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+}
+
+func (s *TemplateHelperIntegrationTestSuite) TestTemplateBinarySensorWithIcon() {
+	// Test that icons work for binary sensors too
+	sourceName := GenerateTestID("tmpl_bin_icon_src")
+	sourceEntityID := BuildEntityID("input_boolean", sourceName)
+	templateName := GenerateTestID("tmpl_bin_icon")
+	templateEntityID := BuildEntityID("binary_sensor", templateName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+		_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+	})
+
+	// Create source input_boolean
+	sourceConfig := homeassistant.HelperConfig{
+		Platform: "input_boolean",
+		Config: map[string]any{
+			"name":    sourceName,
+			"initial": true,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), sourceConfig)
+	s.Require().NoError(err, "Failed to create source input_boolean")
+
+	_, err = s.WaitForEntity(sourceEntityID, 5*time.Second)
+	s.Require().NoError(err, "Source input_boolean did not appear")
+
+	// Create template binary sensor with custom icon
+	templateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"name":         templateName,
+			"state":        "{{ is_state('" + sourceEntityID + "', 'on') }}",
+			"icon":         "mdi:alert-circle",
+			"device_class": "problem",
+			"type":         "binary_sensor",
+		},
+	}
+
+	err = s.Client().CreateHelper(s.Context(), templateConfig)
+	s.Require().NoError(err, "Failed to create template binary sensor with icon")
+
+	entity, err := s.WaitForEntity(templateEntityID, 5*time.Second)
+	s.Require().NoError(err, "Template binary sensor did not appear")
+	s.NotNil(entity)
+
+	// Verify the sensor exists
+	s.NotEmpty(entity.State, "Template binary sensor should have a state")
+
+	// Verify icon was set via Entity Registry
+	registry, err := s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err, "Failed to get entity registry")
+
+	var foundEntry *homeassistant.EntityRegistryEntry
+	for i := range registry {
+		if registry[i].EntityID == templateEntityID {
+			foundEntry = &registry[i]
+			break
+		}
+	}
+
+	s.Require().NotNil(foundEntry, "Template binary sensor should exist in entity registry")
+	s.Equal("mdi:alert-circle", foundEntry.Icon, "Icon should be set to mdi:alert-circle")
+
+	// Cleanup
+	_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+	_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+}
