@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 30 specialized tools for advanced automation, scripts, scenes, helpers, devices, and areas
+- **Power User Focus**: 35 specialized tools for advanced automation, scripts, scenes, helpers, devices, areas, labels, floors, zones, persons, and tags
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -444,14 +444,19 @@ Authorization: Bearer <your-ha-access-token>
 
 #### Registry Tools
 
-| Tool                  | Description                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `get_registry`        | Query registries (type: entities, devices, areas, all; format: natural/json)                                 |
-| `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; format: natural/json for list/get) |
+| Tool                  | Description                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `get_registry`        | Query registries (type: entities, devices, areas, all; format: natural/json)                                  |
+| `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; format: natural/json for list/get)  |
+| `manage_label`        | Consolidated label management (actions: list, get, create, update, delete; format: natural/json for list/get) |
+| `manage_floor`        | Consolidated floor management (actions: list, get, create, update, delete; format: natural/json for list/get) |
+| `manage_zone`         | Consolidated zone management (actions: list, get, create, update, delete; format: natural/json for list/get)  |
+| `manage_person`       | Consolidated person management (actions: list, get, create, update, delete; format: natural/json for list/get)|
+| `manage_tag`          | Consolidated tag management (actions: list, get, create, update, delete; format: natural/json for list/get)   |
 | `manage_entity`       | Entity registry management (actions: get, update; update fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases; format: natural/json) |
 | `manage_device`       | Device registry management (actions: get, update; update fields: name_by_user, area_id, disabled_by, labels; format: natural/json) |
-| `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain                           |
-| `get_config_entry`    | Get a single config entry by entry ID                                                                        |
+| `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain                            |
+| `get_config_entry`    | Get a single config entry by entry ID                                                                         |
 
 #### Automation Tools
 
@@ -471,19 +476,20 @@ ha-mcp provides comprehensive support for all 14 Home Assistant helper types thr
 | Tool            | Description                                                                                                                |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `list_helpers`  | List all helpers across all types                                                                                          |
-| `manage_helper` | List, create, delete, or get details for any helper type (supports schedule, counter, timer details; format: natural/json) |
+| `manage_helper` | List, create, update, delete, or get details for any helper type (supports schedule, counter, timer details; format: natural/json) |
 | `helper_action` | Execute runtime actions (toggle, set, increment, start, etc.)                                                              |
 
 ##### manage_helper
 
 Universal tool for helper lifecycle management:
 
-| Action        | Description                                                                            |
-| ------------- | -------------------------------------------------------------------------------------- |
-| `list`        | List all helpers with optional format (natural/json) and verbose mode                  |
-| `create`      | Create a new helper (requires `type`, `id`, `name`)                                    |
-| `delete`      | Delete an existing helper (requires `entity_id`)                                       |
-| `get_details` | Get detailed configuration (requires `entity_id`, schedule only, format: natural/json) |
+| Action        | Description                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `list`        | List all helpers with optional format (natural/json) and verbose mode                                |
+| `create`      | Create a new helper (requires `type`, `id`, `name`)                                                  |
+| `update`      | Update an existing helper (requires `entity_id`; WebSocket helpers only)                             |
+| `delete`      | Delete an existing helper (requires `entity_id`)                                                     |
+| `get_details` | Get detailed configuration (requires `entity_id`; supports schedule, counter, timer; format: natural/json) |
 
 **Supported helper types:** `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`, `group`, `template_sensor`, `template_binary_sensor`, `threshold`, `derivative`, `integral`
 
@@ -611,7 +617,7 @@ Most tools support two output formats via the `format` parameter:
 - **`json`**: Structured JSON output for backward compatibility and programmatic access
   - Example: `{"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 204, ...}}`
 
-**Tools with format support**: `query_entities`, `query_devices`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_helper`, `helper_action`, `manage_hacs`
+**Tools with format support**: `query_entities`, `query_devices`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_label`, `manage_floor`, `manage_zone`, `manage_person`, `manage_tag`, `manage_helper`, `helper_action`, `manage_hacs`
 
 ### Example Requests
 
@@ -970,6 +976,12 @@ ha-mcp/
 │   │   ├── helpers_consolidated.go  # manage_helper and helper_action tools
 │   │   ├── scripts.go           # Consolidated manage_script tool
 │   │   ├── scenes.go            # Consolidated manage_scene tool
+│   │   ├── areas.go             # Consolidated manage_area tool
+│   │   ├── labels.go            # Consolidated manage_label tool
+│   │   ├── floors.go            # Consolidated manage_floor tool
+│   │   ├── zones.go             # Consolidated manage_zone tool
+│   │   ├── persons.go           # Consolidated manage_person tool
+│   │   ├── tags.go              # Consolidated manage_tag tool
 │   │   ├── registry.go          # Registry helper functions
 │   │   ├── registry_consolidated.go # Consolidated get_registry tool
 │   │   ├── media.go             # Media tool handlers

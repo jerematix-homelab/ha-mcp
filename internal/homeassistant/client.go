@@ -72,6 +72,30 @@ type Client interface {
 	UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
 	DeleteLabel(ctx context.Context, labelID string) error
 
+	// Floor registry operations
+	GetFloorRegistry(ctx context.Context) ([]FloorRegistryEntry, error)
+	CreateFloor(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error)
+	UpdateFloor(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error)
+	DeleteFloor(ctx context.Context, floorID string) error
+
+	// Zone operations
+	GetZones(ctx context.Context) ([]ZoneRegistryEntry, error)
+	CreateZone(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error)
+	UpdateZone(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error)
+	DeleteZone(ctx context.Context, zoneID string) error
+
+	// Person registry operations
+	GetPersons(ctx context.Context) ([]PersonRegistryEntry, error)
+	CreatePerson(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error)
+	UpdatePerson(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error)
+	DeletePerson(ctx context.Context, personID string) error
+
+	// Tag registry operations
+	GetTags(ctx context.Context) ([]TagRegistryEntry, error)
+	CreateTag(ctx context.Context, config TagConfig) (*TagRegistryEntry, error)
+	UpdateTag(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error)
+	DeleteTag(ctx context.Context, tagID string) error
+
 	// Entity registry modification operations
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
 	UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error)

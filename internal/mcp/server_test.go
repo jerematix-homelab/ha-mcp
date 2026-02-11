@@ -171,6 +171,70 @@ func (m *mockHAClient) DeleteLabel(_ context.Context, _ string) error {
 	return nil
 }
 
+func (m *mockHAClient) GetFloorRegistry(_ context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) CreateFloor(_ context.Context, _ homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) UpdateFloor(_ context.Context, _ string, _ homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) DeleteFloor(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockHAClient) GetZones(_ context.Context) ([]homeassistant.ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) CreateZone(_ context.Context, _ homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) UpdateZone(_ context.Context, _ string, _ homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) DeleteZone(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockHAClient) GetPersons(_ context.Context) ([]homeassistant.PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) CreatePerson(_ context.Context, _ homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) UpdatePerson(_ context.Context, _ string, _ homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) DeletePerson(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockHAClient) GetTags(_ context.Context) ([]homeassistant.TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) CreateTag(_ context.Context, _ homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) UpdateTag(_ context.Context, _ string, _ homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) DeleteTag(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockHAClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

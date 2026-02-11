@@ -103,6 +103,30 @@ func RegisterLabelTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
+// RegisterFloorTools registers all floor management tools with the registry.
+func RegisterFloorTools(registry *mcp.Registry) {
+	h := NewFloorHandlers()
+	h.RegisterTools(registry)
+}
+
+// RegisterZoneTools registers all zone management tools with the registry.
+func RegisterZoneTools(registry *mcp.Registry) {
+	h := NewZoneHandlers()
+	h.RegisterTools(registry)
+}
+
+// RegisterPersonTools registers all person management tools with the registry.
+func RegisterPersonTools(registry *mcp.Registry) {
+	h := NewPersonHandlers()
+	h.RegisterTools(registry)
+}
+
+// RegisterTagTools registers all tag management tools with the registry.
+func RegisterTagTools(registry *mcp.Registry) {
+	h := NewTagHandlers()
+	h.RegisterTools(registry)
+}
+
 // RegisterDeviceQueryTools registers all device query tools with the registry.
 func RegisterDeviceQueryTools(registry *mcp.Registry) {
 	h := NewDeviceQueryHandlers()
@@ -145,6 +169,18 @@ func RegisterAllTools(registry *mcp.Registry) {
 
 	// Label management tools (consolidated: manage_label for full CRUD)
 	RegisterLabelTools(registry)
+
+	// Floor management tools (consolidated: manage_floor for full CRUD)
+	RegisterFloorTools(registry)
+
+	// Zone management tools (consolidated: manage_zone for full CRUD)
+	RegisterZoneTools(registry)
+
+	// Person management tools (consolidated: manage_person for full CRUD)
+	RegisterPersonTools(registry)
+
+	// Tag management tools (consolidated: manage_tag for full CRUD)
+	RegisterTagTools(registry)
 
 	// Entity query tools (consolidated: query_entities replaces get_states/get_history/get_statistics/list_domains)
 	RegisterConsolidatedEntityQueryTools(registry)

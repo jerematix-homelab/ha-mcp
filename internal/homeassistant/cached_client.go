@@ -36,6 +36,7 @@ type CachedClient struct {
 	deviceRegistryCache *cacheEntry
 	areaRegistryCache   *cacheEntry
 	labelRegistryCache  *cacheEntry
+	floorRegistryCache  *cacheEntry
 
 	// singleflight groups prevent duplicate API calls during concurrent access
 	servicesGroup       singleflight.Group
@@ -44,6 +45,7 @@ type CachedClient struct {
 	deviceRegistryGroup singleflight.Group
 	areaRegistryGroup   singleflight.Group
 	labelRegistryGroup  singleflight.Group
+	floorRegistryGroup  singleflight.Group
 
 	config config.CacheConfig
 	logger *logging.Logger
@@ -123,6 +125,7 @@ func (c *CachedClient) InvalidateRegistryCaches() {
 	c.deviceRegistryCache = nil
 	c.areaRegistryCache = nil
 	c.labelRegistryCache = nil
+	c.floorRegistryCache = nil
 	c.logger.Debug("Registry caches invalidated")
 }
 
@@ -414,6 +417,54 @@ func (c *CachedClient) GetLabelRegistry(ctx context.Context) ([]LabelRegistryEnt
 	return result.([]LabelRegistryEntry), nil
 }
 
+// GetFloorRegistry returns cached floor registry or fetches from API.
+// Uses singleflight to prevent duplicate API calls during concurrent access.
+func (c *CachedClient) GetFloorRegistry(ctx context.Context) ([]FloorRegistryEntry, error) {
+	// Check cache first with read lock
+	c.mu.RLock()
+	if c.floorRegistryCache != nil && !c.floorRegistryCache.isExpired() {
+		data := c.floorRegistryCache.data.([]FloorRegistryEntry)
+		c.mu.RUnlock()
+		c.logger.Trace("Floor registry cache hit")
+		return data, nil
+	}
+	c.mu.RUnlock()
+
+	// Use singleflight to ensure only one goroutine fetches data
+	result, err, _ := c.floorRegistryGroup.Do("floor_registry", func() (any, error) {
+		// Double-check cache after acquiring singleflight lock
+		c.mu.RLock()
+		if c.floorRegistryCache != nil && !c.floorRegistryCache.isExpired() {
+			data := c.floorRegistryCache.data.([]FloorRegistryEntry)
+			c.mu.RUnlock()
+			return data, nil
+		}
+		c.mu.RUnlock()
+
+		// Fetch from API
+		floors, err := c.client.GetFloorRegistry(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		c.floorRegistryCache = &cacheEntry{
+			data:      floors,
+			expiresAt: time.Now().Add(c.areaRegTTL()),
+		}
+		c.mu.Unlock()
+		c.logger.Debug("Floor registry cached", "count", len(floors), "ttl", c.areaRegTTL())
+
+		return floors, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result.([]FloorRegistryEntry), nil
+}
+
 // CreateHelper creates a helper and invalidates registry caches.
 func (c *CachedClient) CreateHelper(ctx context.Context, helper HelperConfig) error {
 	err := c.client.CreateHelper(ctx, helper)
@@ -522,6 +573,33 @@ func (c *CachedClient) DeleteLabel(ctx context.Context, labelID string) error {
 	return err
 }
 
+// CreateFloor creates a floor and invalidates floor registry cache.
+func (c *CachedClient) CreateFloor(ctx context.Context, cfg FloorConfig) (*FloorRegistryEntry, error) {
+	entry, err := c.client.CreateFloor(ctx, cfg)
+	if err == nil {
+		c.invalidateFloorRegistryCache()
+	}
+	return entry, err
+}
+
+// UpdateFloor updates a floor and invalidates floor registry cache.
+func (c *CachedClient) UpdateFloor(ctx context.Context, floorID string, cfg FloorConfig) (*FloorRegistryEntry, error) {
+	entry, err := c.client.UpdateFloor(ctx, floorID, cfg)
+	if err == nil {
+		c.invalidateFloorRegistryCache()
+	}
+	return entry, err
+}
+
+// DeleteFloor deletes a floor and invalidates floor registry cache.
+func (c *CachedClient) DeleteFloor(ctx context.Context, floorID string) error {
+	err := c.client.DeleteFloor(ctx, floorID)
+	if err == nil {
+		c.invalidateFloorRegistryCache()
+	}
+	return err
+}
+
 // invalidateAreaRegistryCache clears the area registry cache.
 func (c *CachedClient) invalidateAreaRegistryCache() {
 	c.mu.Lock()
@@ -538,6 +616,14 @@ func (c *CachedClient) invalidateLabelRegistryCache() {
 	c.logger.Debug("Label registry cache invalidated")
 }
 
+// invalidateFloorRegistryCache clears the floor registry cache.
+func (c *CachedClient) invalidateFloorRegistryCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.floorRegistryCache = nil
+	c.logger.Debug("Floor registry cache invalidated")
+}
+
 func (c *CachedClient) invalidateEntityRegistryCache() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -550,6 +636,66 @@ func (c *CachedClient) invalidateDeviceRegistryCache() {
 	defer c.mu.Unlock()
 	c.deviceRegistryCache = nil
 	c.logger.Debug("Device registry cache invalidated")
+}
+
+// GetZones delegates to the underlying client (no caching - zones change dynamically).
+func (c *CachedClient) GetZones(ctx context.Context) ([]ZoneRegistryEntry, error) {
+	return c.client.GetZones(ctx)
+}
+
+// CreateZone delegates to the underlying client.
+func (c *CachedClient) CreateZone(ctx context.Context, cfg ZoneConfig) (*ZoneRegistryEntry, error) {
+	return c.client.CreateZone(ctx, cfg)
+}
+
+// UpdateZone delegates to the underlying client.
+func (c *CachedClient) UpdateZone(ctx context.Context, zoneID string, cfg ZoneConfig) (*ZoneRegistryEntry, error) {
+	return c.client.UpdateZone(ctx, zoneID, cfg)
+}
+
+// DeleteZone delegates to the underlying client.
+func (c *CachedClient) DeleteZone(ctx context.Context, zoneID string) error {
+	return c.client.DeleteZone(ctx, zoneID)
+}
+
+// GetPersons delegates to the underlying client (no caching - persons change dynamically).
+func (c *CachedClient) GetPersons(ctx context.Context) ([]PersonRegistryEntry, error) {
+	return c.client.GetPersons(ctx)
+}
+
+// CreatePerson delegates to the underlying client.
+func (c *CachedClient) CreatePerson(ctx context.Context, cfg PersonConfig) (*PersonRegistryEntry, error) {
+	return c.client.CreatePerson(ctx, cfg)
+}
+
+// UpdatePerson delegates to the underlying client.
+func (c *CachedClient) UpdatePerson(ctx context.Context, personID string, cfg PersonConfig) (*PersonRegistryEntry, error) {
+	return c.client.UpdatePerson(ctx, personID, cfg)
+}
+
+// DeletePerson delegates to the underlying client.
+func (c *CachedClient) DeletePerson(ctx context.Context, personID string) error {
+	return c.client.DeletePerson(ctx, personID)
+}
+
+// GetTags delegates to the underlying client (no caching - tags change when scanned).
+func (c *CachedClient) GetTags(ctx context.Context) ([]TagRegistryEntry, error) {
+	return c.client.GetTags(ctx)
+}
+
+// CreateTag delegates to the underlying client.
+func (c *CachedClient) CreateTag(ctx context.Context, cfg TagConfig) (*TagRegistryEntry, error) {
+	return c.client.CreateTag(ctx, cfg)
+}
+
+// UpdateTag delegates to the underlying client.
+func (c *CachedClient) UpdateTag(ctx context.Context, tagID string, cfg TagConfig) (*TagRegistryEntry, error) {
+	return c.client.UpdateTag(ctx, tagID, cfg)
+}
+
+// DeleteTag delegates to the underlying client.
+func (c *CachedClient) DeleteTag(ctx context.Context, tagID string) error {
+	return c.client.DeleteTag(ctx, tagID)
 }
 
 // Delegated methods - all other Client interface methods delegate to the underlying client.

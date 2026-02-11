@@ -275,6 +275,71 @@ func (m *mockNonCloserClient) UpdateLabel(_ context.Context, _ string, _ LabelCo
 func (m *mockNonCloserClient) DeleteLabel(_ context.Context, _ string) error {
 	return nil
 }
+
+func (m *mockNonCloserClient) GetFloorRegistry(_ context.Context) ([]FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) CreateFloor(_ context.Context, _ FloorConfig) (*FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) UpdateFloor(_ context.Context, _ string, _ FloorConfig) (*FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) DeleteFloor(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockNonCloserClient) GetZones(_ context.Context) ([]ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) CreateZone(_ context.Context, _ ZoneConfig) (*ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) UpdateZone(_ context.Context, _ string, _ ZoneConfig) (*ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) DeleteZone(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockNonCloserClient) GetPersons(_ context.Context) ([]PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) CreatePerson(_ context.Context, _ PersonConfig) (*PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) UpdatePerson(_ context.Context, _ string, _ PersonConfig) (*PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) DeletePerson(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockNonCloserClient) GetTags(_ context.Context) ([]TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) CreateTag(_ context.Context, _ TagConfig) (*TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) UpdateTag(_ context.Context, _ string, _ TagConfig) (*TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) DeleteTag(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockNonCloserClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

@@ -340,6 +340,76 @@ type LabelConfig struct {
 	Description string `json:"description,omitempty"`
 }
 
+// FloorRegistryEntry represents an entry in the Home Assistant floor registry.
+type FloorRegistryEntry struct {
+	FloorID string   `json:"floor_id"`
+	Name    string   `json:"name"`
+	Level   *int     `json:"level,omitempty"`
+	Icon    string   `json:"icon,omitempty"`
+	Aliases []string `json:"aliases,omitempty"`
+}
+
+// FloorConfig represents configuration for creating or updating a floor.
+type FloorConfig struct {
+	Name    string   `json:"name,omitempty"`
+	Level   *int     `json:"level,omitempty"`
+	Icon    string   `json:"icon,omitempty"`
+	Aliases []string `json:"aliases,omitempty"`
+}
+
+// ZoneRegistryEntry represents an entry in the Home Assistant zone registry.
+type ZoneRegistryEntry struct {
+	ID        string  `json:"id"`
+	Name      string  `json:"name"`
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Radius    float64 `json:"radius"`
+	Icon      string  `json:"icon,omitempty"`
+	Passive   bool    `json:"passive,omitempty"`
+}
+
+// ZoneConfig represents configuration for creating or updating a zone.
+type ZoneConfig struct {
+	Name      string   `json:"name,omitempty"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+	Radius    *float64 `json:"radius,omitempty"`
+	Icon      string   `json:"icon,omitempty"`
+	Passive   *bool    `json:"passive,omitempty"`
+}
+
+// PersonRegistryEntry represents an entry in the Home Assistant person registry.
+type PersonRegistryEntry struct {
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	UserID         string   `json:"user_id,omitempty"`
+	DeviceTrackers []string `json:"device_trackers,omitempty"`
+	Picture        string   `json:"picture,omitempty"`
+}
+
+// PersonConfig represents configuration for creating or updating a person.
+type PersonConfig struct {
+	Name           string   `json:"name,omitempty"`
+	UserID         string   `json:"user_id,omitempty"`
+	DeviceTrackers []string `json:"device_trackers,omitempty"`
+	Picture        string   `json:"picture,omitempty"`
+}
+
+// TagRegistryEntry represents an entry in the Home Assistant tag registry.
+type TagRegistryEntry struct {
+	TagID       string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	LastScanned string `json:"last_scanned,omitempty"`
+}
+
+// TagConfig represents configuration for creating or updating a tag.
+type TagConfig struct {
+	TagID       string `json:"tag_id,omitempty"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 // StreamInfo represents camera stream information from Home Assistant.
 type StreamInfo struct {
 	URL string `json:"url"`

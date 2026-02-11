@@ -98,6 +98,70 @@ func (m *mockClient) DeleteLabel(ctx context.Context, labelID string) error {
 	return nil
 }
 
+func (m *mockClient) GetFloorRegistry(_ context.Context) ([]FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) CreateFloor(_ context.Context, _ FloorConfig) (*FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) UpdateFloor(_ context.Context, _ string, _ FloorConfig) (*FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) DeleteFloor(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockClient) GetZones(_ context.Context) ([]ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) CreateZone(_ context.Context, _ ZoneConfig) (*ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) UpdateZone(_ context.Context, _ string, _ ZoneConfig) (*ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) DeleteZone(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockClient) GetPersons(_ context.Context) ([]PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) CreatePerson(_ context.Context, _ PersonConfig) (*PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) UpdatePerson(_ context.Context, _ string, _ PersonConfig) (*PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) DeletePerson(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockClient) GetTags(_ context.Context) ([]TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) CreateTag(_ context.Context, _ TagConfig) (*TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) UpdateTag(_ context.Context, _ string, _ TagConfig) (*TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) DeleteTag(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
 	return nil
 }

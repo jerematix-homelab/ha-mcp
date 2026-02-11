@@ -67,6 +67,22 @@ type UniversalMockClient struct {
 	CreateLabelFn               func(ctx context.Context, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error)
 	UpdateLabelFn               func(ctx context.Context, labelID string, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error)
 	DeleteLabelFn               func(ctx context.Context, labelID string) error
+	GetFloorRegistryFn          func(ctx context.Context) ([]homeassistant.FloorRegistryEntry, error)
+	CreateFloorFn               func(ctx context.Context, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error)
+	UpdateFloorFn               func(ctx context.Context, floorID string, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error)
+	DeleteFloorFn               func(ctx context.Context, floorID string) error
+	GetZonesFn                  func(ctx context.Context) ([]homeassistant.ZoneRegistryEntry, error)
+	CreateZoneFn                func(ctx context.Context, config homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error)
+	UpdateZoneFn                func(ctx context.Context, zoneID string, config homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error)
+	DeleteZoneFn                func(ctx context.Context, zoneID string) error
+	GetPersonsFn                func(ctx context.Context) ([]homeassistant.PersonRegistryEntry, error)
+	CreatePersonFn              func(ctx context.Context, config homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error)
+	UpdatePersonFn              func(ctx context.Context, personID string, config homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error)
+	DeletePersonFn              func(ctx context.Context, personID string) error
+	GetTagsFn                   func(ctx context.Context) ([]homeassistant.TagRegistryEntry, error)
+	CreateTagFn                 func(ctx context.Context, config homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error)
+	UpdateTagFn                 func(ctx context.Context, tagID string, config homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error)
+	DeleteTagFn                 func(ctx context.Context, tagID string) error
 	RemoveEntityRegistryEntryFn func(ctx context.Context, entityID string) error
 	UpdateEntityRegistryEntryFn func(ctx context.Context, entityID string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error)
 	RemoveDeviceConfigEntryFn   func(ctx context.Context, deviceID, configEntryID string) error
@@ -377,6 +393,118 @@ func (m *UniversalMockClient) UpdateLabel(ctx context.Context, labelID string, c
 func (m *UniversalMockClient) DeleteLabel(ctx context.Context, labelID string) error {
 	if m.DeleteLabelFn != nil {
 		return m.DeleteLabelFn(ctx, labelID)
+	}
+	return nil
+}
+
+func (m *UniversalMockClient) GetFloorRegistry(ctx context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+	if m.GetFloorRegistryFn != nil {
+		return m.GetFloorRegistryFn(ctx)
+	}
+	return []homeassistant.FloorRegistryEntry{}, nil
+}
+
+func (m *UniversalMockClient) CreateFloor(ctx context.Context, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
+	if m.CreateFloorFn != nil {
+		return m.CreateFloorFn(ctx, config)
+	}
+	return &homeassistant.FloorRegistryEntry{FloorID: "floor_123", Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) UpdateFloor(ctx context.Context, floorID string, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
+	if m.UpdateFloorFn != nil {
+		return m.UpdateFloorFn(ctx, floorID, config)
+	}
+	return &homeassistant.FloorRegistryEntry{FloorID: floorID, Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) DeleteFloor(ctx context.Context, floorID string) error {
+	if m.DeleteFloorFn != nil {
+		return m.DeleteFloorFn(ctx, floorID)
+	}
+	return nil
+}
+
+func (m *UniversalMockClient) GetZones(ctx context.Context) ([]homeassistant.ZoneRegistryEntry, error) {
+	if m.GetZonesFn != nil {
+		return m.GetZonesFn(ctx)
+	}
+	return []homeassistant.ZoneRegistryEntry{}, nil
+}
+
+func (m *UniversalMockClient) CreateZone(ctx context.Context, config homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error) {
+	if m.CreateZoneFn != nil {
+		return m.CreateZoneFn(ctx, config)
+	}
+	return &homeassistant.ZoneRegistryEntry{ID: "zone_123", Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) UpdateZone(ctx context.Context, zoneID string, config homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error) {
+	if m.UpdateZoneFn != nil {
+		return m.UpdateZoneFn(ctx, zoneID, config)
+	}
+	return &homeassistant.ZoneRegistryEntry{ID: zoneID, Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) DeleteZone(ctx context.Context, zoneID string) error {
+	if m.DeleteZoneFn != nil {
+		return m.DeleteZoneFn(ctx, zoneID)
+	}
+	return nil
+}
+
+func (m *UniversalMockClient) GetPersons(ctx context.Context) ([]homeassistant.PersonRegistryEntry, error) {
+	if m.GetPersonsFn != nil {
+		return m.GetPersonsFn(ctx)
+	}
+	return []homeassistant.PersonRegistryEntry{}, nil
+}
+
+func (m *UniversalMockClient) CreatePerson(ctx context.Context, config homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error) {
+	if m.CreatePersonFn != nil {
+		return m.CreatePersonFn(ctx, config)
+	}
+	return &homeassistant.PersonRegistryEntry{ID: "person_123", Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) UpdatePerson(ctx context.Context, personID string, config homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error) {
+	if m.UpdatePersonFn != nil {
+		return m.UpdatePersonFn(ctx, personID, config)
+	}
+	return &homeassistant.PersonRegistryEntry{ID: personID, Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) DeletePerson(ctx context.Context, personID string) error {
+	if m.DeletePersonFn != nil {
+		return m.DeletePersonFn(ctx, personID)
+	}
+	return nil
+}
+
+func (m *UniversalMockClient) GetTags(ctx context.Context) ([]homeassistant.TagRegistryEntry, error) {
+	if m.GetTagsFn != nil {
+		return m.GetTagsFn(ctx)
+	}
+	return []homeassistant.TagRegistryEntry{}, nil
+}
+
+func (m *UniversalMockClient) CreateTag(ctx context.Context, config homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error) {
+	if m.CreateTagFn != nil {
+		return m.CreateTagFn(ctx, config)
+	}
+	return &homeassistant.TagRegistryEntry{TagID: "tag_123", Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) UpdateTag(ctx context.Context, tagID string, config homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error) {
+	if m.UpdateTagFn != nil {
+		return m.UpdateTagFn(ctx, tagID, config)
+	}
+	return &homeassistant.TagRegistryEntry{TagID: tagID, Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) DeleteTag(ctx context.Context, tagID string) error {
+	if m.DeleteTagFn != nil {
+		return m.DeleteTagFn(ctx, tagID)
 	}
 	return nil
 }

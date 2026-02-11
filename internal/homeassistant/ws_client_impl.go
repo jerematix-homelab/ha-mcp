@@ -1020,6 +1020,361 @@ func (c *wsClientImpl) DeleteLabel(ctx context.Context, labelID string) error {
 	return nil
 }
 
+// GetFloorRegistry retrieves the floor registry.
+func (c *wsClientImpl) GetFloorRegistry(ctx context.Context) ([]FloorRegistryEntry, error) {
+	result, err := c.ws.SendCommand(ctx, "config/floor_registry/list", nil)
+	if err != nil {
+		return nil, fmt.Errorf("get floor registry failed: %w", err)
+	}
+
+	var entries []FloorRegistryEntry
+	if err := json.Unmarshal(result.Result, &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal floor registry: %w", err)
+	}
+
+	return entries, nil
+}
+
+// CreateFloor creates a new floor in the floor registry.
+func (c *wsClientImpl) CreateFloor(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error) {
+	params := make(map[string]any)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Level != nil {
+		params["level"] = *config.Level
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if len(config.Aliases) > 0 {
+		params["aliases"] = config.Aliases
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/floor_registry/create", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create floor: %w", err)
+	}
+
+	var entry FloorRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal created floor: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// UpdateFloor updates an existing floor in the floor registry.
+func (c *wsClientImpl) UpdateFloor(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error) {
+	params := map[string]any{
+		"floor_id": floorID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Level != nil {
+		params["level"] = *config.Level
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.Aliases != nil {
+		params["aliases"] = config.Aliases
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/floor_registry/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update floor: %w", err)
+	}
+
+	var entry FloorRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated floor: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// DeleteFloor deletes a floor from the floor registry.
+func (c *wsClientImpl) DeleteFloor(ctx context.Context, floorID string) error {
+	_, err := c.ws.SendCommand(ctx, "config/floor_registry/delete", map[string]any{
+		"floor_id": floorID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete floor: %w", err)
+	}
+	return nil
+}
+
+// GetZones retrieves all zones.
+func (c *wsClientImpl) GetZones(ctx context.Context) ([]ZoneRegistryEntry, error) {
+	result, err := c.ws.SendCommand(ctx, "config/zone/list", nil)
+	if err != nil {
+		return nil, fmt.Errorf("get zones failed: %w", err)
+	}
+
+	var entries []ZoneRegistryEntry
+	if err := json.Unmarshal(result.Result, &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal zones: %w", err)
+	}
+
+	return entries, nil
+}
+
+// CreateZone creates a new zone.
+func (c *wsClientImpl) CreateZone(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error) {
+	params := make(map[string]any)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Latitude != nil {
+		params["latitude"] = *config.Latitude
+	}
+	if config.Longitude != nil {
+		params["longitude"] = *config.Longitude
+	}
+	if config.Radius != nil {
+		params["radius"] = *config.Radius
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.Passive != nil {
+		params["passive"] = *config.Passive
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/zone/create", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zone: %w", err)
+	}
+
+	var entry ZoneRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal created zone: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// UpdateZone updates an existing zone.
+func (c *wsClientImpl) UpdateZone(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error) {
+	params := map[string]any{
+		"zone_id": zoneID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Latitude != nil {
+		params["latitude"] = *config.Latitude
+	}
+	if config.Longitude != nil {
+		params["longitude"] = *config.Longitude
+	}
+	if config.Radius != nil {
+		params["radius"] = *config.Radius
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.Passive != nil {
+		params["passive"] = *config.Passive
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/zone/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update zone: %w", err)
+	}
+
+	var entry ZoneRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated zone: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// DeleteZone deletes a zone.
+func (c *wsClientImpl) DeleteZone(ctx context.Context, zoneID string) error {
+	_, err := c.ws.SendCommand(ctx, "config/zone/delete", map[string]any{
+		"zone_id": zoneID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete zone: %w", err)
+	}
+	return nil
+}
+
+// GetPersons retrieves all persons.
+func (c *wsClientImpl) GetPersons(ctx context.Context) ([]PersonRegistryEntry, error) {
+	result, err := c.ws.SendCommand(ctx, "config/person/list", nil)
+	if err != nil {
+		return nil, fmt.Errorf("get persons failed: %w", err)
+	}
+
+	var entries []PersonRegistryEntry
+	if err := json.Unmarshal(result.Result, &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal persons: %w", err)
+	}
+
+	return entries, nil
+}
+
+// CreatePerson creates a new person.
+func (c *wsClientImpl) CreatePerson(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error) {
+	params := make(map[string]any)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.UserID != "" {
+		params["user_id"] = config.UserID
+	}
+	if len(config.DeviceTrackers) > 0 {
+		params["device_trackers"] = config.DeviceTrackers
+	}
+	if config.Picture != "" {
+		params["picture"] = config.Picture
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/person/create", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create person: %w", err)
+	}
+
+	var entry PersonRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal created person: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// UpdatePerson updates an existing person.
+func (c *wsClientImpl) UpdatePerson(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error) {
+	params := map[string]any{
+		"person_id": personID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.UserID != "" {
+		params["user_id"] = config.UserID
+	}
+	if config.DeviceTrackers != nil {
+		params["device_trackers"] = config.DeviceTrackers
+	}
+	if config.Picture != "" {
+		params["picture"] = config.Picture
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/person/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update person: %w", err)
+	}
+
+	var entry PersonRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated person: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// DeletePerson deletes a person.
+func (c *wsClientImpl) DeletePerson(ctx context.Context, personID string) error {
+	_, err := c.ws.SendCommand(ctx, "config/person/delete", map[string]any{
+		"person_id": personID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete person: %w", err)
+	}
+	return nil
+}
+
+// GetTags retrieves all tags.
+func (c *wsClientImpl) GetTags(ctx context.Context) ([]TagRegistryEntry, error) {
+	result, err := c.ws.SendCommand(ctx, "tag/list", nil)
+	if err != nil {
+		return nil, fmt.Errorf("get tags failed: %w", err)
+	}
+
+	var entries []TagRegistryEntry
+	if err := json.Unmarshal(result.Result, &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tags: %w", err)
+	}
+
+	return entries, nil
+}
+
+// CreateTag creates a new tag.
+func (c *wsClientImpl) CreateTag(ctx context.Context, config TagConfig) (*TagRegistryEntry, error) {
+	params := make(map[string]any)
+	if config.TagID != "" {
+		params["tag_id"] = config.TagID
+	}
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Description != "" {
+		params["description"] = config.Description
+	}
+
+	result, err := c.ws.SendCommand(ctx, "tag/create", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tag: %w", err)
+	}
+
+	var entry TagRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal created tag: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// UpdateTag updates an existing tag.
+func (c *wsClientImpl) UpdateTag(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error) {
+	params := map[string]any{
+		"tag_id": tagID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Description != "" {
+		params["description"] = config.Description
+	}
+
+	result, err := c.ws.SendCommand(ctx, "tag/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update tag: %w", err)
+	}
+
+	var entry TagRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated tag: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// DeleteTag deletes a tag.
+func (c *wsClientImpl) DeleteTag(ctx context.Context, tagID string) error {
+	_, err := c.ws.SendCommand(ctx, "tag/delete", map[string]any{
+		"tag_id": tagID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete tag: %w", err)
+	}
+	return nil
+}
+
 // =============================================================================
 // Media Operations (WebSocket-only)
 // =============================================================================
