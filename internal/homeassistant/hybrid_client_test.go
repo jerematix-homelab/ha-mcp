@@ -454,6 +454,22 @@ type mockWSOperations struct {
 	createLabelFunc            func(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error)
 	updateLabelFunc            func(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
 	deleteLabelFunc            func(ctx context.Context, labelID string) error
+	getFloorRegistryFunc       func(ctx context.Context) ([]FloorRegistryEntry, error)
+	createFloorFunc            func(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error)
+	updateFloorFunc            func(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error)
+	deleteFloorFunc            func(ctx context.Context, floorID string) error
+	getZonesFunc               func(ctx context.Context) ([]ZoneRegistryEntry, error)
+	createZoneFunc             func(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error)
+	updateZoneFunc             func(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error)
+	deleteZoneFunc             func(ctx context.Context, zoneID string) error
+	getPersonsFunc             func(ctx context.Context) ([]PersonRegistryEntry, error)
+	createPersonFunc           func(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error)
+	updatePersonFunc           func(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error)
+	deletePersonFunc           func(ctx context.Context, personID string) error
+	getTagsFunc                func(ctx context.Context) ([]TagRegistryEntry, error)
+	createTagFunc              func(ctx context.Context, config TagConfig) (*TagRegistryEntry, error)
+	updateTagFunc              func(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error)
+	deleteTagFunc              func(ctx context.Context, tagID string) error
 	signPathFunc               func(ctx context.Context, path string, expires int) (string, error)
 	getCameraStreamFunc        func(ctx context.Context, entityID string) (*StreamInfo, error)
 	browseMediaFunc            func(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
@@ -694,6 +710,118 @@ func (m *mockWSOperations) UpdateLabel(ctx context.Context, labelID string, conf
 func (m *mockWSOperations) DeleteLabel(ctx context.Context, labelID string) error {
 	if m.deleteLabelFunc != nil {
 		return m.deleteLabelFunc(ctx, labelID)
+	}
+	return nil
+}
+
+func (m *mockWSOperations) GetFloorRegistry(ctx context.Context) ([]FloorRegistryEntry, error) {
+	if m.getFloorRegistryFunc != nil {
+		return m.getFloorRegistryFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) CreateFloor(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error) {
+	if m.createFloorFunc != nil {
+		return m.createFloorFunc(ctx, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) UpdateFloor(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error) {
+	if m.updateFloorFunc != nil {
+		return m.updateFloorFunc(ctx, floorID, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) DeleteFloor(ctx context.Context, floorID string) error {
+	if m.deleteFloorFunc != nil {
+		return m.deleteFloorFunc(ctx, floorID)
+	}
+	return nil
+}
+
+func (m *mockWSOperations) GetZones(ctx context.Context) ([]ZoneRegistryEntry, error) {
+	if m.getZonesFunc != nil {
+		return m.getZonesFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) CreateZone(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error) {
+	if m.createZoneFunc != nil {
+		return m.createZoneFunc(ctx, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) UpdateZone(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error) {
+	if m.updateZoneFunc != nil {
+		return m.updateZoneFunc(ctx, zoneID, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) DeleteZone(ctx context.Context, zoneID string) error {
+	if m.deleteZoneFunc != nil {
+		return m.deleteZoneFunc(ctx, zoneID)
+	}
+	return nil
+}
+
+func (m *mockWSOperations) GetPersons(ctx context.Context) ([]PersonRegistryEntry, error) {
+	if m.getPersonsFunc != nil {
+		return m.getPersonsFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) CreatePerson(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error) {
+	if m.createPersonFunc != nil {
+		return m.createPersonFunc(ctx, config)
+	}
+	return &PersonRegistryEntry{ID: "person_123"}, nil
+}
+
+func (m *mockWSOperations) UpdatePerson(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error) {
+	if m.updatePersonFunc != nil {
+		return m.updatePersonFunc(ctx, personID, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) DeletePerson(ctx context.Context, personID string) error {
+	if m.deletePersonFunc != nil {
+		return m.deletePersonFunc(ctx, personID)
+	}
+	return nil
+}
+
+func (m *mockWSOperations) GetTags(ctx context.Context) ([]TagRegistryEntry, error) {
+	if m.getTagsFunc != nil {
+		return m.getTagsFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) CreateTag(ctx context.Context, config TagConfig) (*TagRegistryEntry, error) {
+	if m.createTagFunc != nil {
+		return m.createTagFunc(ctx, config)
+	}
+	return &TagRegistryEntry{TagID: "tag_123"}, nil
+}
+
+func (m *mockWSOperations) UpdateTag(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error) {
+	if m.updateTagFunc != nil {
+		return m.updateTagFunc(ctx, tagID, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) DeleteTag(ctx context.Context, tagID string) error {
+	if m.deleteTagFunc != nil {
+		return m.deleteTagFunc(ctx, tagID)
 	}
 	return nil
 }

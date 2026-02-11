@@ -203,6 +203,71 @@ func (m *mockClientForPool) UpdateLabel(_ context.Context, _ string, _ LabelConf
 func (m *mockClientForPool) DeleteLabel(_ context.Context, _ string) error {
 	return nil
 }
+
+func (m *mockClientForPool) GetFloorRegistry(_ context.Context) ([]FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) CreateFloor(_ context.Context, _ FloorConfig) (*FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) UpdateFloor(_ context.Context, _ string, _ FloorConfig) (*FloorRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) DeleteFloor(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockClientForPool) GetZones(_ context.Context) ([]ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) CreateZone(_ context.Context, _ ZoneConfig) (*ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) UpdateZone(_ context.Context, _ string, _ ZoneConfig) (*ZoneRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) DeleteZone(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockClientForPool) GetPersons(_ context.Context) ([]PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) CreatePerson(_ context.Context, _ PersonConfig) (*PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) UpdatePerson(_ context.Context, _ string, _ PersonConfig) (*PersonRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) DeletePerson(_ context.Context, _ string) error {
+	return nil
+}
+
+func (m *mockClientForPool) GetTags(_ context.Context) ([]TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) CreateTag(_ context.Context, _ TagConfig) (*TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) UpdateTag(_ context.Context, _ string, _ TagConfig) (*TagRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) DeleteTag(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockClientForPool) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

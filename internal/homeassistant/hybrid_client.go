@@ -89,6 +89,22 @@ type WSOperations interface {
 	CreateLabel(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error)
 	UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
 	DeleteLabel(ctx context.Context, labelID string) error
+	GetFloorRegistry(ctx context.Context) ([]FloorRegistryEntry, error)
+	CreateFloor(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error)
+	UpdateFloor(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error)
+	DeleteFloor(ctx context.Context, floorID string) error
+	GetZones(ctx context.Context) ([]ZoneRegistryEntry, error)
+	CreateZone(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error)
+	UpdateZone(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error)
+	DeleteZone(ctx context.Context, zoneID string) error
+	GetPersons(ctx context.Context) ([]PersonRegistryEntry, error)
+	CreatePerson(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error)
+	UpdatePerson(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error)
+	DeletePerson(ctx context.Context, personID string) error
+	GetTags(ctx context.Context) ([]TagRegistryEntry, error)
+	CreateTag(ctx context.Context, config TagConfig) (*TagRegistryEntry, error)
+	UpdateTag(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error)
+	DeleteTag(ctx context.Context, tagID string) error
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
 	UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error)
 	RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error
@@ -710,6 +726,86 @@ func (c *HybridClient) UpdateLabel(ctx context.Context, labelID string, config L
 // DeleteLabel deletes a label from the label registry.
 func (c *HybridClient) DeleteLabel(ctx context.Context, labelID string) error {
 	return c.ws.DeleteLabel(ctx, labelID)
+}
+
+// GetFloorRegistry retrieves the floor registry.
+func (c *HybridClient) GetFloorRegistry(ctx context.Context) ([]FloorRegistryEntry, error) {
+	return c.ws.GetFloorRegistry(ctx)
+}
+
+// CreateFloor creates a new floor in the floor registry.
+func (c *HybridClient) CreateFloor(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error) {
+	return c.ws.CreateFloor(ctx, config)
+}
+
+// UpdateFloor updates an existing floor in the floor registry.
+func (c *HybridClient) UpdateFloor(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error) {
+	return c.ws.UpdateFloor(ctx, floorID, config)
+}
+
+// DeleteFloor deletes a floor from the floor registry.
+func (c *HybridClient) DeleteFloor(ctx context.Context, floorID string) error {
+	return c.ws.DeleteFloor(ctx, floorID)
+}
+
+// GetZones retrieves all zones.
+func (c *HybridClient) GetZones(ctx context.Context) ([]ZoneRegistryEntry, error) {
+	return c.ws.GetZones(ctx)
+}
+
+// CreateZone creates a new zone.
+func (c *HybridClient) CreateZone(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error) {
+	return c.ws.CreateZone(ctx, config)
+}
+
+// UpdateZone updates an existing zone.
+func (c *HybridClient) UpdateZone(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error) {
+	return c.ws.UpdateZone(ctx, zoneID, config)
+}
+
+// DeleteZone deletes a zone.
+func (c *HybridClient) DeleteZone(ctx context.Context, zoneID string) error {
+	return c.ws.DeleteZone(ctx, zoneID)
+}
+
+// GetPersons retrieves all persons.
+func (c *HybridClient) GetPersons(ctx context.Context) ([]PersonRegistryEntry, error) {
+	return c.ws.GetPersons(ctx)
+}
+
+// CreatePerson creates a new person.
+func (c *HybridClient) CreatePerson(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error) {
+	return c.ws.CreatePerson(ctx, config)
+}
+
+// UpdatePerson updates an existing person.
+func (c *HybridClient) UpdatePerson(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error) {
+	return c.ws.UpdatePerson(ctx, personID, config)
+}
+
+// DeletePerson deletes a person.
+func (c *HybridClient) DeletePerson(ctx context.Context, personID string) error {
+	return c.ws.DeletePerson(ctx, personID)
+}
+
+// GetTags retrieves all tags.
+func (c *HybridClient) GetTags(ctx context.Context) ([]TagRegistryEntry, error) {
+	return c.ws.GetTags(ctx)
+}
+
+// CreateTag creates a new tag.
+func (c *HybridClient) CreateTag(ctx context.Context, config TagConfig) (*TagRegistryEntry, error) {
+	return c.ws.CreateTag(ctx, config)
+}
+
+// UpdateTag updates an existing tag.
+func (c *HybridClient) UpdateTag(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error) {
+	return c.ws.UpdateTag(ctx, tagID, config)
+}
+
+// DeleteTag deletes a tag.
+func (c *HybridClient) DeleteTag(ctx context.Context, tagID string) error {
+	return c.ws.DeleteTag(ctx, tagID)
 }
 
 // RemoveEntityRegistryEntry removes an entity from the entity registry.
