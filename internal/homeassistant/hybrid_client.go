@@ -240,16 +240,14 @@ func (c *HybridClient) GetAutomation(ctx context.Context, automationID string) (
 }
 
 // CreateAutomation creates a new automation using the REST API.
-// Note: The REST API stores the config but the entity may not appear until
-// Home Assistant is restarted or automation.reload is called. The WebSocket
-// config/automation/create command is not available in all HA versions.
+// Note: Call automation.reload after creation to make the entity visible.
+// The WebSocket config/automation/create command is not available in all HA versions.
 func (c *HybridClient) CreateAutomation(ctx context.Context, config AutomationConfig) error {
 	return c.rest.CreateAutomation(ctx, config)
 }
 
 // UpdateAutomation updates an existing automation using the REST API.
-// Note: The REST API stores the config but changes may not appear until
-// Home Assistant is restarted or automation.reload is called.
+// Note: Call automation.reload after update to make changes visible.
 func (c *HybridClient) UpdateAutomation(ctx context.Context, automationID string, config AutomationConfig) error {
 	return c.rest.UpdateAutomation(ctx, automationID, config)
 }
