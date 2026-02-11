@@ -723,6 +723,52 @@ func TestManageHelper_ValidationErrors(t *testing.T) {
 			wantError:    true,
 			wantContains: []string{"entity_id", "required"},
 		},
+		{
+			name: "create input_select with missing options",
+			args: map[string]any{
+				"action": "create",
+				"type":   "input_select",
+				"id":     "test",
+				"name":   "Test Select",
+			},
+			wantError:    true,
+			wantContains: []string{"options", "required", "array"},
+		},
+		{
+			name: "create input_select with empty options",
+			args: map[string]any{
+				"action":  "create",
+				"type":    "input_select",
+				"id":      "test",
+				"name":    "Test Select",
+				"options": []any{},
+			},
+			wantError:    true,
+			wantContains: []string{"options", "non-empty"},
+		},
+		{
+			name: "create group with missing entities",
+			args: map[string]any{
+				"action": "create",
+				"type":   "group",
+				"id":     "test",
+				"name":   "Test Group",
+			},
+			wantError:    true,
+			wantContains: []string{"entities", "required", "array"},
+		},
+		{
+			name: "create group with empty entities",
+			args: map[string]any{
+				"action":   "create",
+				"type":     "group",
+				"id":       "test",
+				"name":     "Test Group",
+				"entities": []any{},
+			},
+			wantError:    true,
+			wantContains: []string{"entities", "non-empty"},
+		},
 	}
 
 	h := NewConsolidatedHelperHandlers()
@@ -1676,6 +1722,63 @@ func TestHelperAction_ValidationErrors(t *testing.T) {
 			},
 			wantError:    true,
 			wantContains: []string{"increment"},
+		},
+		{
+			name: "set_options with missing options parameter",
+			args: map[string]any{
+				"entity_id": "input_select.test",
+				"action":    "set_options",
+			},
+			wantError:    true,
+			wantContains: []string{"options", "required"},
+		},
+		{
+			name: "set_options with empty options array",
+			args: map[string]any{
+				"entity_id": "input_select.test",
+				"action":    "set_options",
+				"options":   []any{},
+			},
+			wantError:    true,
+			wantContains: []string{"at least one value"},
+		},
+		{
+			name: "add_entities with missing parameter",
+			args: map[string]any{
+				"entity_id": "group.test",
+				"action":    "add_entities",
+			},
+			wantError:    true,
+			wantContains: []string{"add_entities", "required"},
+		},
+		{
+			name: "add_entities with empty array",
+			args: map[string]any{
+				"entity_id":    "group.test",
+				"action":       "add_entities",
+				"add_entities": []any{},
+			},
+			wantError:    true,
+			wantContains: []string{"at least one entity"},
+		},
+		{
+			name: "remove_entities with missing parameter",
+			args: map[string]any{
+				"entity_id": "group.test",
+				"action":    "remove_entities",
+			},
+			wantError:    true,
+			wantContains: []string{"remove_entities", "required"},
+		},
+		{
+			name: "remove_entities with empty array",
+			args: map[string]any{
+				"entity_id":       "group.test",
+				"action":          "remove_entities",
+				"remove_entities": []any{},
+			},
+			wantError:    true,
+			wantContains: []string{"at least one entity"},
 		},
 	}
 

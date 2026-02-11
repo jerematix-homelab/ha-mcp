@@ -235,7 +235,7 @@ func (h *PersonHandlers) buildPersonConfig(args map[string]any) homeassistant.Pe
 	if userID, ok := args["user_id"].(string); ok && userID != "" {
 		config.UserID = userID
 	}
-	if deviceTrackers, ok := args["device_trackers"].([]any); ok && len(deviceTrackers) > 0 {
+	if deviceTrackers, ok := args["device_trackers"].([]any); ok {
 		config.DeviceTrackers = convertToStringSlice(deviceTrackers)
 	}
 	if picture, ok := args["picture"].(string); ok && picture != "" {

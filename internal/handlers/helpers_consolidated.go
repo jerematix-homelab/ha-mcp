@@ -1150,8 +1150,11 @@ func (h *ConsolidatedHelperHandlers) handleSetOptions(ctx context.Context, clien
 	}
 
 	options, ok := args["options"].([]any)
-	if !ok || len(options) == 0 {
-		return errorResult("options is required for set_options action"), nil
+	if !ok {
+		return errorResult("options parameter is required for set_options action"), nil
+	}
+	if len(options) == 0 {
+		return errorResult("options must contain at least one value"), nil
 	}
 
 	strOptions := convertToStringSlice(options)
@@ -1198,18 +1201,22 @@ func (h *ConsolidatedHelperHandlers) handleGroupEntities(ctx context.Context, cl
 
 	var entities []any
 	var key, verb string
+	var ok bool
 	if isAdd {
 		key = "add_entities"
 		verb = "added to"
-		entities, _ = args["add_entities"].([]any)
+		entities, ok = args["add_entities"].([]any)
 	} else {
 		key = "remove_entities"
 		verb = "removed from"
-		entities, _ = args["remove_entities"].([]any)
+		entities, ok = args["remove_entities"].([]any)
 	}
 
+	if !ok {
+		return errorResult(fmt.Sprintf("%s parameter is required", key)), nil
+	}
 	if len(entities) == 0 {
-		return errorResult(fmt.Sprintf("%s is required for %s action", key, key)), nil
+		return errorResult(fmt.Sprintf("%s must contain at least one entity", key)), nil
 	}
 
 	serviceData := map[string]any{
@@ -1303,7 +1310,7 @@ func buildInputTextConfig(config, args map[string]any) {
 
 func buildInputSelectConfig(config, args map[string]any) {
 	addOptionalString(config, args, "initial")
-	if options, ok := args["options"].([]any); ok && len(options) > 0 {
+	if options, ok := args["options"].([]any); ok {
 		config["options"] = convertToStringSlice(options)
 	}
 }
@@ -1337,7 +1344,7 @@ func buildTimerConfig(config, args map[string]any) {
 func buildScheduleConfig(config, args map[string]any) {
 	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
 	for _, day := range days {
-		if daySchedule, ok := args[day].([]any); ok && len(daySchedule) > 0 {
+		if daySchedule, ok := args[day].([]any); ok {
 			config[day] = daySchedule
 		}
 	}
@@ -1406,13 +1413,19 @@ func validateSingleField(field, helperType string, args map[string]any) error {
 	switch field {
 	case "options":
 		opts, ok := args["options"].([]any)
-		if !ok || len(opts) == 0 {
-			return fmt.Errorf("options is required for %s and must be a non-empty array", helperType)
+		if !ok {
+			return fmt.Errorf("options is required for %s and must be an array", helperType)
+		}
+		if len(opts) == 0 {
+			return fmt.Errorf("options must be a non-empty array for %s", helperType)
 		}
 	case "entities":
 		ents, ok := args["entities"].([]any)
-		if !ok || len(ents) == 0 {
-			return fmt.Errorf("entities is required for %s and must be a non-empty array", helperType)
+		if !ok {
+			return fmt.Errorf("entities is required for %s and must be an array", helperType)
+		}
+		if len(ents) == 0 {
+			return fmt.Errorf("entities must be a non-empty array for %s", helperType)
 		}
 	case "state":
 		state, _ := args["state"].(string)

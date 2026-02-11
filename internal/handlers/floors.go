@@ -254,7 +254,7 @@ func (h *FloorHandlers) buildFloorConfig(args map[string]any) homeassistant.Floo
 	if icon, ok := args["icon"].(string); ok && icon != "" {
 		config.Icon = icon
 	}
-	if aliases, ok := args["aliases"].([]any); ok && len(aliases) > 0 {
+	if aliases, ok := args["aliases"].([]any); ok {
 		config.Aliases = convertToStringSlice(aliases)
 	}
 
