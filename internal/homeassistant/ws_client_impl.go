@@ -790,6 +790,9 @@ func (c *wsClientImpl) UpdateEntityRegistryEntry(ctx context.Context, entityID s
 	if config.Aliases != nil {
 		params["aliases"] = config.Aliases
 	}
+	if config.NewEntityID != nil {
+		params["new_entity_id"] = *config.NewEntityID
+	}
 
 	result, err := c.ws.SendCommand(ctx, "config/entity_registry/update", params)
 	if err != nil {

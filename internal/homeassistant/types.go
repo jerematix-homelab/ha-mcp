@@ -295,13 +295,14 @@ type AreaRegistryEntry struct {
 // EntityRegistryUpdateConfig represents configuration for updating an entity registry entry.
 // Fields use pointer types to distinguish "not provided" from "set to empty".
 type EntityRegistryUpdateConfig struct {
-	Name       *string  `json:"name,omitempty"`
-	Icon       *string  `json:"icon,omitempty"`
-	AreaID     *string  `json:"area_id,omitempty"`
-	DisabledBy *string  `json:"disabled_by,omitempty"`
-	HiddenBy   *string  `json:"hidden_by,omitempty"`
-	Labels     []string `json:"labels,omitempty"`
-	Aliases    []string `json:"aliases,omitempty"`
+	Name        *string  `json:"name,omitempty"`
+	Icon        *string  `json:"icon,omitempty"`
+	AreaID      *string  `json:"area_id,omitempty"`
+	DisabledBy  *string  `json:"disabled_by,omitempty"`
+	HiddenBy    *string  `json:"hidden_by,omitempty"`
+	Labels      []string `json:"labels,omitempty"`
+	Aliases     []string `json:"aliases,omitempty"`
+	NewEntityID *string  `json:"new_entity_id,omitempty"`
 }
 
 // DeviceRegistryUpdateConfig represents configuration for updating a device registry entry.

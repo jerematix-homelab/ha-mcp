@@ -102,9 +102,9 @@ func TestManageEntity_Schema(t *testing.T) {
 		t.Errorf("expected 2 hidden_by enum values, got %d", len(hiddenByProp.Enum))
 	}
 
-	// Verify required properties count
-	if len(tool.InputSchema.Properties) < 10 {
-		t.Errorf("expected at least 10 properties in schema, got %d", len(tool.InputSchema.Properties))
+	// Verify required properties count (action, entity_id, name, icon, area_id, disabled_by, hidden_by, labels, aliases, new_entity_id, format)
+	if len(tool.InputSchema.Properties) < 11 {
+		t.Errorf("expected at least 11 properties in schema, got %d", len(tool.InputSchema.Properties))
 	}
 }
 
@@ -435,6 +435,114 @@ func TestHandleManageEntity(t *testing.T) {
 				}
 			},
 			wantContain: `"entity_id":"light.living_room"`,
+		},
+
+		// =========================
+		// Entity ID Rename Tests
+		// =========================
+		{
+			name: "update - rename entity_id (happy path)",
+			args: map[string]any{
+				"action":        "update",
+				"entity_id":     "light.living_room",
+				"new_entity_id": "light.main_room",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateEntityRegistryEntryFn = func(_ context.Context, entityID string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+					if entityID != "light.living_room" {
+						t.Errorf("expected entity_id 'light.living_room', got '%s'", entityID)
+					}
+					if config.NewEntityID == nil || *config.NewEntityID != "light.main_room" {
+						t.Error("expected new_entity_id to be 'light.main_room'")
+					}
+					return &homeassistant.EntityRegistryEntry{
+						EntityID: "light.main_room",
+						Name:     "Living Room Light",
+					}, nil
+				}
+			},
+			wantContain: "renamed from light.living_room to light.main_room",
+		},
+		{
+			name: "update - rename + other fields combined",
+			args: map[string]any{
+				"action":        "update",
+				"entity_id":     "light.living_room",
+				"new_entity_id": "light.main_room",
+				"name":          "Main Room Light",
+				"icon":          "mdi:ceiling-light",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateEntityRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+					if config.NewEntityID == nil || *config.NewEntityID != "light.main_room" {
+						t.Error("expected new_entity_id to be 'light.main_room'")
+					}
+					if config.Name == nil || *config.Name != "Main Room Light" {
+						t.Error("expected name to be 'Main Room Light'")
+					}
+					if config.Icon == nil || *config.Icon != "mdi:ceiling-light" {
+						t.Error("expected icon to be 'mdi:ceiling-light'")
+					}
+					return &homeassistant.EntityRegistryEntry{
+						EntityID: "light.main_room",
+						Name:     "Main Room Light",
+						Icon:     "mdi:ceiling-light",
+					}, nil
+				}
+			},
+			wantContain: "renamed from light.living_room to light.main_room",
+		},
+		{
+			name: "update - invalid new_entity_id format (no dot)",
+			args: map[string]any{
+				"action":        "update",
+				"entity_id":     "light.living_room",
+				"new_entity_id": "invalid_format",
+			},
+			wantContain: "must be in format 'domain.object_id'",
+		},
+		{
+			name: "update - invalid new_entity_id format (invalid chars)",
+			args: map[string]any{
+				"action":        "update",
+				"entity_id":     "light.living_room",
+				"new_entity_id": "light.UPPERCASE",
+			},
+			wantContain: "contains invalid characters",
+		},
+		{
+			name: "update - rename counts as has fields",
+			args: map[string]any{
+				"action":        "update",
+				"entity_id":     "light.living_room",
+				"new_entity_id": "light.main_room",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateEntityRegistryEntryFn = func(context.Context, string, homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+					return &homeassistant.EntityRegistryEntry{
+						EntityID: "light.main_room",
+					}, nil
+				}
+			},
+			wantContain: "renamed from light.living_room to light.main_room",
+		},
+		{
+			name: "update - json format with rename",
+			args: map[string]any{
+				"action":        "update",
+				"entity_id":     "light.living_room",
+				"new_entity_id": "light.main_room",
+				"format":        "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateEntityRegistryEntryFn = func(context.Context, string, homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+					return &homeassistant.EntityRegistryEntry{
+						EntityID: "light.main_room",
+						Name:     "Living Room Light",
+					}, nil
+				}
+			},
+			wantContain: `"entity_id":"light.main_room"`,
 		},
 
 		// =========================

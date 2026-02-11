@@ -52,7 +52,8 @@ Safe fields that can be updated:
 - disabled_by: 'user' to disable, 'none' to enable
 - hidden_by: 'user' to hide, 'none' to show
 - labels: Array of label strings (empty array clears)
-- aliases: Array of alternative name strings (empty array clears)`,
+- aliases: Array of alternative name strings (empty array clears)
+- new_entity_id: Rename entity ID (must be valid format 'domain.object_id')`,
 		InputSchema: h.buildEntityManageSchema(),
 	}
 }
@@ -102,6 +103,10 @@ func (h *EntityManageHandlers) buildEntityManageSchema() mcp.JSONSchema {
 				Type:        "array",
 				Description: "Aliases array (update only, empty array clears)",
 				Items:       &mcp.JSONSchema{Type: "string"},
+			},
+			"new_entity_id": {
+				Type:        "string",
+				Description: "New entity ID for renaming (update only, must be in format 'domain.object_id')",
 			},
 			"format": {
 				Type:        "string",
@@ -169,10 +174,18 @@ func (h *EntityManageHandlers) handleUpdateEntity(ctx context.Context, client ho
 		return errorResult("entity_id is required for update action"), nil
 	}
 
+	// Validate new_entity_id if provided
+	if newEntityID, ok := args["new_entity_id"].(string); ok && newEntityID != "" {
+		if err := ValidateEntityID(newEntityID); err != nil {
+			return errorResult(fmt.Sprintf("invalid new_entity_id: %v", err)), nil
+		}
+	}
+
 	// Build update config
+	oldEntityID := entityID
 	config, hasFields := h.buildEntityUpdateConfig(args)
 	if !hasFields {
-		return errorResult("at least one field must be provided for update (name, icon, area_id, disabled_by, hidden_by, labels, aliases)"), nil
+		return errorResult("at least one field must be provided for update (name, icon, area_id, disabled_by, hidden_by, labels, aliases, new_entity_id)"), nil
 	}
 
 	// Update entity
@@ -184,7 +197,7 @@ func (h *EntityManageHandlers) handleUpdateEntity(ctx context.Context, client ho
 	if format == formatJSON {
 		return h.formatEntityJSON(updated)
 	}
-	return h.formatEntityNaturalWithSuccess(updated), nil
+	return h.formatEntityNaturalWithSuccess(updated, oldEntityID), nil
 }
 
 // =============================================================================
@@ -235,6 +248,11 @@ func (h *EntityManageHandlers) buildEntityUpdateConfig(args map[string]any) (hom
 
 	if aliases, ok := args["aliases"].([]any); ok {
 		config.Aliases = toStringArray(aliases)
+		hasFields = true
+	}
+
+	if newEntityID, ok := args["new_entity_id"].(string); ok && newEntityID != "" {
+		config.NewEntityID = &newEntityID
 		hasFields = true
 	}
 
@@ -292,8 +310,14 @@ func (h *EntityManageHandlers) formatEntityNatural(entry *homeassistant.EntityRe
 	return textResult(strings.Join(parts, "\n"))
 }
 
-func (h *EntityManageHandlers) formatEntityNaturalWithSuccess(entry *homeassistant.EntityRegistryEntry) *mcp.ToolsCallResult {
+func (h *EntityManageHandlers) formatEntityNaturalWithSuccess(entry *homeassistant.EntityRegistryEntry, oldEntityID string) *mcp.ToolsCallResult {
 	details := h.formatEntityNatural(entry).Content[0].Text
+
+	// Show rename info if entity ID changed
+	if oldEntityID != entry.EntityID {
+		return textResult(fmt.Sprintf("Entity renamed from %s to %s.\n\n%s", oldEntityID, entry.EntityID, details))
+	}
+
 	return textResult(fmt.Sprintf("Entity '%s' updated successfully.\n\n%s", entry.EntityID, details))
 }
 
