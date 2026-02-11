@@ -233,7 +233,10 @@ func (c *RESTClient) CreateAutomation(ctx context.Context, config AutomationConf
 // The WebSocket API does not support automation updates reliably.
 // Endpoint: POST /api/config/automation/config/{automation_id}
 func (c *RESTClient) UpdateAutomation(ctx context.Context, automationID string, config AutomationConfig) error {
-	config.ID = automationID
+	// Only set config.ID if empty (preserve correct ID from handler)
+	if config.ID == "" {
+		config.ID = automationID
+	}
 	url := fmt.Sprintf("%s/api/config/automation/config/%s", c.baseURL, automationID)
 
 	bodyBytes, err := json.Marshal(config)

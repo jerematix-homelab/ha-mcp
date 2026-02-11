@@ -459,6 +459,17 @@ func TestManageAutomation_Update(t *testing.T) {
 func TestManageAutomation_Delete(t *testing.T) {
 	t.Parallel()
 
+	// Default test automation
+	defaultAutomation := &homeassistant.Automation{
+		EntityID:     "automation.test",
+		State:        "on",
+		FriendlyName: "Test Automation",
+		Config: &homeassistant.AutomationConfig{
+			ID:    "test",
+			Alias: "Test Automation",
+		},
+	}
+
 	tests := []struct {
 		name         string
 		args         map[string]any
@@ -469,20 +480,20 @@ func TestManageAutomation_Delete(t *testing.T) {
 		{
 			name:         "success",
 			args:         map[string]any{"action": "delete", "automation_id": "test_automation"},
-			client:       &mockAutomationClient{},
+			client:       &mockAutomationClient{automation: defaultAutomation},
 			wantContains: []string{"deleted successfully"},
 		},
 		{
 			name:         "error - missing automation_id",
 			args:         map[string]any{"action": "delete"},
-			client:       &mockAutomationClient{},
+			client:       &mockAutomationClient{automation: defaultAutomation},
 			wantError:    true,
 			wantContains: []string{"automation_id is required"},
 		},
 		{
 			name:         "error - client error",
 			args:         map[string]any{"action": "delete", "automation_id": "test"},
-			client:       &mockAutomationClient{deleteErr: errors.New("failed")},
+			client:       &mockAutomationClient{automation: defaultAutomation, deleteErr: errors.New("failed")},
 			wantError:    true,
 			wantContains: []string{"Error deleting automation"},
 		},
@@ -1219,6 +1230,7 @@ func TestAutomationHandlers_IDNormalization(t *testing.T) {
 		},
 	}
 
+	// Run tests with matching IDs (current behavior)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1258,6 +1270,141 @@ func TestAutomationHandlers_IDNormalization(t *testing.T) {
 			}
 			if tt.wantToggleID != "" && client.lastToggleID != tt.wantToggleID {
 				t.Errorf("ToggleAutomation called with ID %q, want %q", client.lastToggleID, tt.wantToggleID)
+			}
+		})
+	}
+
+	// NEW: Test cases with mismatched config IDs (UI-created automations)
+	// These expose the bug where Config.ID differs from entity_id suffix
+	mismatchTests := []struct {
+		name           string
+		action         string
+		inputID        string
+		entityID       string
+		configID       string
+		wantGetID      string
+		wantUpdateID   string
+		wantDeleteID   string
+		additionalArgs map[string]any
+	}{
+		{
+			name:         "update - UI automation with numeric config ID",
+			action:       "update",
+			inputID:      "automation.office_light_motion",
+			entityID:     "automation.office_light_motion",
+			configID:     "1702630691980",
+			wantGetID:    "office_light_motion",
+			wantUpdateID: "1702630691980", // Should use Config.ID, not entity suffix
+			additionalArgs: map[string]any{
+				"alias": "Updated Office Light",
+			},
+		},
+		{
+			name:         "update - UI automation without prefix in input",
+			action:       "update",
+			inputID:      "office_light_motion",
+			entityID:     "automation.office_light_motion",
+			configID:     "1702630691980",
+			wantGetID:    "office_light_motion",
+			wantUpdateID: "1702630691980",
+			additionalArgs: map[string]any{
+				"alias": "Updated Office Light",
+			},
+		},
+		{
+			name:         "delete - UI automation with numeric config ID",
+			action:       "delete",
+			inputID:      "automation.office_light_motion",
+			entityID:     "automation.office_light_motion",
+			configID:     "1702630691980",
+			wantGetID:    "office_light_motion",
+			wantDeleteID: "1702630691980", // Should use Config.ID
+		},
+		{
+			name:         "delete - UI automation without prefix",
+			action:       "delete",
+			inputID:      "office_light_motion",
+			entityID:     "automation.office_light_motion",
+			configID:     "1702630691980",
+			wantGetID:    "office_light_motion",
+			wantDeleteID: "1702630691980",
+		},
+		{
+			name:         "update - direct config ID input",
+			action:       "update",
+			inputID:      "1702630691980",
+			entityID:     "automation.office_light_motion",
+			configID:     "1702630691980",
+			wantGetID:    "1702630691980",
+			wantUpdateID: "1702630691980",
+			additionalArgs: map[string]any{
+				"alias": "Updated via Config ID",
+			},
+		},
+		{
+			name:         "update - YAML automation with matching IDs",
+			action:       "update",
+			inputID:      "automation.test_auto",
+			entityID:     "automation.test_auto",
+			configID:     "test_auto",
+			wantGetID:    "test_auto",
+			wantUpdateID: "test_auto", // Config.ID matches entity suffix
+			additionalArgs: map[string]any{
+				"alias": "Updated YAML Auto",
+			},
+		},
+	}
+
+	for _, tt := range mismatchTests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create automation with mismatched config ID
+			config := &homeassistant.AutomationConfig{
+				ID:    tt.configID,
+				Alias: "Test Automation",
+			}
+			testAutomation := &homeassistant.Automation{
+				EntityID:     tt.entityID,
+				State:        "on",
+				FriendlyName: "Test Automation",
+				Config:       config,
+			}
+
+			// Set up mock to return automation for various ID lookups
+			automationMap := map[string]*homeassistant.Automation{
+				strings.TrimPrefix(tt.entityID, "automation."): testAutomation,
+				tt.configID: testAutomation,
+			}
+
+			client := &mockAutomationClient{
+				automation:    testAutomation,
+				automationMap: automationMap,
+			}
+
+			h := &AutomationHandlers{}
+			args := map[string]any{
+				"action":        tt.action,
+				"automation_id": tt.inputID,
+			}
+			for k, v := range tt.additionalArgs {
+				args[k] = v
+			}
+
+			_, err := h.handleManageAutomation(context.Background(), client, args)
+			if err != nil {
+				t.Fatalf("handleManageAutomation() unexpected error = %v", err)
+			}
+
+			// Verify the correct config ID was used for REST operations
+			if tt.wantGetID != "" && client.lastGetID != tt.wantGetID {
+				t.Errorf("GetAutomation called with ID %q, want %q", client.lastGetID, tt.wantGetID)
+			}
+			if tt.wantUpdateID != "" && client.lastUpdateID != tt.wantUpdateID {
+				t.Errorf("UpdateAutomation called with ID %q, want %q", client.lastUpdateID, tt.wantUpdateID)
+			}
+			if tt.wantDeleteID != "" && client.lastDeleteID != tt.wantDeleteID {
+				t.Errorf("DeleteAutomation called with ID %q, want %q", client.lastDeleteID, tt.wantDeleteID)
 			}
 		})
 	}
