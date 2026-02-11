@@ -16,10 +16,11 @@ type SceneIntegrationTestSuite struct {
 
 func TestSceneIntegration(t *testing.T) {
 	// Skip: Home Assistant REST API /api/config/scene/config/{id} stores the config
-	// but does not create the entity. The WebSocket config/scene/create command
-	// is not available in all HA versions. Scenes created via config API require
-	// a Home Assistant restart or scene.reload to appear.
-	t.Skip("Scene create/update via REST API does not immediately create entities - requires HA restart")
+	// but does not create the entity. scene.reload does not make entities appear.
+	// Integration tests confirmed that reload approach does not work (entities timeout).
+	// The underlying CRUD operations work correctly (verified via unit tests), but
+	// scene entities require a full Home Assistant restart to appear after REST creation.
+	t.Skip("Scene create/update via REST API does not immediately create entities - reload approach does not work")
 	suite.Run(t, new(SceneIntegrationTestSuite))
 }
 

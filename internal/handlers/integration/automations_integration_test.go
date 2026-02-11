@@ -16,10 +16,11 @@ type AutomationIntegrationTestSuite struct {
 
 func TestAutomationIntegration(t *testing.T) {
 	// Skip: Home Assistant REST API /api/config/automation/config/{id} stores the config
-	// but does not create the entity. The WebSocket config/automation/create command
-	// is not available in all HA versions. Automations created via config API require
-	// a Home Assistant restart or automation.reload to appear.
-	t.Skip("Automation create/update via REST API does not immediately create entities - requires HA restart")
+	// but does not create the entity. automation.reload does not make entities appear.
+	// Integration tests confirmed that reload approach does not work (entities timeout).
+	// The underlying CRUD operations work correctly (verified via unit tests), but
+	// automation entities require a full Home Assistant restart to appear after REST creation.
+	t.Skip("Automation create/update via REST API does not immediately create entities - reload approach does not work")
 	suite.Run(t, new(AutomationIntegrationTestSuite))
 }
 
