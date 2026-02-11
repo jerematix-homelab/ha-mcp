@@ -932,6 +932,94 @@ func (c *wsClientImpl) DeleteArea(ctx context.Context, areaID string) error {
 	return nil
 }
 
+// GetLabelRegistry retrieves the label registry.
+func (c *wsClientImpl) GetLabelRegistry(ctx context.Context) ([]LabelRegistryEntry, error) {
+	result, err := c.ws.SendCommand(ctx, "config/label_registry/list", nil)
+	if err != nil {
+		return nil, fmt.Errorf("get label registry failed: %w", err)
+	}
+
+	var entries []LabelRegistryEntry
+	if err := json.Unmarshal(result.Result, &entries); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal label registry: %w", err)
+	}
+
+	return entries, nil
+}
+
+// CreateLabel creates a new label in the label registry.
+func (c *wsClientImpl) CreateLabel(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error) {
+	params := make(map[string]any)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Color != "" {
+		params["color"] = config.Color
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.Description != "" {
+		params["description"] = config.Description
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/label_registry/create", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create label: %w", err)
+	}
+
+	var entry LabelRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal created label: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// UpdateLabel updates an existing label in the label registry.
+func (c *wsClientImpl) UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error) {
+	params := map[string]any{
+		"label_id": labelID,
+	}
+
+	// Only include fields that are provided (to support partial updates)
+	if config.Name != "" {
+		params["name"] = config.Name
+	}
+	if config.Color != "" {
+		params["color"] = config.Color
+	}
+	if config.Icon != "" {
+		params["icon"] = config.Icon
+	}
+	if config.Description != "" {
+		params["description"] = config.Description
+	}
+
+	result, err := c.ws.SendCommand(ctx, "config/label_registry/update", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update label: %w", err)
+	}
+
+	var entry LabelRegistryEntry
+	if err := json.Unmarshal(result.Result, &entry); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal updated label: %w", err)
+	}
+
+	return &entry, nil
+}
+
+// DeleteLabel deletes a label from the label registry.
+func (c *wsClientImpl) DeleteLabel(ctx context.Context, labelID string) error {
+	_, err := c.ws.SendCommand(ctx, "config/label_registry/delete", map[string]any{
+		"label_id": labelID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete label: %w", err)
+	}
+	return nil
+}
+
 // =============================================================================
 // Media Operations (WebSocket-only)
 // =============================================================================

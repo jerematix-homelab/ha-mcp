@@ -85,6 +85,10 @@ type WSOperations interface {
 	CreateArea(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error)
 	UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
 	DeleteArea(ctx context.Context, areaID string) error
+	GetLabelRegistry(ctx context.Context) ([]LabelRegistryEntry, error)
+	CreateLabel(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error)
+	UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
+	DeleteLabel(ctx context.Context, labelID string) error
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
 	UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error)
 	RemoveDeviceConfigEntry(ctx context.Context, deviceID, configEntryID string) error
@@ -686,6 +690,26 @@ func (c *HybridClient) UpdateArea(ctx context.Context, areaID string, config Are
 // DeleteArea deletes an area from the area registry.
 func (c *HybridClient) DeleteArea(ctx context.Context, areaID string) error {
 	return c.ws.DeleteArea(ctx, areaID)
+}
+
+// GetLabelRegistry retrieves the label registry.
+func (c *HybridClient) GetLabelRegistry(ctx context.Context) ([]LabelRegistryEntry, error) {
+	return c.ws.GetLabelRegistry(ctx)
+}
+
+// CreateLabel creates a new label in the label registry.
+func (c *HybridClient) CreateLabel(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error) {
+	return c.ws.CreateLabel(ctx, config)
+}
+
+// UpdateLabel updates an existing label in the label registry.
+func (c *HybridClient) UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error) {
+	return c.ws.UpdateLabel(ctx, labelID, config)
+}
+
+// DeleteLabel deletes a label from the label registry.
+func (c *HybridClient) DeleteLabel(ctx context.Context, labelID string) error {
+	return c.ws.DeleteLabel(ctx, labelID)
 }
 
 // RemoveEntityRegistryEntry removes an entity from the entity registry.

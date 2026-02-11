@@ -35,6 +35,7 @@ type CachedClient struct {
 	entityRegistryCache *cacheEntry
 	deviceRegistryCache *cacheEntry
 	areaRegistryCache   *cacheEntry
+	labelRegistryCache  *cacheEntry
 
 	// singleflight groups prevent duplicate API calls during concurrent access
 	servicesGroup       singleflight.Group
@@ -42,6 +43,7 @@ type CachedClient struct {
 	entityRegistryGroup singleflight.Group
 	deviceRegistryGroup singleflight.Group
 	areaRegistryGroup   singleflight.Group
+	labelRegistryGroup  singleflight.Group
 
 	config config.CacheConfig
 	logger *logging.Logger
@@ -120,6 +122,7 @@ func (c *CachedClient) InvalidateRegistryCaches() {
 	c.entityRegistryCache = nil
 	c.deviceRegistryCache = nil
 	c.areaRegistryCache = nil
+	c.labelRegistryCache = nil
 	c.logger.Debug("Registry caches invalidated")
 }
 
@@ -363,6 +366,54 @@ func (c *CachedClient) GetAreaRegistry(ctx context.Context) ([]AreaRegistryEntry
 	return result.([]AreaRegistryEntry), nil
 }
 
+// GetLabelRegistry returns cached label registry or fetches from API.
+// Uses singleflight to prevent duplicate API calls during concurrent access.
+func (c *CachedClient) GetLabelRegistry(ctx context.Context) ([]LabelRegistryEntry, error) {
+	// Check cache first with read lock
+	c.mu.RLock()
+	if c.labelRegistryCache != nil && !c.labelRegistryCache.isExpired() {
+		data := c.labelRegistryCache.data.([]LabelRegistryEntry)
+		c.mu.RUnlock()
+		c.logger.Trace("Label registry cache hit")
+		return data, nil
+	}
+	c.mu.RUnlock()
+
+	// Use singleflight to ensure only one goroutine fetches data
+	result, err, _ := c.labelRegistryGroup.Do("label_registry", func() (any, error) {
+		// Double-check cache after acquiring singleflight lock
+		c.mu.RLock()
+		if c.labelRegistryCache != nil && !c.labelRegistryCache.isExpired() {
+			data := c.labelRegistryCache.data.([]LabelRegistryEntry)
+			c.mu.RUnlock()
+			return data, nil
+		}
+		c.mu.RUnlock()
+
+		// Fetch from API
+		labels, err := c.client.GetLabelRegistry(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store in cache
+		c.mu.Lock()
+		c.labelRegistryCache = &cacheEntry{
+			data:      labels,
+			expiresAt: time.Now().Add(c.areaRegTTL()),
+		}
+		c.mu.Unlock()
+		c.logger.Debug("Label registry cached", "count", len(labels), "ttl", c.areaRegTTL())
+
+		return labels, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result.([]LabelRegistryEntry), nil
+}
+
 // CreateHelper creates a helper and invalidates registry caches.
 func (c *CachedClient) CreateHelper(ctx context.Context, helper HelperConfig) error {
 	err := c.client.CreateHelper(ctx, helper)
@@ -444,12 +495,47 @@ func (c *CachedClient) DeleteArea(ctx context.Context, areaID string) error {
 	return err
 }
 
+// CreateLabel creates a label and invalidates label registry cache.
+func (c *CachedClient) CreateLabel(ctx context.Context, cfg LabelConfig) (*LabelRegistryEntry, error) {
+	entry, err := c.client.CreateLabel(ctx, cfg)
+	if err == nil {
+		c.invalidateLabelRegistryCache()
+	}
+	return entry, err
+}
+
+// UpdateLabel updates a label and invalidates label registry cache.
+func (c *CachedClient) UpdateLabel(ctx context.Context, labelID string, cfg LabelConfig) (*LabelRegistryEntry, error) {
+	entry, err := c.client.UpdateLabel(ctx, labelID, cfg)
+	if err == nil {
+		c.invalidateLabelRegistryCache()
+	}
+	return entry, err
+}
+
+// DeleteLabel deletes a label and invalidates label registry cache.
+func (c *CachedClient) DeleteLabel(ctx context.Context, labelID string) error {
+	err := c.client.DeleteLabel(ctx, labelID)
+	if err == nil {
+		c.invalidateLabelRegistryCache()
+	}
+	return err
+}
+
 // invalidateAreaRegistryCache clears the area registry cache.
 func (c *CachedClient) invalidateAreaRegistryCache() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.areaRegistryCache = nil
 	c.logger.Debug("Area registry cache invalidated")
+}
+
+// invalidateLabelRegistryCache clears the label registry cache.
+func (c *CachedClient) invalidateLabelRegistryCache() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.labelRegistryCache = nil
+	c.logger.Debug("Label registry cache invalidated")
 }
 
 func (c *CachedClient) invalidateEntityRegistryCache() {

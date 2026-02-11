@@ -323,6 +323,23 @@ type AreaConfig struct {
 	Labels  []string `json:"labels,omitempty"`
 }
 
+// LabelRegistryEntry represents an entry in the Home Assistant label registry.
+type LabelRegistryEntry struct {
+	LabelID     string `json:"label_id"`
+	Name        string `json:"name"`
+	Color       string `json:"color,omitempty"`
+	Icon        string `json:"icon,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// LabelConfig represents configuration for creating or updating a label.
+type LabelConfig struct {
+	Name        string `json:"name,omitempty"`
+	Color       string `json:"color,omitempty"`
+	Icon        string `json:"icon,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
 // StreamInfo represents camera stream information from Home Assistant.
 type StreamInfo struct {
 	URL string `json:"url"`
