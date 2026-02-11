@@ -326,9 +326,14 @@ func (h *AutomationHandlers) handleUpdate(ctx context.Context, client homeassist
 
 	_, configID := normalizeAutomationID(automationID)
 
+	// Fetch current automation with fallback search
 	current, err := client.GetAutomation(ctx, configID)
 	if err != nil {
-		return errorResult(fmt.Sprintf("Error getting current automation: %v", err)), nil
+		// Fallback: try comprehensive search by entity_id, UUID, or alias
+		current, err = h.findAutomationByID(ctx, client, automationID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("Error getting current automation: %v", err)), nil
+		}
 	}
 
 	if current.Config == nil {
@@ -336,7 +341,13 @@ func (h *AutomationHandlers) handleUpdate(ctx context.Context, client homeassist
 	}
 	applyAutomationConfigUpdates(current.Config, args)
 
-	if err := client.UpdateAutomation(ctx, configID, *current.Config); err != nil {
+	// Resolve actual config ID for REST API (may differ from entity_id suffix)
+	actualConfigID := configID
+	if current.Config.ID != "" && current.Config.ID != configID {
+		actualConfigID = current.Config.ID
+	}
+
+	if err := client.UpdateAutomation(ctx, actualConfigID, *current.Config); err != nil {
 		return errorResult(fmt.Sprintf("Error updating automation: %v", err)), nil
 	}
 
@@ -351,7 +362,23 @@ func (h *AutomationHandlers) handleDelete(ctx context.Context, client homeassist
 
 	_, configID := normalizeAutomationID(automationID)
 
-	if err := client.DeleteAutomation(ctx, configID); err != nil {
+	// Fetch automation to resolve actual config ID
+	current, err := client.GetAutomation(ctx, configID)
+	if err != nil {
+		// Fallback: try comprehensive search by entity_id, UUID, or alias
+		current, err = h.findAutomationByID(ctx, client, automationID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("Error getting automation for deletion: %v", err)), nil
+		}
+	}
+
+	// Resolve actual config ID for REST API (may differ from entity_id suffix)
+	deleteID := configID
+	if current.Config != nil && current.Config.ID != "" && current.Config.ID != configID {
+		deleteID = current.Config.ID
+	}
+
+	if err := client.DeleteAutomation(ctx, deleteID); err != nil {
 		return errorResult(fmt.Sprintf("Error deleting automation: %v", err)), nil
 	}
 

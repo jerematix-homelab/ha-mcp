@@ -246,6 +246,18 @@ func (h *ScriptHandlers) handleGet(ctx context.Context, client homeassistant.Cli
 	return successResult(output), nil
 }
 
+// normalizeScriptID normalizes script ID inputs to handle prefix variations.
+// Returns: (entityID with "script." prefix, configID without prefix)
+// Examples:
+//   - "script.morning_routine" -> ("script.morning_routine", "morning_routine")
+//   - "morning_routine" -> ("script.morning_routine", "morning_routine")
+func normalizeScriptID(scriptID string) (entityID, configID string) {
+	if strings.HasPrefix(scriptID, "script.") {
+		return scriptID, strings.TrimPrefix(scriptID, "script.")
+	}
+	return "script." + scriptID, scriptID
+}
+
 // findScriptByID searches for a script by various ID formats.
 // Search order: entity_id (script.xyz), alias, friendly_name (case-insensitive partial match).
 func (h *ScriptHandlers) findScriptByID(ctx context.Context, client homeassistant.Client, searchID string) (*homeassistant.Script, error) {
@@ -335,19 +347,22 @@ func (h *ScriptHandlers) handleUpdate(ctx context.Context, client homeassistant.
 		return errorResult("script_id is required for update action"), nil
 	}
 
-	// Get current script state to preserve existing values
-	entityID := "script." + scriptID
-	current, err := client.GetState(ctx, entityID)
+	// Normalize ID to handle prefix variations
+	entityID, configID := normalizeScriptID(scriptID)
+
+	// Get current script configuration to preserve existing values
+	current, err := client.GetScript(ctx, entityID)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error getting current script: %v", err)), nil
 	}
 
-	// Build config from current state and args
+	// Start with existing config to preserve all fields
 	config := homeassistant.ScriptConfig{}
-
-	// Get current values from attributes
-	if alias, ok := current.Attributes["friendly_name"].(string); ok {
-		config.Alias = alias
+	if current.Config != nil {
+		config = *current.Config
+	} else {
+		// Fallback: at least preserve the alias from friendly_name
+		config.Alias = current.FriendlyName
 	}
 
 	// Override with new values from args
@@ -370,7 +385,8 @@ func (h *ScriptHandlers) handleUpdate(ctx context.Context, client homeassistant.
 		config.Fields = fields
 	}
 
-	if err := client.UpdateScript(ctx, scriptID, config); err != nil {
+	// Use configID (without prefix) for REST API
+	if err := client.UpdateScript(ctx, configID, config); err != nil {
 		return errorResult(fmt.Sprintf("Error updating script: %v", err)), nil
 	}
 
@@ -383,7 +399,10 @@ func (h *ScriptHandlers) handleDelete(ctx context.Context, client homeassistant.
 		return errorResult("script_id is required for delete action"), nil
 	}
 
-	if err := client.DeleteScript(ctx, scriptID); err != nil {
+	// Normalize ID to handle prefix variations - use configID for REST API
+	_, configID := normalizeScriptID(scriptID)
+
+	if err := client.DeleteScript(ctx, configID); err != nil {
 		return errorResult(fmt.Sprintf("Error deleting script: %v", err)), nil
 	}
 
@@ -396,8 +415,11 @@ func (h *ScriptHandlers) handleExecute(ctx context.Context, client homeassistant
 		return errorResult("script_id is required for execute action"), nil
 	}
 
+	// Normalize ID to handle prefix variations
+	entityID, _ := normalizeScriptID(scriptID)
+
 	data := map[string]any{
-		"entity_id": "script." + scriptID,
+		"entity_id": entityID,
 	}
 
 	if variables, ok := args["variables"].(map[string]any); ok {

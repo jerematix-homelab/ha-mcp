@@ -20,6 +20,13 @@ type mockScriptClient struct {
 	deleteScriptFn func(ctx context.Context, scriptID string) error
 	callServiceFn  func(ctx context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error)
 	getStateFn     func(ctx context.Context, entityID string) (*homeassistant.Entity, error)
+
+	// Track IDs and configs passed to methods for verification
+	lastGetScriptID    string
+	lastUpdateScriptID string
+	lastUpdateConfig   *homeassistant.ScriptConfig
+	lastDeleteScriptID string
+	lastServiceData    map[string]any
 }
 
 func (m *mockScriptClient) ListScripts(ctx context.Context) ([]homeassistant.Entity, error) {
@@ -30,6 +37,7 @@ func (m *mockScriptClient) ListScripts(ctx context.Context) ([]homeassistant.Ent
 }
 
 func (m *mockScriptClient) GetScript(ctx context.Context, scriptID string) (*homeassistant.Script, error) {
+	m.lastGetScriptID = scriptID
 	if m.getScriptFn != nil {
 		return m.getScriptFn(ctx, scriptID)
 	}
@@ -44,6 +52,9 @@ func (m *mockScriptClient) CreateScript(ctx context.Context, scriptID string, co
 }
 
 func (m *mockScriptClient) UpdateScript(ctx context.Context, scriptID string, config homeassistant.ScriptConfig) error {
+	m.lastUpdateScriptID = scriptID
+	configCopy := config
+	m.lastUpdateConfig = &configCopy
 	if m.updateScriptFn != nil {
 		return m.updateScriptFn(ctx, scriptID, config)
 	}
@@ -51,6 +62,7 @@ func (m *mockScriptClient) UpdateScript(ctx context.Context, scriptID string, co
 }
 
 func (m *mockScriptClient) DeleteScript(ctx context.Context, scriptID string) error {
+	m.lastDeleteScriptID = scriptID
 	if m.deleteScriptFn != nil {
 		return m.deleteScriptFn(ctx, scriptID)
 	}
@@ -58,6 +70,7 @@ func (m *mockScriptClient) DeleteScript(ctx context.Context, scriptID string) er
 }
 
 func (m *mockScriptClient) CallService(ctx context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+	m.lastServiceData = data
 	if m.callServiceFn != nil {
 		return m.callServiceFn(ctx, domain, service, data)
 	}
@@ -65,6 +78,7 @@ func (m *mockScriptClient) CallService(ctx context.Context, domain, service stri
 }
 
 func (m *mockScriptClient) GetState(ctx context.Context, entityID string) (*homeassistant.Entity, error) {
+	m.lastGetScriptID = entityID
 	if m.getStateFn != nil {
 		return m.getStateFn(ctx, entityID)
 	}
@@ -469,7 +483,7 @@ func TestScriptHandlers_ManageScript_Update(t *testing.T) {
 	tests := []struct {
 		name            string
 		args            map[string]any
-		getStateErr     error
+		getScriptErr    error
 		updateScriptErr error
 		wantError       bool
 		wantContains    string
@@ -517,12 +531,12 @@ func TestScriptHandlers_ManageScript_Update(t *testing.T) {
 			wantContains: "script_id is required",
 		},
 		{
-			name: "get state error",
+			name: "get script error",
 			args: map[string]any{
 				"action":    "update",
 				"script_id": "morning_routine",
 			},
-			getStateErr:  errors.New("not found"),
+			getScriptErr: errors.New("not found"),
 			wantError:    true,
 			wantContains: "Error getting current script",
 		},
@@ -544,14 +558,17 @@ func TestScriptHandlers_ManageScript_Update(t *testing.T) {
 			t.Parallel()
 
 			client := &mockScriptClient{
-				getStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
-					if tt.getStateErr != nil {
-						return nil, tt.getStateErr
+				getScriptFn: func(context.Context, string) (*homeassistant.Script, error) {
+					if tt.getScriptErr != nil {
+						return nil, tt.getScriptErr
 					}
-					return &homeassistant.Entity{
-						EntityID:   "script.morning_routine",
-						State:      "off",
-						Attributes: map[string]any{"friendly_name": "Morning Routine"},
+					return &homeassistant.Script{
+						EntityID:     "script.morning_routine",
+						State:        "off",
+						FriendlyName: "Morning Routine",
+						Config: &homeassistant.ScriptConfig{
+							Alias: "Morning Routine",
+						},
 					}, nil
 				},
 				updateScriptFn: func(_ context.Context, _ string, _ homeassistant.ScriptConfig) error {
@@ -1259,5 +1276,180 @@ func TestExtractEntityTargets(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestScriptHandlers_IDNormalization tests that script_id inputs are properly normalized
+// to avoid double-prefix bugs (e.g., script.script.morning_routine).
+func TestScriptHandlers_IDNormalization(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                string
+		action              string
+		inputID             string
+		wantGetScriptID     string // For update action (now uses GetScript)
+		wantUpdateScriptID  string
+		wantDeleteScriptID  string
+		wantServiceEntityID string // For execute action
+		additionalArgs      map[string]any
+	}{
+		{
+			name:               "update - with script. prefix",
+			action:             "update",
+			inputID:            "script.morning_routine",
+			wantGetScriptID:    "script.morning_routine", // Should NOT be script.script.morning_routine
+			wantUpdateScriptID: "morning_routine",        // Should strip prefix for REST API
+			additionalArgs: map[string]any{
+				"alias": "Updated Morning Routine",
+			},
+		},
+		{
+			name:               "update - without prefix",
+			action:             "update",
+			inputID:            "morning_routine",
+			wantGetScriptID:    "script.morning_routine", // Should add prefix for GetScript
+			wantUpdateScriptID: "morning_routine",
+			additionalArgs: map[string]any{
+				"alias": "Updated Morning Routine",
+			},
+		},
+		{
+			name:               "delete - with script. prefix",
+			action:             "delete",
+			inputID:            "script.morning_routine",
+			wantDeleteScriptID: "morning_routine", // Should strip prefix for REST API
+		},
+		{
+			name:               "delete - without prefix",
+			action:             "delete",
+			inputID:            "morning_routine",
+			wantDeleteScriptID: "morning_routine",
+		},
+		{
+			name:                "execute - with script. prefix",
+			action:              "execute",
+			inputID:             "script.morning_routine",
+			wantServiceEntityID: "script.morning_routine", // Should NOT be script.script.morning_routine
+		},
+		{
+			name:                "execute - without prefix",
+			action:              "execute",
+			inputID:             "morning_routine",
+			wantServiceEntityID: "script.morning_routine", // Should add prefix
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockScriptClient{}
+			h := &ScriptHandlers{}
+
+			args := map[string]any{
+				"action":    tt.action,
+				"script_id": tt.inputID,
+			}
+			for k, v := range tt.additionalArgs {
+				args[k] = v
+			}
+
+			_, err := h.handleManageScript(context.Background(), client, args)
+			if err != nil {
+				t.Fatalf("handleManageScript() unexpected error = %v", err)
+			}
+
+			// Verify correct IDs were used
+			if tt.wantGetScriptID != "" && client.lastGetScriptID != tt.wantGetScriptID {
+				t.Errorf("GetScript called with ID %q, want %q", client.lastGetScriptID, tt.wantGetScriptID)
+			}
+			if tt.wantUpdateScriptID != "" && client.lastUpdateScriptID != tt.wantUpdateScriptID {
+				t.Errorf("UpdateScript called with ID %q, want %q", client.lastUpdateScriptID, tt.wantUpdateScriptID)
+			}
+			if tt.wantDeleteScriptID != "" && client.lastDeleteScriptID != tt.wantDeleteScriptID {
+				t.Errorf("DeleteScript called with ID %q, want %q", client.lastDeleteScriptID, tt.wantDeleteScriptID)
+			}
+			if tt.wantServiceEntityID != "" {
+				if entityID, ok := client.lastServiceData["entity_id"].(string); ok {
+					if entityID != tt.wantServiceEntityID {
+						t.Errorf("CallService entity_id %q, want %q", entityID, tt.wantServiceEntityID)
+					}
+				} else {
+					t.Error("CallService data missing entity_id")
+				}
+			}
+		})
+	}
+}
+
+// TestScriptHandlers_UpdateDataPreservation tests that update preserves existing script data
+// when using GetScript instead of GetState.
+func TestScriptHandlers_UpdateDataPreservation(t *testing.T) {
+	t.Parallel()
+
+	// Full script configuration that should be preserved
+	existingScript := &homeassistant.Script{
+		EntityID:     "script.test_script",
+		State:        "off",
+		FriendlyName: "Original Name",
+		Config: &homeassistant.ScriptConfig{
+			Alias:       "Original Name",
+			Description: "Original description",
+			Mode:        "single",
+			Icon:        "mdi:script-text",
+			Sequence: []any{
+				map[string]any{"service": "light.turn_on"},
+				map[string]any{"delay": "00:00:05"},
+			},
+			Fields: map[string]any{
+				"brightness": map[string]any{"description": "Brightness level"},
+			},
+		},
+	}
+
+	client := &mockScriptClient{
+		getScriptFn: func(context.Context, string) (*homeassistant.Script, error) {
+			return existingScript, nil
+		},
+	}
+
+	h := &ScriptHandlers{}
+	args := map[string]any{
+		"action":    "update",
+		"script_id": "test_script",
+		"alias":     "Updated Name", // Only update the alias
+	}
+
+	_, err := h.handleManageScript(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleManageScript() unexpected error = %v", err)
+	}
+
+	// Verify that existing data was preserved
+	if client.lastUpdateConfig == nil {
+		t.Fatal("UpdateScript was not called with a config")
+	}
+
+	// Check that existing fields were preserved
+	if client.lastUpdateConfig.Description != "Original description" {
+		t.Errorf("Description not preserved: got %q, want %q", client.lastUpdateConfig.Description, "Original description")
+	}
+	if client.lastUpdateConfig.Mode != "single" {
+		t.Errorf("Mode not preserved: got %q, want %q", client.lastUpdateConfig.Mode, "single")
+	}
+	if client.lastUpdateConfig.Icon != "mdi:script-text" {
+		t.Errorf("Icon not preserved: got %q, want %q", client.lastUpdateConfig.Icon, "mdi:script-text")
+	}
+	if len(client.lastUpdateConfig.Sequence) != 2 {
+		t.Errorf("Sequence not preserved: got %d items, want 2", len(client.lastUpdateConfig.Sequence))
+	}
+	if client.lastUpdateConfig.Fields == nil {
+		t.Error("Fields not preserved: got nil")
+	}
+
+	// Check that the alias was updated
+	if client.lastUpdateConfig.Alias != "Updated Name" {
+		t.Errorf("Alias not updated: got %q, want %q", client.lastUpdateConfig.Alias, "Updated Name")
 	}
 }

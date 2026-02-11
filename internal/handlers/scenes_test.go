@@ -19,6 +19,11 @@ type mockSceneClient struct {
 	deleteSceneFn func(ctx context.Context, sceneID string) error
 	callServiceFn func(ctx context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error)
 	getStateFn    func(ctx context.Context, entityID string) (*homeassistant.Entity, error)
+
+	// Track IDs passed to methods for verification
+	lastUpdateSceneID string
+	lastDeleteSceneID string
+	lastGetStateID    string
 }
 
 func (m *mockSceneClient) ListScenes(ctx context.Context) ([]homeassistant.Entity, error) {
@@ -36,6 +41,7 @@ func (m *mockSceneClient) CreateScene(ctx context.Context, sceneID string, confi
 }
 
 func (m *mockSceneClient) UpdateScene(ctx context.Context, sceneID string, config homeassistant.SceneConfig) error {
+	m.lastUpdateSceneID = sceneID
 	if m.updateSceneFn != nil {
 		return m.updateSceneFn(ctx, sceneID, config)
 	}
@@ -43,6 +49,7 @@ func (m *mockSceneClient) UpdateScene(ctx context.Context, sceneID string, confi
 }
 
 func (m *mockSceneClient) DeleteScene(ctx context.Context, sceneID string) error {
+	m.lastDeleteSceneID = sceneID
 	if m.deleteSceneFn != nil {
 		return m.deleteSceneFn(ctx, sceneID)
 	}
@@ -57,6 +64,7 @@ func (m *mockSceneClient) CallService(ctx context.Context, domain, service strin
 }
 
 func (m *mockSceneClient) GetState(ctx context.Context, entityID string) (*homeassistant.Entity, error) {
+	m.lastGetStateID = entityID
 	if m.getStateFn != nil {
 		return m.getStateFn(ctx, entityID)
 	}
@@ -1039,6 +1047,88 @@ func TestManageScene_GetByFriendlyName(t *testing.T) {
 			content := result.Content[0].Text
 			if tt.wantContains != "" && !strings.Contains(content, tt.wantContains) {
 				t.Errorf("Expected content to contain %q, got: %s", tt.wantContains, content)
+			}
+		})
+	}
+}
+
+// TestSceneHandlers_IDNormalization tests that scene_id inputs are properly normalized
+// to avoid double-prefix bugs (e.g., scene.scene.movie_night) and to resolve config IDs.
+func TestSceneHandlers_IDNormalization(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		action            string
+		inputID           string
+		wantGetStateID    string // For update action
+		wantUpdateSceneID string
+		wantDeleteSceneID string
+		additionalArgs    map[string]any
+	}{
+		{
+			name:              "update - with scene. prefix",
+			action:            "update",
+			inputID:           "scene.movie_night",
+			wantGetStateID:    "scene.movie_night", // Should NOT be scene.scene.movie_night
+			wantUpdateSceneID: "movie_night",       // Should strip prefix for REST API
+			additionalArgs: map[string]any{
+				"name": "Updated Movie Night",
+			},
+		},
+		{
+			name:              "update - without prefix",
+			action:            "update",
+			inputID:           "movie_night",
+			wantGetStateID:    "scene.movie_night", // Should add prefix for GetState
+			wantUpdateSceneID: "movie_night",
+			additionalArgs: map[string]any{
+				"name": "Updated Movie Night",
+			},
+		},
+		{
+			name:              "delete - with scene. prefix",
+			action:            "delete",
+			inputID:           "scene.movie_night",
+			wantDeleteSceneID: "movie_night", // Should strip prefix for REST API
+		},
+		{
+			name:              "delete - without prefix",
+			action:            "delete",
+			inputID:           "movie_night",
+			wantDeleteSceneID: "movie_night",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &mockSceneClient{}
+			h := &SceneHandlers{}
+
+			args := map[string]any{
+				"action":   tt.action,
+				"scene_id": tt.inputID,
+			}
+			for k, v := range tt.additionalArgs {
+				args[k] = v
+			}
+
+			_, err := h.handleManageScene(context.Background(), client, args)
+			if err != nil {
+				t.Fatalf("handleManageScene() unexpected error = %v", err)
+			}
+
+			// Verify correct IDs were used
+			if tt.wantGetStateID != "" && client.lastGetStateID != tt.wantGetStateID {
+				t.Errorf("GetState called with ID %q, want %q", client.lastGetStateID, tt.wantGetStateID)
+			}
+			if tt.wantUpdateSceneID != "" && client.lastUpdateSceneID != tt.wantUpdateSceneID {
+				t.Errorf("UpdateScene called with ID %q, want %q", client.lastUpdateSceneID, tt.wantUpdateSceneID)
+			}
+			if tt.wantDeleteSceneID != "" && client.lastDeleteSceneID != tt.wantDeleteSceneID {
+				t.Errorf("DeleteScene called with ID %q, want %q", client.lastDeleteSceneID, tt.wantDeleteSceneID)
 			}
 		})
 	}

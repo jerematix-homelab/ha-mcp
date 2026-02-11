@@ -278,7 +278,9 @@ func (h *SceneHandlers) handleUpdate(ctx context.Context, client homeassistant.C
 		return errorResult("scene_id is required for update action"), nil
 	}
 
-	entityID := "scene." + sceneID
+	// Normalize ID to handle prefix variations
+	entityID, configID := normalizeSceneID(sceneID)
+
 	current, err := client.GetState(ctx, entityID)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error getting current scene: %v", err)), nil
@@ -286,7 +288,8 @@ func (h *SceneHandlers) handleUpdate(ctx context.Context, client homeassistant.C
 
 	config := buildSceneConfigFromArgs(current, args)
 
-	if err := client.UpdateScene(ctx, sceneID, config); err != nil {
+	// Use configID (without prefix) for REST API
+	if err := client.UpdateScene(ctx, configID, config); err != nil {
 		return errorResult(fmt.Sprintf("Error updating scene: %v", err)), nil
 	}
 
@@ -299,7 +302,10 @@ func (h *SceneHandlers) handleDelete(ctx context.Context, client homeassistant.C
 		return errorResult("scene_id is required for delete action"), nil
 	}
 
-	if err := client.DeleteScene(ctx, sceneID); err != nil {
+	// Normalize ID to handle prefix variations - use configID for REST API
+	_, configID := normalizeSceneID(sceneID)
+
+	if err := client.DeleteScene(ctx, configID); err != nil {
 		return errorResult(fmt.Sprintf("Error deleting scene: %v", err)), nil
 	}
 
@@ -312,8 +318,11 @@ func (h *SceneHandlers) handleActivate(ctx context.Context, client homeassistant
 		return errorResult("scene_id is required for activate action"), nil
 	}
 
+	// Normalize ID to handle prefix variations
+	entityID, _ := normalizeSceneID(sceneID)
+
 	data := map[string]any{
-		"entity_id": "scene." + sceneID,
+		"entity_id": entityID,
 	}
 
 	if transition, ok := args["transition"].(float64); ok {
@@ -330,6 +339,18 @@ func (h *SceneHandlers) handleActivate(ctx context.Context, client homeassistant
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// normalizeSceneID normalizes scene ID inputs to handle prefix variations.
+// Returns: (entityID with "scene." prefix, configID without prefix)
+// Examples:
+//   - "scene.movie_night" -> ("scene.movie_night", "movie_night")
+//   - "movie_night" -> ("scene.movie_night", "movie_night")
+func normalizeSceneID(sceneID string) (entityID, configID string) {
+	if strings.HasPrefix(sceneID, "scene.") {
+		return sceneID, strings.TrimPrefix(sceneID, "scene.")
+	}
+	return "scene." + sceneID, sceneID
+}
 
 // parseSceneFilters extracts filter parameters from args.
 func parseSceneFilters(args map[string]any) sceneFilters {
