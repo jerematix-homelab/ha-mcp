@@ -211,6 +211,49 @@ type AutomationTestSuite struct {
 	IntegrationTestSuite
 }
 
+// WaitForAutomation waits for an automation to appear in ListAutomations().
+// This is different from WaitForEntity because automations may not be immediately
+// available via GetState, but are visible via ListAutomations.
+// After finding the automation, it calls GetAutomation to fetch the full config.
+func (s *AutomationTestSuite) WaitForAutomation(automationID string, timeout time.Duration) (*homeassistant.Automation, error) {
+	ctx, cancel := context.WithTimeout(s.ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	attempts := 0
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			attempts++
+			automations, err := s.client.ListAutomations(ctx)
+			if err != nil {
+				continue
+			}
+			// Check both Config.ID and EntityID (without prefix)
+			// Note: ListAutomations doesn't populate Config, so only EntityID check works
+			for _, automation := range automations {
+				expectedEntityID := "automation." + automationID
+				if automation.EntityID == expectedEntityID {
+					// Found it! Now fetch full config via GetAutomation
+					fullAuto, err := s.client.GetAutomation(ctx, automationID)
+					if err != nil {
+						continue // Might not be ready yet, keep waiting
+					}
+					return fullAuto, nil
+				}
+			}
+			// Log every 10 attempts (~5 seconds)
+			if attempts%10 == 0 {
+				fmt.Printf("  [WaitForAutomation] Still waiting after %d attempts, total automations: %d\n", attempts, len(automations))
+			}
+		}
+	}
+}
+
 // ScriptTestSuite is a specialized suite for script tests.
 type ScriptTestSuite struct {
 	IntegrationTestSuite
@@ -219,6 +262,37 @@ type ScriptTestSuite struct {
 // SceneTestSuite is a specialized suite for scene tests.
 type SceneTestSuite struct {
 	IntegrationTestSuite
+}
+
+// WaitForScene waits for a scene to appear in ListScenes().
+// This is different from WaitForEntity because scenes may not be immediately
+// available via GetState, but are visible via ListScenes.
+func (s *SceneTestSuite) WaitForScene(sceneID string, timeout time.Duration) (*homeassistant.Entity, error) {
+	ctx, cancel := context.WithTimeout(s.ctx, timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+
+	// Build expected entity ID
+	expectedEntityID := "scene." + sceneID
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-ticker.C:
+			scenes, err := s.client.ListScenes(ctx)
+			if err != nil {
+				continue
+			}
+			for _, scene := range scenes {
+				if scene.EntityID == expectedEntityID {
+					return &scene, nil
+				}
+			}
+		}
+	}
 }
 
 // AreaTestSuite is a specialized suite for area tests.
