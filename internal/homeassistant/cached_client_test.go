@@ -82,6 +82,22 @@ func (m *mockClient) DeleteArea(ctx context.Context, areaID string) error {
 	return nil
 }
 
+func (m *mockClient) GetLabelRegistry(ctx context.Context) ([]LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) CreateLabel(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClient) DeleteLabel(ctx context.Context, labelID string) error {
+	return nil
+}
+
 func (m *mockClient) RemoveEntityRegistryEntry(ctx context.Context, entityID string) error {
 	return nil
 }

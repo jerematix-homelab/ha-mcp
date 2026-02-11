@@ -188,6 +188,21 @@ func (m *mockClientForPool) UpdateArea(_ context.Context, _ string, _ AreaConfig
 	return nil, nil
 }
 func (m *mockClientForPool) DeleteArea(_ context.Context, _ string) error { return nil }
+func (m *mockClientForPool) GetLabelRegistry(_ context.Context) ([]LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) CreateLabel(_ context.Context, _ LabelConfig) (*LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) UpdateLabel(_ context.Context, _ string, _ LabelConfig) (*LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockClientForPool) DeleteLabel(_ context.Context, _ string) error {
+	return nil
+}
 func (m *mockClientForPool) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

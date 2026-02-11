@@ -260,6 +260,21 @@ func (m *mockNonCloserClient) UpdateArea(_ context.Context, _ string, _ AreaConf
 func (m *mockNonCloserClient) DeleteArea(_ context.Context, _ string) error {
 	return nil
 }
+func (m *mockNonCloserClient) GetLabelRegistry(_ context.Context) ([]LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) CreateLabel(_ context.Context, _ LabelConfig) (*LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) UpdateLabel(_ context.Context, _ string, _ LabelConfig) (*LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockNonCloserClient) DeleteLabel(_ context.Context, _ string) error {
+	return nil
+}
 func (m *mockNonCloserClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

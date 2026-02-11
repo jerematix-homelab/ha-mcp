@@ -730,6 +730,148 @@ func TestManageHelper_ValidationErrors(t *testing.T) {
 }
 
 // =============================================================================
+// manage_helper - Update Tests
+// =============================================================================
+
+func TestManageHelper_Update(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "update input_number successfully",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "input_number.test_number",
+				"min":       float64(10),
+				"max":       float64(50),
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateHelperFn = func(_ context.Context, helperID string, config homeassistant.HelperConfig) error {
+					if helperID != "test_number" {
+						return fmt.Errorf("unexpected helperID: %s", helperID)
+					}
+					if config.Platform != "input_number" {
+						return fmt.Errorf("unexpected platform: %s", config.Platform)
+					}
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated", "input_number.test_number"},
+		},
+		{
+			name: "update input_select options",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "input_select.mode",
+				"options":   []any{"Mode A", "Mode B", "Mode C"},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateHelperFn = func(_ context.Context, helperID string, _ homeassistant.HelperConfig) error {
+					if helperID != "mode" {
+						return fmt.Errorf("unexpected helperID: %s", helperID)
+					}
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated"},
+		},
+		{
+			name: "update counter with step and bounds",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "counter.visitors",
+				"step":      float64(5),
+				"minimum":   float64(0),
+				"maximum":   float64(200),
+			},
+			wantError:    false,
+			wantContains: []string{"updated"},
+		},
+		{
+			name: "update timer duration",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "timer.kitchen",
+				"duration":  "00:10:00",
+			},
+			wantError:    false,
+			wantContains: []string{"updated"},
+		},
+		{
+			name: "update schedule blocks",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "schedule.work_hours",
+				"monday": []any{
+					map[string]any{"from": "08:00:00", "to": "16:00:00"},
+				},
+			},
+			wantError:    false,
+			wantContains: []string{"updated"},
+		},
+		{
+			name: "update without entity_id",
+			args: map[string]any{
+				"action": "update",
+				"min":    float64(10),
+			},
+			wantError:    true,
+			wantContains: []string{"entity_id", "required"},
+		},
+		{
+			name: "update config entry helper returns error",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "binary_sensor.threshold_test",
+				"upper":     float64(30),
+			},
+			wantError:    true,
+			wantContains: []string{"update not supported", "config entry flow"},
+		},
+		{
+			name: "update group helper returns error",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "group.lights",
+				"entities":  []any{"light.one", "light.two"},
+			},
+			wantError:    true,
+			wantContains: []string{"update not supported", "config entry flow"},
+		},
+		{
+			name: "update template_sensor returns error",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "sensor.my_template",
+				"state":     "{{ 100 }}",
+			},
+			wantError:    true,
+			wantContains: []string{"update not supported", "config entry flow"},
+		},
+		{
+			name: "update API error",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "counter.test",
+				"step":      float64(10),
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.UpdateHelperFn = func(_ context.Context, _ string, _ homeassistant.HelperConfig) error {
+					return fmt.Errorf("helper not found")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error", "updating"},
+		},
+	}
+
+	h := NewConsolidatedHelperHandlers()
+	runHandlerTestCases(t, tests, h.handleManageHelper)
+}
+
+// =============================================================================
 // manage_helper - Delete Tests
 // =============================================================================
 

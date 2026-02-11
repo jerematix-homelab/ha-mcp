@@ -66,6 +66,12 @@ type Client interface {
 	UpdateArea(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
 	DeleteArea(ctx context.Context, areaID string) error
 
+	// Label registry operations
+	GetLabelRegistry(ctx context.Context) ([]LabelRegistryEntry, error)
+	CreateLabel(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error)
+	UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
+	DeleteLabel(ctx context.Context, labelID string) error
+
 	// Entity registry modification operations
 	RemoveEntityRegistryEntry(ctx context.Context, entityID string) error
 	UpdateEntityRegistryEntry(ctx context.Context, entityID string, config EntityRegistryUpdateConfig) (*EntityRegistryEntry, error)

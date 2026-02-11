@@ -97,6 +97,12 @@ func RegisterAreaTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
+// RegisterLabelTools registers all label management tools with the registry.
+func RegisterLabelTools(registry *mcp.Registry) {
+	h := NewLabelHandlers()
+	h.RegisterTools(registry)
+}
+
 // RegisterDeviceQueryTools registers all device query tools with the registry.
 func RegisterDeviceQueryTools(registry *mcp.Registry) {
 	h := NewDeviceQueryHandlers()
@@ -136,6 +142,9 @@ func RegisterAllTools(registry *mcp.Registry) {
 
 	// Area management tools (consolidated: manage_area for full CRUD)
 	RegisterAreaTools(registry)
+
+	// Label management tools (consolidated: manage_label for full CRUD)
+	RegisterLabelTools(registry)
 
 	// Entity query tools (consolidated: query_entities replaces get_states/get_history/get_statistics/list_domains)
 	RegisterConsolidatedEntityQueryTools(registry)

@@ -155,6 +155,22 @@ func (m *mockHAClient) DeleteArea(_ context.Context, _ string) error {
 	return nil
 }
 
+func (m *mockHAClient) GetLabelRegistry(_ context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) CreateLabel(_ context.Context, _ homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) UpdateLabel(_ context.Context, _ string, _ homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) DeleteLabel(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockHAClient) RemoveEntityRegistryEntry(_ context.Context, _ string) error {
 	return nil
 }

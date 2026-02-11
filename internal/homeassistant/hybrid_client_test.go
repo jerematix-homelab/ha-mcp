@@ -450,6 +450,10 @@ type mockWSOperations struct {
 	createAreaFunc             func(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error)
 	updateAreaFunc             func(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
 	deleteAreaFunc             func(ctx context.Context, areaID string) error
+	getLabelRegistryFunc       func(ctx context.Context) ([]LabelRegistryEntry, error)
+	createLabelFunc            func(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error)
+	updateLabelFunc            func(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
+	deleteLabelFunc            func(ctx context.Context, labelID string) error
 	signPathFunc               func(ctx context.Context, path string, expires int) (string, error)
 	getCameraStreamFunc        func(ctx context.Context, entityID string) (*StreamInfo, error)
 	browseMediaFunc            func(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
@@ -662,6 +666,34 @@ func (m *mockWSOperations) UpdateArea(ctx context.Context, areaID string, config
 func (m *mockWSOperations) DeleteArea(ctx context.Context, areaID string) error {
 	if m.deleteAreaFunc != nil {
 		return m.deleteAreaFunc(ctx, areaID)
+	}
+	return nil
+}
+
+func (m *mockWSOperations) GetLabelRegistry(ctx context.Context) ([]LabelRegistryEntry, error) {
+	if m.getLabelRegistryFunc != nil {
+		return m.getLabelRegistryFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) CreateLabel(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error) {
+	if m.createLabelFunc != nil {
+		return m.createLabelFunc(ctx, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) UpdateLabel(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error) {
+	if m.updateLabelFunc != nil {
+		return m.updateLabelFunc(ctx, labelID, config)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) DeleteLabel(ctx context.Context, labelID string) error {
+	if m.deleteLabelFunc != nil {
+		return m.deleteLabelFunc(ctx, labelID)
 	}
 	return nil
 }

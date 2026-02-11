@@ -212,6 +212,7 @@ Helper Types:
 Actions:
 - list: List all helpers (optional: format=natural|json, verbose=true|false)
 - create: Create a new helper (requires type, id, name)
+- update: Update an existing helper (requires entity_id; WebSocket helpers only)
 - delete: Delete an existing helper (requires entity_id)
 - get_details: Get helper details (requires entity_id; supports schedule, counter, timer)`,
 		InputSchema: mcp.JSONSchema{
@@ -220,8 +221,8 @@ Actions:
 			Properties: map[string]mcp.JSONSchema{
 				"action": {
 					Type:        "string",
-					Description: "Operation to perform: list, create, delete, or get_details",
-					Enum:        []string{"list", "create", "delete", "get_details"},
+					Description: "Operation to perform: list, create, update, delete, or get_details",
+					Enum:        []string{"list", "create", "update", "delete", "get_details"},
 				},
 				"format": {
 					Type:        "string",
@@ -485,12 +486,14 @@ func (h *ConsolidatedHelperHandlers) handleManageHelper(ctx context.Context, cli
 		return h.handleList(ctx, client, args)
 	case "create":
 		return h.handleCreate(ctx, client, args)
+	case "update":
+		return h.handleUpdate(ctx, client, args)
 	case "delete":
 		return h.handleDelete(ctx, client, args)
 	case "get_details":
 		return h.handleGetDetails(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("invalid action: %s (must be list, create, delete, or get_details)", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s (must be list, create, update, delete, or get_details)", action)), nil
 	}
 }
 
@@ -659,6 +662,69 @@ func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
 	}
 
 	return entityID, nil
+}
+
+func (h *ConsolidatedHelperHandlers) handleUpdate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	entityID, _ := args["entity_id"].(string)
+	if entityID == "" {
+		return errorResult("entity_id is required for update action"), nil
+	}
+
+	if err := ValidateEntityID(entityID); err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	// Extract platform and helper ID from entity_id
+	platform, helperID := ParseHelperEntityID(entityID)
+	if platform == "" || helperID == "" {
+		return errorResult(fmt.Sprintf("invalid entity_id format: %s", entityID)), nil
+	}
+
+	// Determine helper type from platform
+	// For most platforms, the helper type matches the platform
+	// Special cases: sensor/binary_sensor could be template/threshold/derivative/integral/group
+	// However, those are Config Entry Flow helpers and don't support update
+	helperType := platform
+
+	// Check if this is a Config Entry Flow helper
+	// Config Entry Flow helpers: group, threshold, derivative, integral, template_*
+	// These don't support update via WebSocket
+	if homeassistant.RequiresConfigEntryFlow(platform) {
+		return errorResult("update not supported for config entry flow helpers (group, threshold, derivative, integral, template)"), nil
+	}
+
+	// Get metadata for validation
+	meta, ok := helperTypes[helperType]
+	if !ok {
+		// For sensor/binary_sensor entities that are not in our metadata,
+		// they might be Config Entry helpers
+		return errorResult("update not supported for config entry flow helpers (group, threshold, derivative, integral, template)"), nil
+	}
+
+	// Build partial update config from provided args
+	// Only include fields that are actually present in args
+	config, err := buildHelperConfig(helperType, "", args)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	// Remove name from config if it wasn't explicitly provided
+	// (buildHelperConfig adds empty name by default)
+	if _, hasName := args["name"]; !hasName {
+		delete(config, "name")
+	}
+
+	// Create UpdateHelper request
+	updateConfig := homeassistant.HelperConfig{
+		Platform: meta.platform,
+		Config:   config,
+	}
+
+	if err := client.UpdateHelper(ctx, helperID, updateConfig); err != nil {
+		return errorResult(fmt.Sprintf("error updating helper: %v", err)), nil
+	}
+
+	return successResult(fmt.Sprintf("Helper '%s' updated successfully", entityID)), nil
 }
 
 func (h *ConsolidatedHelperHandlers) handleDelete(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {

@@ -63,6 +63,10 @@ type UniversalMockClient struct {
 	CreateAreaFn                func(ctx context.Context, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error)
 	UpdateAreaFn                func(ctx context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error)
 	DeleteAreaFn                func(ctx context.Context, areaID string) error
+	GetLabelRegistryFn          func(ctx context.Context) ([]homeassistant.LabelRegistryEntry, error)
+	CreateLabelFn               func(ctx context.Context, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error)
+	UpdateLabelFn               func(ctx context.Context, labelID string, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error)
+	DeleteLabelFn               func(ctx context.Context, labelID string) error
 	RemoveEntityRegistryEntryFn func(ctx context.Context, entityID string) error
 	UpdateEntityRegistryEntryFn func(ctx context.Context, entityID string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error)
 	RemoveDeviceConfigEntryFn   func(ctx context.Context, deviceID, configEntryID string) error
@@ -345,6 +349,34 @@ func (m *UniversalMockClient) UpdateArea(ctx context.Context, areaID string, con
 func (m *UniversalMockClient) DeleteArea(ctx context.Context, areaID string) error {
 	if m.DeleteAreaFn != nil {
 		return m.DeleteAreaFn(ctx, areaID)
+	}
+	return nil
+}
+
+func (m *UniversalMockClient) GetLabelRegistry(ctx context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+	if m.GetLabelRegistryFn != nil {
+		return m.GetLabelRegistryFn(ctx)
+	}
+	return []homeassistant.LabelRegistryEntry{}, nil
+}
+
+func (m *UniversalMockClient) CreateLabel(ctx context.Context, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
+	if m.CreateLabelFn != nil {
+		return m.CreateLabelFn(ctx, config)
+	}
+	return &homeassistant.LabelRegistryEntry{LabelID: "label_123", Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) UpdateLabel(ctx context.Context, labelID string, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
+	if m.UpdateLabelFn != nil {
+		return m.UpdateLabelFn(ctx, labelID, config)
+	}
+	return &homeassistant.LabelRegistryEntry{LabelID: labelID, Name: config.Name}, nil
+}
+
+func (m *UniversalMockClient) DeleteLabel(ctx context.Context, labelID string) error {
+	if m.DeleteLabelFn != nil {
+		return m.DeleteLabelFn(ctx, labelID)
 	}
 	return nil
 }
