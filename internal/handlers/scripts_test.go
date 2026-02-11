@@ -426,7 +426,7 @@ func TestScriptHandlers_ManageScript_Create(t *testing.T) {
 				"sequence":  []any{},
 			},
 			wantError:    true,
-			wantContains: "sequence is required",
+			wantContains: "at least one action",
 		},
 		{
 			name: "client error",

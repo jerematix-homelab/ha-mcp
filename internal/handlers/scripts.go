@@ -312,8 +312,11 @@ func (h *ScriptHandlers) handleCreate(ctx context.Context, client homeassistant.
 	}
 
 	sequence, ok := args["sequence"].([]any)
-	if !ok || len(sequence) == 0 {
-		return errorResult("sequence is required for create action and must be a non-empty array"), nil
+	if !ok {
+		return errorResult("sequence is required for create action and must be an array"), nil
+	}
+	if len(sequence) == 0 {
+		return errorResult("sequence must contain at least one action"), nil
 	}
 
 	config := homeassistant.ScriptConfig{

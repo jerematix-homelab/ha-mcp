@@ -34,11 +34,12 @@ type mockAutomationClient struct {
 	deleteErr error
 	toggleErr error
 
-	// Capture IDs passed to methods
-	lastGetID    string
-	lastUpdateID string
-	lastDeleteID string
-	lastToggleID string
+	// Capture IDs and configs passed to methods
+	lastGetID         string
+	lastUpdateID      string
+	lastDeleteID      string
+	lastToggleID      string
+	lastCreatedConfig *homeassistant.AutomationConfig
 }
 
 func (m *mockAutomationClient) ListAutomations(_ context.Context) ([]homeassistant.Automation, error) {
@@ -63,7 +64,11 @@ func (m *mockAutomationClient) GetAutomation(_ context.Context, automationID str
 	return m.automation, nil
 }
 
-func (m *mockAutomationClient) CreateAutomation(_ context.Context, _ homeassistant.AutomationConfig) error {
+func (m *mockAutomationClient) CreateAutomation(_ context.Context, config homeassistant.AutomationConfig) error {
+	if m.createErr == nil {
+		configCopy := config
+		m.lastCreatedConfig = &configCopy
+	}
 	return m.createErr
 }
 
@@ -356,6 +361,29 @@ func TestManageAutomation_Create(t *testing.T) {
 			wantError:    true,
 			wantContains: []string{"Error creating automation"},
 		},
+		{
+			name: "success - empty trigger array creates manual-only automation",
+			args: map[string]any{
+				"action":            "create",
+				"alias":             "Manual Only Test",
+				"trigger":           []any{},
+				"automation_action": []any{map[string]any{"service": "light.turn_on"}},
+			},
+			client:       &mockAutomationClient{},
+			wantContains: []string{"created successfully", "manual-only", "placeholder trigger inserted"},
+		},
+		{
+			name: "error - empty automation_action array",
+			args: map[string]any{
+				"action":            "create",
+				"alias":             "Test",
+				"trigger":           []any{map[string]any{"platform": "state"}},
+				"automation_action": []any{},
+			},
+			client:       &mockAutomationClient{},
+			wantError:    true,
+			wantContains: []string{"at least one action"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -376,6 +404,102 @@ func TestManageAutomation_Create(t *testing.T) {
 			for _, want := range tt.wantContains {
 				if !strings.Contains(content, want) {
 					t.Errorf("Expected content to contain %q", want)
+				}
+			}
+		})
+	}
+}
+
+func TestManageAutomation_Create_PlaceholderTriggerVerification(t *testing.T) {
+	t.Parallel()
+
+	client := &mockAutomationClient{}
+	h := &AutomationHandlers{}
+
+	args := map[string]any{
+		"action":            "create",
+		"alias":             "Manual Only Test",
+		"trigger":           []any{},
+		"automation_action": []any{map[string]any{"service": "light.turn_on"}},
+	}
+
+	result, err := h.handleManageAutomation(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleManageAutomation() unexpected error = %v", err)
+	}
+
+	if result.IsError {
+		t.Errorf("Expected success, got error: %s", result.Content[0].Text)
+	}
+
+	// Verify placeholder trigger was inserted
+	if client.lastCreatedConfig == nil {
+		t.Fatal("Expected config to be captured")
+	}
+
+	if len(client.lastCreatedConfig.Triggers) != 1 {
+		t.Errorf("Expected 1 trigger, got %d", len(client.lastCreatedConfig.Triggers))
+	}
+
+	// Verify it's the placeholder trigger
+	trigger, ok := client.lastCreatedConfig.Triggers[0].(map[string]any)
+	if !ok {
+		t.Fatal("Expected trigger to be map[string]any")
+	}
+
+	if trigger["event_type"] != "ha_mcp_manual_only_placeholder" {
+		t.Errorf("Expected placeholder trigger, got %v", trigger)
+	}
+}
+
+func TestResolveAutomationTriggers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		args           map[string]any
+		wantTriggers   []any
+		wantAutoFilled bool
+	}{
+		{
+			name:           "missing trigger key",
+			args:           map[string]any{},
+			wantTriggers:   nil,
+			wantAutoFilled: false,
+		},
+		{
+			name:           "empty trigger array",
+			args:           map[string]any{"trigger": []any{}},
+			wantTriggers:   manualOnlyTrigger,
+			wantAutoFilled: true,
+		},
+		{
+			name: "non-empty trigger array",
+			args: map[string]any{
+				"trigger": []any{map[string]any{"platform": "state"}},
+			},
+			wantTriggers:   []any{map[string]any{"platform": "state"}},
+			wantAutoFilled: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			triggers, autoFilled := resolveAutomationTriggers(tt.args)
+
+			if autoFilled != tt.wantAutoFilled {
+				t.Errorf("autoFilled = %v, want %v", autoFilled, tt.wantAutoFilled)
+			}
+
+			if tt.wantTriggers == nil {
+				if triggers != nil {
+					t.Errorf("Expected nil triggers, got %v", triggers)
+				}
+			} else {
+				if len(triggers) != len(tt.wantTriggers) {
+					t.Errorf("len(triggers) = %d, want %d", len(triggers), len(tt.wantTriggers))
 				}
 			}
 		})

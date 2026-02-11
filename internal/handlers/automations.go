@@ -25,6 +25,24 @@ const (
 	automationActionCoverage = "coverage"
 )
 
+// manualOnlyTrigger is a placeholder trigger for manual-only automations.
+var manualOnlyTrigger = []any{
+	map[string]any{"trigger": "event", "event_type": "ha_mcp_manual_only_placeholder"},
+}
+
+// resolveAutomationTriggers resolves trigger array from args, returning placeholder for empty arrays.
+// Returns (triggers, autoFilled) where autoFilled indicates if placeholder was used.
+func resolveAutomationTriggers(args map[string]any) ([]any, bool) {
+	trigger, provided := args["trigger"].([]any)
+	if !provided {
+		return nil, false
+	}
+	if len(trigger) == 0 {
+		return manualOnlyTrigger, true
+	}
+	return trigger, false
+}
+
 // AutomationHandlers provides MCP tool handlers for automation operations.
 type AutomationHandlers struct{}
 
@@ -51,7 +69,7 @@ func (h *AutomationHandlers) manageAutomationTool() mcp.Tool {
 Actions:
 - list: List automations (optional filters: state, alias, entity_id; supports verbose, limit, cursor)
 - get: Get details of a specific automation (requires automation_id)
-- create: Create a new automation (requires alias, trigger, automation_action)
+- create: Create a new automation (requires alias, trigger, automation_action; trigger=[] for manual-only)
 - update: Update an existing automation (requires automation_id)
 - delete: Delete an automation (requires automation_id)
 - toggle: Enable or disable an automation (requires automation_id, enabled)
@@ -79,7 +97,7 @@ Actions:
 				},
 				"trigger": {
 					Type:        "array",
-					Description: "List of triggers that start the automation (required for create)",
+					Description: "List of triggers that start the automation (required for create; pass empty array [] for manual-only automations)",
 				},
 				"condition": {
 					Type:        "array",
@@ -284,19 +302,22 @@ func (h *AutomationHandlers) handleCreate(ctx context.Context, client homeassist
 		return errorResult("alias is required for create action"), nil
 	}
 
-	trigger, _ := args["trigger"].([]any)
-	if len(trigger) == 0 {
-		return errorResult("trigger is required for create action"), nil
+	trigger, autoFilled := resolveAutomationTriggers(args)
+	if trigger == nil {
+		return errorResult("trigger is required for create action (pass empty array [] for manual-only automations)"), nil
 	}
 
 	// Support both "action" and "automation_action" for backwards compatibility
-	automationAction, _ := args["automation_action"].([]any)
-	if len(automationAction) == 0 {
+	automationAction, actionOK := args["automation_action"].([]any)
+	if !actionOK {
 		// Try legacy "action" field
-		automationAction, _ = args["action"].([]any)
+		automationAction, actionOK = args["action"].([]any)
+	}
+	if !actionOK {
+		return errorResult("automation_action is required for create action"), nil
 	}
 	if len(automationAction) == 0 {
-		return errorResult("automation_action is required for create action"), nil
+		return errorResult("automation_action must contain at least one action"), nil
 	}
 
 	id := generateAutomationID(alias)
@@ -315,7 +336,11 @@ func (h *AutomationHandlers) handleCreate(ctx context.Context, client homeassist
 		return errorResult(fmt.Sprintf("Error creating automation: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Automation '%s' created successfully with ID '%s'", alias, id)), nil
+	successMsg := fmt.Sprintf("Automation '%s' created successfully with ID '%s'", alias, id)
+	if autoFilled {
+		successMsg += " (manual-only: placeholder trigger inserted)"
+	}
+	return successResult(successMsg), nil
 }
 
 func (h *AutomationHandlers) handleUpdate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -686,16 +711,20 @@ func applyAutomationConfigUpdates(config *homeassistant.AutomationConfig, args m
 	if desc, ok := args["description"].(string); ok {
 		config.Description = desc
 	}
-	if trigger, ok := args["trigger"].([]any); ok && len(trigger) > 0 {
-		config.Triggers = trigger
+	if trigger, ok := args["trigger"].([]any); ok {
+		if len(trigger) == 0 {
+			config.Triggers = manualOnlyTrigger
+		} else {
+			config.Triggers = trigger
+		}
 	}
 	if condition, ok := args["condition"].([]any); ok {
 		config.Conditions = condition
 	}
 	// Support both "automation_action" and legacy "action"
-	if automationAction, ok := args["automation_action"].([]any); ok && len(automationAction) > 0 {
+	if automationAction, ok := args["automation_action"].([]any); ok {
 		config.Actions = automationAction
-	} else if action, ok := args["action"].([]any); ok && len(action) > 0 {
+	} else if action, ok := args["action"].([]any); ok {
 		config.Actions = action
 	}
 	if mode, ok := args["mode"].(string); ok && mode != "" {
