@@ -414,9 +414,12 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"repository_id": "123456",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(_ context.Context, command string, _ map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, command string, data map[string]any) (any, error) {
 					if command != "hacs/repository/download" {
 						return nil, fmt.Errorf("wrong command: %s", command)
+					}
+					if data["repository"] != "123456" {
+						return nil, fmt.Errorf("expected repository field, got: %v", data)
 					}
 					return map[string]any{"success": true}, nil
 				}

@@ -293,7 +293,7 @@ func (h *HACSHandlers) handleDownload(ctx context.Context, client homeassistant.
 		return errorResult("repository_id parameter is required"), nil
 	}
 
-	data := map[string]any{"repository_id": repoID}
+	data := map[string]any{"repository": repoID}
 	if version, ok := args["version"].(string); ok && version != "" {
 		data["version"] = version
 	}
