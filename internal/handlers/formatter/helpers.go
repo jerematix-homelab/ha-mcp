@@ -18,6 +18,8 @@ const (
 // Helper type constants.
 const (
 	helperTypeInputBoolean = "input_boolean"
+	helperTypeInputNumber  = "input_number"
+	helperTypeInputSelect  = "input_select"
 	helperStateActive      = "active"
 )
 
@@ -40,6 +42,9 @@ type HelperFormatter interface {
 
 	// FormatTimerDetail formats timer details.
 	FormatTimerDetail(ctx context.Context, detail map[string]any) (string, error)
+
+	// FormatHelperDetail formats helper details for all other helper types.
+	FormatHelperDetail(ctx context.Context, helperType string, detail map[string]any) (string, error)
 }
 
 // NewHelperFormatter creates a new HelperFormatter for the specified format.
@@ -190,6 +195,282 @@ func (f *NaturalHelperFormatter) FormatTimerDetail(
 	}
 
 	return strings.TrimSuffix(result.String(), "\n"), nil
+}
+
+// FormatHelperDetail formats helper details for all other helper types in natural language.
+func (f *NaturalHelperFormatter) FormatHelperDetail(
+	_ context.Context,
+	helperType string,
+	detail map[string]any,
+) (string, error) {
+	switch helperType {
+	case helperTypeInputBoolean:
+		return f.formatInputBooleanDetail(detail), nil
+	case helperTypeInputNumber:
+		return f.formatInputNumberDetail(detail), nil
+	case "input_text":
+		return f.formatInputTextDetail(detail), nil
+	case helperTypeInputSelect:
+		return f.formatInputSelectDetail(detail), nil
+	case "input_datetime":
+		return f.formatInputDatetimeDetail(detail), nil
+	case "input_button":
+		return f.formatInputButtonDetail(detail), nil
+	case "group":
+		return f.formatGroupDetail(detail), nil
+	case "sensor":
+		return f.formatSensorDetail(detail), nil
+	case "binary_sensor":
+		return f.formatBinarySensorDetail(detail), nil
+	default:
+		return "", fmt.Errorf("unsupported helper type: %s", helperType)
+	}
+}
+
+func (f *NaturalHelperFormatter) formatInputBooleanDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Toggle: %s (%s)\n", name, state)
+	fmt.Fprintf(&result, "Entity: %s\n", f.getDetailString(detail, "entity_id"))
+
+	if icon := f.getDetailString(detail, "icon"); icon != "" {
+		fmt.Fprintf(&result, "Icon: %s\n", icon)
+	}
+
+	editable := f.getDetailBool(detail, "editable")
+	fmt.Fprintf(&result, "Editable: %t", editable)
+
+	return result.String()
+}
+
+func (f *NaturalHelperFormatter) formatInputNumberDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Number: %s\n", name)
+
+	unit := f.getDetailString(detail, "unit_of_measurement")
+	if unit != "" {
+		fmt.Fprintf(&result, "Current value: %s %s\n", state, unit)
+	} else {
+		fmt.Fprintf(&result, "Current value: %s\n", state)
+	}
+
+	minVal := f.getDetailString(detail, "min")
+	maxVal := f.getDetailString(detail, "max")
+	if minVal != "" && maxVal != "" {
+		fmt.Fprintf(&result, "Range: %s - %s\n", minVal, maxVal)
+	}
+
+	if step := f.getDetailString(detail, "step"); step != "" {
+		fmt.Fprintf(&result, "Step: %s\n", step)
+	}
+
+	if mode := f.getDetailString(detail, "mode"); mode != "" {
+		fmt.Fprintf(&result, "Mode: %s", mode)
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
+
+func (f *NaturalHelperFormatter) formatInputTextDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Text: %s\n", name)
+	fmt.Fprintf(&result, "Current value: %s\n", state)
+
+	minVal := f.getDetailString(detail, "min")
+	maxVal := f.getDetailString(detail, "max")
+	if minVal != "" && maxVal != "" {
+		fmt.Fprintf(&result, "Length: %s - %s\n", minVal, maxVal)
+	}
+
+	if mode := f.getDetailString(detail, "mode"); mode != "" {
+		fmt.Fprintf(&result, "Mode: %s\n", mode)
+	}
+
+	if pattern := f.getDetailString(detail, "pattern"); pattern != "" {
+		fmt.Fprintf(&result, "Pattern: %s", pattern)
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
+
+func (f *NaturalHelperFormatter) formatInputSelectDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Select: %s\n", name)
+	fmt.Fprintf(&result, "Selected: %s\n", state)
+
+	if options, ok := detail["options"].([]any); ok && len(options) > 0 {
+		optStrs := make([]string, 0, len(options))
+		for _, opt := range options {
+			if optStr, ok := opt.(string); ok {
+				optStrs = append(optStrs, optStr)
+			}
+		}
+		fmt.Fprintf(&result, "Options: %s", strings.Join(optStrs, ", "))
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
+
+func (f *NaturalHelperFormatter) formatInputDatetimeDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Date/Time: %s\n", name)
+	fmt.Fprintf(&result, "Current value: %s\n", state)
+
+	hasDate := f.getDetailBool(detail, "has_date")
+	hasTime := f.getDetailBool(detail, "has_time")
+
+	switch {
+	case hasDate && hasTime:
+		fmt.Fprintf(&result, "Type: Date and time")
+	case hasDate:
+		fmt.Fprintf(&result, "Type: Date only")
+	case hasTime:
+		fmt.Fprintf(&result, "Type: Time only")
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
+
+func (f *NaturalHelperFormatter) formatInputButtonDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Button: %s\n", name)
+	fmt.Fprintf(&result, "Last pressed: %s", state)
+
+	return result.String()
+}
+
+func (f *NaturalHelperFormatter) formatGroupDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Group: %s (%s)\n", name, state)
+
+	all := f.getDetailBool(detail, "all")
+	if all {
+		fmt.Fprintf(&result, "Mode: all (all members must be on)\n")
+	} else {
+		fmt.Fprintf(&result, "Mode: any (at least one member)\n")
+	}
+
+	if members, ok := detail["members"].([]any); ok && len(members) > 0 {
+		fmt.Fprintf(&result, "Members (%d):\n", len(members))
+		for _, member := range members {
+			if memberStr, ok := member.(string); ok {
+				fmt.Fprintf(&result, "  • %s\n", memberStr)
+			}
+		}
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
+
+func (f *NaturalHelperFormatter) formatSensorDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Sensor: %s\n", name)
+
+	unit := f.getDetailString(detail, "unit_of_measurement")
+	if unit != "" {
+		fmt.Fprintf(&result, "Current value: %s %s\n", state, unit)
+	} else {
+		fmt.Fprintf(&result, "Current value: %s\n", state)
+	}
+
+	if deviceClass := f.getDetailString(detail, "device_class"); deviceClass != "" {
+		fmt.Fprintf(&result, "Device class: %s\n", deviceClass)
+	}
+
+	if stateClass := f.getDetailString(detail, "state_class"); stateClass != "" {
+		fmt.Fprintf(&result, "State class: %s\n", stateClass)
+	}
+
+	if source := f.getDetailString(detail, "source"); source != "" {
+		fmt.Fprintf(&result, "Source: %s", source)
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
+
+func (f *NaturalHelperFormatter) formatBinarySensorDetail(detail map[string]any) string {
+	var result strings.Builder
+
+	name := f.getDetailString(detail, "friendly_name")
+	if name == "" {
+		name = f.getDetailString(detail, "entity_id")
+	}
+	state := f.getDetailString(detail, "state")
+
+	fmt.Fprintf(&result, "Binary Sensor: %s\n", name)
+	fmt.Fprintf(&result, "Current state: %s\n", state)
+
+	if deviceClass := f.getDetailString(detail, "device_class"); deviceClass != "" {
+		fmt.Fprintf(&result, "Device class: %s\n", deviceClass)
+	}
+
+	if source := f.getDetailString(detail, "source_entity"); source != "" {
+		fmt.Fprintf(&result, "Source entity: %s", source)
+	}
+
+	return strings.TrimSuffix(result.String(), "\n")
+}
+
+func (f *NaturalHelperFormatter) getDetailBool(detail map[string]any, key string) bool {
+	if val, ok := detail[key].(bool); ok {
+		return val
+	}
+	return false
 }
 
 // Helper methods for NaturalHelperFormatter
@@ -554,6 +835,23 @@ func (f *JSONHelperFormatter) FormatTimerDetail(
 	data, err := json.MarshalIndent(detail, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal timer detail: %w", err)
+	}
+	return string(data), nil
+}
+
+// FormatHelperDetail formats helper details for all other helper types in JSON.
+func (f *JSONHelperFormatter) FormatHelperDetail(
+	_ context.Context,
+	_ string,
+	detail map[string]any,
+) (string, error) {
+	if detail == nil {
+		detail = map[string]any{}
+	}
+
+	data, err := json.MarshalIndent(detail, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal helper detail: %w", err)
 	}
 	return string(data), nil
 }

@@ -200,7 +200,7 @@ func TestManageLabel_Get(t *testing.T) {
 				}
 			},
 			wantError:    true,
-			wantContains: []string{"label not found", "nonexistent"},
+			wantContains: []string{"label not found", "nonexistent", "tried as"},
 		},
 		{
 			name: "get label without label_id",
@@ -209,6 +209,214 @@ func TestManageLabel_Get(t *testing.T) {
 			},
 			wantError:    true,
 			wantContains: []string{"label_id", "required"},
+		},
+	}
+
+	h := NewLabelHandlers()
+	runHandlerTestCases(t, tests, h.handleManageLabel)
+}
+
+// =============================================================================
+// Get Tests - Name Fallback
+// =============================================================================
+
+func TestManageLabel_GetByNameFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "get label by exact name match",
+			args: map[string]any{
+				"action":   "get",
+				"label_id": "Important",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_important", Name: "Important"},
+						{LabelID: "label_work", Name: "Work"},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Label: Important", "ID: label_important"},
+		},
+		{
+			name: "get label by partial name match",
+			args: map[string]any{
+				"action":   "get",
+				"label_id": "import",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_important", Name: "Important"},
+						{LabelID: "label_work", Name: "Work"},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Label: Important", "ID: label_important"},
+		},
+		{
+			name: "get label by case-insensitive name",
+			args: map[string]any{
+				"action":   "get",
+				"label_id": "IMPORTANT",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_important", Name: "Important"},
+						{LabelID: "label_work", Name: "Work"},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Label: Important", "ID: label_important"},
+		},
+		{
+			name: "ID takes precedence over name",
+			args: map[string]any{
+				"action":   "get",
+				"label_id": "label_work",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_work", Name: "Work"},
+						{LabelID: "label_other", Name: "label_work"}, // Name matches input
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Label: Work", "ID: label_work"}, // Should find by ID, not name
+		},
+		{
+			name: "get label not found with fallback - updated error message",
+			args: map[string]any{
+				"action":   "get",
+				"label_id": "nonexistent",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_1", Name: "Test"},
+					}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"label not found", "nonexistent", "tried as"},
+		},
+	}
+
+	h := NewLabelHandlers()
+	runHandlerTestCases(t, tests, h.handleManageLabel)
+}
+
+// =============================================================================
+// Update Tests - Name Fallback
+// =============================================================================
+
+func TestManageLabel_UpdateByNameFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "update label by name fallback",
+			args: map[string]any{
+				"action":   "update",
+				"label_id": "Important",
+				"color":    "blue",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_important", Name: "Important"},
+					}, nil
+				}
+				m.UpdateLabelFn = func(_ context.Context, labelID string, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
+					if labelID != "label_important" {
+						return nil, fmt.Errorf("unexpected label_id: %s", labelID)
+					}
+					return &homeassistant.LabelRegistryEntry{
+						LabelID: labelID,
+						Name:    "Important",
+						Color:   config.Color,
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated successfully", "Important"},
+		},
+		{
+			name: "update label by name not found",
+			args: map[string]any{
+				"action":   "update",
+				"label_id": "nonexistent",
+				"color":    "blue",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_1", Name: "Test"},
+					}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"label not found", "nonexistent", "tried as"},
+		},
+	}
+
+	h := NewLabelHandlers()
+	runHandlerTestCases(t, tests, h.handleManageLabel)
+}
+
+// =============================================================================
+// Delete Tests - Name Fallback
+// =============================================================================
+
+func TestManageLabel_DeleteByNameFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "delete label by name fallback",
+			args: map[string]any{
+				"action":   "delete",
+				"label_id": "Important",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_important", Name: "Important"},
+					}, nil
+				}
+				m.DeleteLabelFn = func(_ context.Context, labelID string) error {
+					if labelID != "label_important" {
+						return fmt.Errorf("unexpected label_id: %s", labelID)
+					}
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"deleted successfully", "label_important"},
+		},
+		{
+			name: "delete label by name not found",
+			args: map[string]any{
+				"action":   "delete",
+				"label_id": "nonexistent",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_1", Name: "Test"},
+					}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"label not found", "nonexistent", "tried as"},
 		},
 	}
 
@@ -308,6 +516,11 @@ func TestManageLabel_Update(t *testing.T) {
 				"name":     "Updated Name",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_1", Name: "Test"},
+					}, nil
+				}
 				m.UpdateLabelFn = func(_ context.Context, labelID string, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
 					if labelID != "label_1" {
 						return nil, fmt.Errorf("unexpected label_id: %s", labelID)
@@ -330,6 +543,11 @@ func TestManageLabel_Update(t *testing.T) {
 				"icon":     "mdi:check",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_2", Name: "Test"},
+					}, nil
+				}
 				m.UpdateLabelFn = func(_ context.Context, labelID string, config homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
 					return &homeassistant.LabelRegistryEntry{
 						LabelID: labelID,
@@ -359,6 +577,11 @@ func TestManageLabel_Update(t *testing.T) {
 				"name":     "Test",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_1", Name: "Test"},
+					}, nil
+				}
 				m.UpdateLabelFn = func(context.Context, string, homeassistant.LabelConfig) (*homeassistant.LabelRegistryEntry, error) {
 					return nil, fmt.Errorf("not found")
 				}
@@ -387,6 +610,11 @@ func TestManageLabel_Delete(t *testing.T) {
 				"label_id": "label_old",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_old", Name: "Old Label"},
+					}, nil
+				}
 				m.DeleteLabelFn = func(_ context.Context, labelID string) error {
 					if labelID != "label_old" {
 						return fmt.Errorf("unexpected label_id: %s", labelID)
@@ -412,6 +640,11 @@ func TestManageLabel_Delete(t *testing.T) {
 				"label_id": "label_1",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetLabelRegistryFn = func(context.Context) ([]homeassistant.LabelRegistryEntry, error) {
+					return []homeassistant.LabelRegistryEntry{
+						{LabelID: "label_1", Name: "Test"},
+					}, nil
+				}
 				m.DeleteLabelFn = func(context.Context, string) error {
 					return fmt.Errorf("label in use")
 				}

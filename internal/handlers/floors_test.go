@@ -335,6 +335,12 @@ func TestManageFloor_Update(t *testing.T) {
 				"name":     "Updated Name",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetFloorRegistryFn = func(context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+					return []homeassistant.FloorRegistryEntry{
+						{FloorID: "floor_1", Name: "Test Floor"},
+						{FloorID: "floor_2", Name: "Test Floor 2"},
+					}, nil
+				}
 				m.UpdateFloorFn = func(_ context.Context, floorID string, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
 					if floorID != "floor_1" {
 						return nil, fmt.Errorf("unexpected floor_id: %s", floorID)
@@ -357,6 +363,12 @@ func TestManageFloor_Update(t *testing.T) {
 				"icon":     "mdi:home-floor-b",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetFloorRegistryFn = func(context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+					return []homeassistant.FloorRegistryEntry{
+						{FloorID: "floor_1", Name: "Test Floor"},
+						{FloorID: "floor_2", Name: "Basement"},
+					}, nil
+				}
 				m.UpdateFloorFn = func(_ context.Context, floorID string, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
 					return &homeassistant.FloorRegistryEntry{
 						FloorID: floorID,
@@ -386,6 +398,11 @@ func TestManageFloor_Update(t *testing.T) {
 				"name":     "Test",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetFloorRegistryFn = func(context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+					return []homeassistant.FloorRegistryEntry{
+						{FloorID: "floor_1", Name: "Test Floor"},
+					}, nil
+				}
 				m.UpdateFloorFn = func(context.Context, string, homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
 					return nil, fmt.Errorf("not found")
 				}
@@ -414,6 +431,12 @@ func TestManageFloor_Delete(t *testing.T) {
 				"floor_id": "floor_old",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetFloorRegistryFn = func(context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+					return []homeassistant.FloorRegistryEntry{
+						{FloorID: "floor_old", Name: "Old Floor"},
+						{FloorID: "floor_new", Name: "New Floor"},
+					}, nil
+				}
 				m.DeleteFloorFn = func(_ context.Context, floorID string) error {
 					if floorID != "floor_old" {
 						return fmt.Errorf("unexpected floor_id: %s", floorID)
@@ -439,6 +462,11 @@ func TestManageFloor_Delete(t *testing.T) {
 				"floor_id": "floor_1",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetFloorRegistryFn = func(context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+					return []homeassistant.FloorRegistryEntry{
+						{FloorID: "floor_1", Name: "Test Floor"},
+					}, nil
+				}
 				m.DeleteFloorFn = func(context.Context, string) error {
 					return fmt.Errorf("floor has areas")
 				}

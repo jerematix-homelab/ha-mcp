@@ -66,7 +66,7 @@ func (h *AreaHandlers) buildAreaSchema() mcp.JSONSchema {
 			},
 			"area_id": {
 				Type:        "string",
-				Description: "Area identifier (e.g., 'living_room'). Required for get/update/delete.",
+				Description: "Area identifier or name. Required for get/update/delete. Accepts exact area_id or case-insensitive name search.",
 			},
 			"name": {
 				Type:        "string",
@@ -179,20 +179,13 @@ func (h *AreaHandlers) handleGet(ctx context.Context, client homeassistant.Clien
 		return errorResult(fmt.Sprintf("error getting areas: %v", err)), nil
 	}
 
-	var found *homeassistant.AreaRegistryEntry
-	for i := range areas {
-		if areas[i].AreaID == areaID {
-			found = &areas[i]
-			break
-		}
-	}
-
-	if found == nil {
-		return errorResult(fmt.Sprintf("area not found: %s", areaID)), nil
+	found, findErr := h.findAreaByInput(areas, areaID)
+	if findErr != nil {
+		return errorResult(findErr.Error()), nil
 	}
 
 	// Enrich with device and entity counts
-	deviceCount, entityCount := h.getAreaCounts(ctx, client, areaID)
+	deviceCount, entityCount := h.getAreaCounts(ctx, client, found.AreaID)
 
 	formatStr, _ := args["format"].(string)
 	if formatStr == formatJSON {
@@ -228,9 +221,14 @@ func (h *AreaHandlers) handleUpdate(ctx context.Context, client homeassistant.Cl
 		return errorResult("area_id is required for update action"), nil
 	}
 
+	resolvedID, err := h.resolveAreaID(ctx, client, areaID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
 	config := h.buildAreaConfig(args)
 
-	entry, err := client.UpdateArea(ctx, areaID, config)
+	entry, err := client.UpdateArea(ctx, resolvedID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating area: %v", err)), nil
 	}
@@ -248,17 +246,57 @@ func (h *AreaHandlers) handleDelete(ctx context.Context, client homeassistant.Cl
 		return errorResult("area_id is required for delete action"), nil
 	}
 
-	err := client.DeleteArea(ctx, areaID)
+	resolvedID, err := h.resolveAreaID(ctx, client, areaID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	err = client.DeleteArea(ctx, resolvedID)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error deleting area: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Area '%s' deleted successfully", areaID)), nil
+	return successResult(fmt.Sprintf("Area '%s' deleted successfully", resolvedID)), nil
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// findAreaByInput performs two-phase lookup: exact ID match, then case-insensitive name substring match.
+func (h *AreaHandlers) findAreaByInput(areas []homeassistant.AreaRegistryEntry, input string) (*homeassistant.AreaRegistryEntry, error) {
+	// Phase 1: Exact ID match
+	for i := range areas {
+		if areas[i].AreaID == input {
+			return &areas[i], nil
+		}
+	}
+
+	// Phase 2: Case-insensitive name substring match
+	lowerInput := strings.ToLower(input)
+	for i := range areas {
+		if strings.Contains(strings.ToLower(areas[i].Name), lowerInput) {
+			return &areas[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("area not found: %s (tried as area_id and name)", input)
+}
+
+// resolveAreaID resolves an area input (ID or name) to the actual area ID.
+func (h *AreaHandlers) resolveAreaID(ctx context.Context, client homeassistant.Client, input string) (string, error) {
+	areas, err := client.GetAreaRegistry(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error fetching areas: %w", err)
+	}
+
+	area, err := h.findAreaByInput(areas, input)
+	if err != nil {
+		return "", err
+	}
+
+	return area.AreaID, nil
+}
 
 func (h *AreaHandlers) buildAreaConfig(args map[string]any) homeassistant.AreaConfig {
 	cfg := homeassistant.AreaConfig{}

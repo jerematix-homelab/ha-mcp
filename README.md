@@ -474,7 +474,7 @@ ha-mcp provides comprehensive support for all 14 Home Assistant helper types thr
 
 | Tool            | Description                                                                                                                |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `manage_helper` | List, create, update, delete, or get details for any helper type (supports schedule, counter, timer details; format: natural/json) |
+| `manage_helper` | List, create, update, delete, or get details for any helper type (format: natural/json) |
 | `helper_action` | Execute runtime actions (toggle, set, increment, start, etc.)                                                              |
 
 ##### manage_helper
@@ -487,7 +487,7 @@ Universal tool for helper lifecycle management:
 | `create`      | Create a new helper (requires `type`, `id`, `name`)                                                  |
 | `update`      | Update an existing helper (requires `entity_id`; WebSocket helpers only)                             |
 | `delete`      | Delete an existing helper (requires `entity_id`)                                                     |
-| `get_details` | Get detailed configuration (requires `entity_id`; supports schedule, counter, timer; format: natural/json) |
+| `get_details` | Get detailed configuration for any helper type (requires `entity_id`; format: natural/json) |
 
 **Supported helper types:** `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`, `group`, `template_sensor`, `template_binary_sensor`, `threshold`, `derivative`, `integral`
 

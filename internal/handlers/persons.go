@@ -66,7 +66,7 @@ func (h *PersonHandlers) buildPersonSchema() mcp.JSONSchema {
 			},
 			"person_id": {
 				Type:        "string",
-				Description: "Person identifier. Required for get/update/delete.",
+				Description: "Person identifier or name. Required for get/update/delete. Accepts exact person_id or case-insensitive name search.",
 			},
 			"name": {
 				Type:        "string",
@@ -157,16 +157,9 @@ func (h *PersonHandlers) handleGet(ctx context.Context, client homeassistant.Cli
 		return errorResult(fmt.Sprintf("error getting persons: %v", err)), nil
 	}
 
-	var person *homeassistant.PersonRegistryEntry
-	for i := range persons {
-		if persons[i].ID == personID {
-			person = &persons[i]
-			break
-		}
-	}
-
-	if person == nil {
-		return errorResult(fmt.Sprintf("person not found: %s", personID)), nil
+	person, findErr := h.findPersonByInput(persons, personID)
+	if findErr != nil {
+		return errorResult(findErr.Error()), nil
 	}
 
 	formatStr, _ := args["format"].(string)
@@ -199,9 +192,14 @@ func (h *PersonHandlers) handleUpdate(ctx context.Context, client homeassistant.
 		return errorResult("person_id is required for update action"), nil
 	}
 
+	resolvedID, err := h.resolvePersonID(ctx, client, personID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
 	config := h.buildPersonConfig(args)
 
-	person, err := client.UpdatePerson(ctx, personID, config)
+	person, err := client.UpdatePerson(ctx, resolvedID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating person: %v", err)), nil
 	}
@@ -215,16 +213,56 @@ func (h *PersonHandlers) handleDelete(ctx context.Context, client homeassistant.
 		return errorResult("person_id is required for delete action"), nil
 	}
 
-	if err := client.DeletePerson(ctx, personID); err != nil {
+	resolvedID, err := h.resolvePersonID(ctx, client, personID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	if err := client.DeletePerson(ctx, resolvedID); err != nil {
 		return errorResult(fmt.Sprintf("error deleting person: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Person '%s' deleted successfully", personID)), nil
+	return successResult(fmt.Sprintf("Person '%s' deleted successfully", resolvedID)), nil
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// findPersonByInput performs two-phase lookup: exact ID match, then case-insensitive name substring match.
+func (h *PersonHandlers) findPersonByInput(persons []homeassistant.PersonRegistryEntry, input string) (*homeassistant.PersonRegistryEntry, error) {
+	// Phase 1: Exact ID match
+	for i := range persons {
+		if persons[i].ID == input {
+			return &persons[i], nil
+		}
+	}
+
+	// Phase 2: Case-insensitive name substring match
+	lowerInput := strings.ToLower(input)
+	for i := range persons {
+		if strings.Contains(strings.ToLower(persons[i].Name), lowerInput) {
+			return &persons[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("person not found: %s (tried as person_id and name)", input)
+}
+
+// resolvePersonID resolves a person input (ID or name) to the actual person ID.
+func (h *PersonHandlers) resolvePersonID(ctx context.Context, client homeassistant.Client, input string) (string, error) {
+	persons, err := client.GetPersons(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error fetching persons: %w", err)
+	}
+
+	person, err := h.findPersonByInput(persons, input)
+	if err != nil {
+		return "", err
+	}
+
+	return person.ID, nil
+}
 
 func (h *PersonHandlers) buildPersonConfig(args map[string]any) homeassistant.PersonConfig {
 	config := homeassistant.PersonConfig{}
