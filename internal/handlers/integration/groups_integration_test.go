@@ -215,5 +215,3 @@ func (s *GroupIntegrationTestSuite) TestGroupReload() {
 
 	s.T().Log("Group reload completed successfully")
 }
-
-
