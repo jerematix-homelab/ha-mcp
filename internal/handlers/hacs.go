@@ -182,16 +182,8 @@ func (h *HACSHandlers) handleInfo(ctx context.Context, client homeassistant.Clie
 }
 
 func (h *HACSHandlers) handleList(ctx context.Context, client homeassistant.Client, args map[string]any, format string) (*mcp.ToolsCallResult, error) {
-	data := make(map[string]any)
-	// Only server-side filters sent to API
-	if installedOnly, ok := args["installed_only"].(bool); ok {
-		data["installed_only"] = installedOnly
-	}
-	if pendingUpdate, ok := args["pending_update"].(bool); ok {
-		data["pending_update"] = pendingUpdate
-	}
-
-	result, err := client.SendHACSCommand(ctx, "hacs/repositories/list", data)
+	// HACS API does not accept any server-side filters - all filtering is client-side
+	result, err := client.SendHACSCommand(ctx, "hacs/repositories/list", nil)
 	if err != nil {
 		return h.handleHACSError(err), nil
 	}
@@ -199,8 +191,10 @@ func (h *HACSHandlers) handleList(ctx context.Context, client homeassistant.Clie
 	// Client-side filters
 	category := getStringArg(args, "category")
 	search := getStringArg(args, "search")
+	installedOnly := getBoolArg(args, "installed_only")
+	pendingUpdate := getBoolArg(args, "pending_update")
 	if repos, ok := result.([]any); ok {
-		result = filterHACSRepos(repos, category, search)
+		result = filterHACSRepos(repos, category, search, installedOnly, pendingUpdate)
 	}
 
 	if format == formatJSON {
@@ -597,8 +591,8 @@ func getMapString(m map[string]any, key, defaultVal string) string {
 }
 
 // filterHACSRepos applies client-side filtering to repository list.
-func filterHACSRepos(repos []any, category, search string) []any {
-	if category == "" && search == "" {
+func filterHACSRepos(repos []any, category, search string, installedOnly, pendingUpdate bool) []any {
+	if category == "" && search == "" && !installedOnly && !pendingUpdate {
 		return repos
 	}
 
@@ -611,25 +605,48 @@ func filterHACSRepos(repos []any, category, search string) []any {
 			continue
 		}
 
-		// Apply category filter (exact match)
-		if category != "" {
-			repoCategory := getMapString(repo, "category", "")
-			if repoCategory != category {
-				continue
-			}
+		if shouldIncludeHACSRepo(repo, category, searchLower, installedOnly, pendingUpdate) {
+			filtered = append(filtered, repo)
 		}
-
-		// Apply search filter (substring match)
-		if search != "" {
-			if !matchesHACSSearch(repo, searchLower) {
-				continue
-			}
-		}
-
-		filtered = append(filtered, repo)
 	}
 
 	return filtered
+}
+
+// shouldIncludeHACSRepo checks if a repository passes all active filters.
+func shouldIncludeHACSRepo(repo map[string]any, category, searchLower string, installedOnly, pendingUpdate bool) bool {
+	// Apply installed_only filter
+	if installedOnly {
+		installed, _ := repo["installed"].(bool)
+		if !installed {
+			return false
+		}
+	}
+
+	// Apply pending_update filter
+	if pendingUpdate {
+		pendingUpgrade, _ := repo["pending_upgrade"].(bool)
+		if !pendingUpgrade {
+			return false
+		}
+	}
+
+	// Apply category filter (exact match)
+	if category != "" {
+		repoCategory := getMapString(repo, "category", "")
+		if repoCategory != category {
+			return false
+		}
+	}
+
+	// Apply search filter (substring match)
+	if searchLower != "" {
+		if !matchesHACSSearch(repo, searchLower) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // matchesHACSSearch checks if a repository matches the search query.
