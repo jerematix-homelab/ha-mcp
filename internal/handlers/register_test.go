@@ -30,18 +30,6 @@ func TestRegisterAutomationTools(t *testing.T) {
 	}
 }
 
-func TestRegisterHelperTools(t *testing.T) {
-	t.Parallel()
-
-	registry := mcp.NewRegistry()
-	RegisterHelperTools(registry)
-
-	tools := registry.ListTools()
-	if len(tools) == 0 {
-		t.Error("RegisterHelperTools() registered no tools")
-	}
-}
-
 func TestRegisterConsolidatedHelperTools(t *testing.T) {
 	t.Parallel()
 
@@ -172,8 +160,8 @@ func TestRegisterAllTools(t *testing.T) {
 
 	// RegisterAllTools should register a significant number of tools
 	// At minimum, we expect tools from all major handler categories
-	// After consolidation: 42+ helper tools reduced to 2, +2 for entity/device manage
-	const minExpectedTools = 27 // Conservative minimum after consolidation and additions
+	// After consolidation: 42+ helper tools reduced to 2, +2 for entity/device manage, config entries 2→1
+	const minExpectedTools = 25 // Conservative minimum after tool consolidation
 	if len(tools) < minExpectedTools {
 		t.Errorf("RegisterAllTools() registered %d tools, want at least %d", len(tools), minExpectedTools)
 	}
@@ -187,8 +175,6 @@ func TestRegisterAllTools(t *testing.T) {
 		"manage_automation",
 		"manage_script",
 		"manage_scene",
-		// Helper tools (generic list)
-		"list_helpers",
 		// Consolidated helper tools (manage_helper replaces 14 create_* tools)
 		"manage_helper",
 		"helper_action",
@@ -207,9 +193,8 @@ func TestRegisterAllTools(t *testing.T) {
 		"analyze_target",
 		// Date/Time
 		"get_datetime",
-		// Config entries
-		"list_config_entries",
-		"get_config_entry",
+		// Config entries (consolidated)
+		"manage_config_entry",
 	}
 
 	toolMap := make(map[string]bool)

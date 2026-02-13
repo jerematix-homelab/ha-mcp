@@ -17,50 +17,46 @@ func TestConfigEntryHandlers_RegisterTools(t *testing.T) {
 	h.RegisterTools(registry)
 
 	tools := registry.ListTools()
-	if len(tools) != 2 {
-		t.Errorf("RegisterTools() registered %d tools, want 2", len(tools))
+	if len(tools) != 1 {
+		t.Errorf("RegisterTools() registered %d tools, want 1", len(tools))
 	}
 
-	// Verify expected tools exist
-	toolMap := make(map[string]bool)
-	for _, tool := range tools {
-		toolMap[tool.Name] = true
-	}
-
-	expectedTools := []string{"list_config_entries", "get_config_entry"}
-	for _, expected := range expectedTools {
-		if !toolMap[expected] {
-			t.Errorf("Expected tool %q not registered", expected)
-		}
+	// Verify expected tool exists
+	if len(tools) > 0 && tools[0].Name != "manage_config_entry" {
+		t.Errorf("Expected tool 'manage_config_entry', got %q", tools[0].Name)
 	}
 }
 
-func TestConfigEntryHandlers_ListConfigEntriesTool_Schema(t *testing.T) {
+func TestConfigEntryHandlers_ManageConfigEntryTool_Schema(t *testing.T) {
 	t.Parallel()
 
 	h := NewConfigEntryHandlers()
-	tool := h.listConfigEntriesTool()
+	tool := h.manageConfigEntryTool()
 
 	verifyToolSchema(t, tool, toolSchemaExpectation{
-		ExpectedName:    "list_config_entries",
-		RequiredParams:  []string{},
-		OptionalParams:  []string{"domain"},
+		ExpectedName:    "manage_config_entry",
+		RequiredParams:  []string{"action"},
+		OptionalParams:  []string{"domain", "entry_id", "format"},
 		WantDescription: true,
 	})
-}
 
-func TestConfigEntryHandlers_GetConfigEntryTool_Schema(t *testing.T) {
-	t.Parallel()
+	// Verify action enum has exactly 2 values
+	actionSchema, ok := tool.InputSchema.Properties["action"]
+	if !ok {
+		t.Fatal("action property not found in schema")
+	}
+	if len(actionSchema.Enum) != 2 {
+		t.Errorf("action enum has %d values, want 2", len(actionSchema.Enum))
+	}
 
-	h := NewConfigEntryHandlers()
-	tool := h.getConfigEntryTool()
-
-	verifyToolSchema(t, tool, toolSchemaExpectation{
-		ExpectedName:    "get_config_entry",
-		RequiredParams:  []string{"entry_id"},
-		OptionalParams:  []string{},
-		WantDescription: true,
-	})
+	// Verify format enum has exactly 2 values
+	formatSchema, ok := tool.InputSchema.Properties["format"]
+	if !ok {
+		t.Fatal("format property not found in schema")
+	}
+	if len(formatSchema.Enum) != 2 {
+		t.Errorf("format enum has %d values, want 2", len(formatSchema.Enum))
+	}
 }
 
 func TestConfigEntryHandlers_HandleListConfigEntries(t *testing.T) {
@@ -70,8 +66,8 @@ func TestConfigEntryHandlers_HandleListConfigEntries(t *testing.T) {
 
 	tests := []handlerTestCase{
 		{
-			name: "list all entries",
-			args: map[string]any{},
+			name: "list all entries - natural format",
+			args: map[string]any{"action": "list"},
 			setupMock: func(m *UniversalMockClient) {
 				m.GetConfigEntriesFn = func(_ context.Context, domain string) ([]homeassistant.ConfigEntryFull, error) {
 					if domain != "" {
@@ -94,11 +90,32 @@ func TestConfigEntryHandlers_HandleListConfigEntries(t *testing.T) {
 				}
 			},
 			wantError:    false,
-			wantContains: []string{"abc123", "template", "My Template Sensor", "def456", "hue"},
+			wantContains: []string{"My Template Sensor", "template", "Philips Hue", "hue"},
+		},
+		{
+			name: "list all entries - json format",
+			args: map[string]any{"action": "list", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetConfigEntriesFn = func(_ context.Context, domain string) ([]homeassistant.ConfigEntryFull, error) {
+					if domain != "" {
+						t.Errorf("expected empty domain, got %q", domain)
+					}
+					return []homeassistant.ConfigEntryFull{
+						{
+							EntryID: "abc123",
+							Domain:  "template",
+							Title:   "My Template Sensor",
+							State:   "loaded",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"abc123", "template"},
 		},
 		{
 			name: "filter by domain",
-			args: map[string]any{"domain": "template"},
+			args: map[string]any{"action": "list", "domain": "template"},
 			setupMock: func(m *UniversalMockClient) {
 				m.GetConfigEntriesFn = func(_ context.Context, domain string) ([]homeassistant.ConfigEntryFull, error) {
 					if domain != "template" {
@@ -115,33 +132,45 @@ func TestConfigEntryHandlers_HandleListConfigEntries(t *testing.T) {
 				}
 			},
 			wantError:    false,
-			wantContains: []string{"abc123", "template"},
+			wantContains: []string{"My Template Sensor", "template"},
 		},
 		{
 			name: "empty results",
-			args: map[string]any{},
+			args: map[string]any{"action": "list"},
 			setupMock: func(m *UniversalMockClient) {
 				m.GetConfigEntriesFn = func(_ context.Context, _ string) ([]homeassistant.ConfigEntryFull, error) {
 					return []homeassistant.ConfigEntryFull{}, nil
 				}
 			},
 			wantError:    false,
-			wantContains: []string{"0 config entries"},
+			wantContains: []string{"Found 0 config entries"},
 		},
 		{
 			name: "client error",
-			args: map[string]any{},
+			args: map[string]any{"action": "list"},
 			setupMock: func(m *UniversalMockClient) {
 				m.GetConfigEntriesFn = func(_ context.Context, _ string) ([]homeassistant.ConfigEntryFull, error) {
 					return nil, errors.New("connection failed")
 				}
 			},
 			wantError:    true,
-			wantContains: []string{"Error", "connection failed"},
+			wantContains: []string{"error", "connection failed"},
+		},
+		{
+			name:         "missing action",
+			args:         map[string]any{},
+			wantError:    true,
+			wantContains: []string{"action is required"},
+		},
+		{
+			name:         "invalid action",
+			args:         map[string]any{"action": "invalid"},
+			wantError:    true,
+			wantContains: []string{"invalid action"},
 		},
 	}
 
-	runHandlerTestCases(t, tests, h.handleListConfigEntries)
+	runHandlerTestCases(t, tests, h.handleManageConfigEntry)
 }
 
 func TestConfigEntryHandlers_HandleGetConfigEntry(t *testing.T) {
@@ -151,8 +180,8 @@ func TestConfigEntryHandlers_HandleGetConfigEntry(t *testing.T) {
 
 	tests := []handlerTestCase{
 		{
-			name: "get entry with options",
-			args: map[string]any{"entry_id": "abc123"},
+			name: "get entry with options - natural format",
+			args: map[string]any{"action": "get", "entry_id": "abc123"},
 			setupMock: func(m *UniversalMockClient) {
 				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
 					if entryID != "abc123" {
@@ -171,25 +200,51 @@ func TestConfigEntryHandlers_HandleGetConfigEntry(t *testing.T) {
 				}
 			},
 			wantError:    false,
-			wantContains: []string{"abc123", "template", "My Template Sensor", "state", "selectattr"},
+			wantContains: []string{"Config Entry", "My Template Sensor", "Domain", "template"},
+		},
+		{
+			name: "get entry with options - json format",
+			args: map[string]any{"action": "get", "entry_id": "abc123", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
+					if entryID != "abc123" {
+						t.Errorf("expected entry_id 'abc123', got %q", entryID)
+					}
+					return &homeassistant.ConfigEntryFull{
+						EntryID: "abc123",
+						Domain:  "template",
+						Title:   "My Template Sensor",
+						State:   "loaded",
+						Options: map[string]any{
+							"name":  "Angeschaltete Lichter",
+							"state": "{{ states.light | selectattr('state', 'eq', 'on') | list | count }}",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"abc123", "template", "state", "selectattr"},
 		},
 		{
 			name: "entry not found",
-			args: map[string]any{"entry_id": "nonexistent"},
+			args: map[string]any{"action": "get", "entry_id": "nonexistent"},
 			setupMock: func(m *UniversalMockClient) {
 				m.GetConfigEntryFn = func(_ context.Context, _ string) (*homeassistant.ConfigEntryFull, error) {
 					return nil, errors.New("config entry not found")
 				}
 			},
 			wantError:    true,
-			wantContains: []string{"Error", "config entry not found"},
+			wantContains: []string{"error", "config entry not found"},
+		},
+		{
+			name:         "missing entry_id",
+			args:         map[string]any{"action": "get"},
+			wantError:    true,
+			wantContains: []string{"entry_id is required"},
 		},
 	}
 
-	// Add required parameter tests
-	tests = append(tests, paramRequiredTestCases("entry_id")...)
-
-	runHandlerTestCases(t, tests, h.handleGetConfigEntry)
+	runHandlerTestCases(t, tests, h.handleManageConfigEntry)
 }
 
 func TestRegisterConfigEntryTools(t *testing.T) {
