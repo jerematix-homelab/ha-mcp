@@ -127,3 +127,61 @@ func (s *InputNumberIntegrationTestSuite) TestInputNumberWithUnit() {
 	err = s.Client().DeleteHelper(s.Context(), entityID)
 	s.Require().NoError(err)
 }
+
+func (s *InputNumberIntegrationTestSuite) TestInputNumberUpdate() {
+	testName := GenerateTestID("input_number_update")
+	entityID := BuildEntityID("input_number", testName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), entityID)
+	})
+
+	// Create input_number with initial range 0-100
+	config := homeassistant.HelperConfig{
+		Platform: "input_number",
+		Config: map[string]any{
+			"name":    testName,
+			"min":     0.0,
+			"max":     100.0,
+			"initial": 50.0,
+			"step":    1.0,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), config)
+	s.Require().NoError(err, "Failed to create input_number")
+
+	entity, err := s.WaitForEntity(entityID, 5*time.Second)
+	s.Require().NoError(err, "Input number did not appear")
+	s.Equal("50.0", entity.State, "Initial state should be 50.0")
+
+	// Update: change max to 200 and step to 5 (min must also be provided)
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "input_number",
+		Config: map[string]any{
+			"name": testName, // Name is required for WebSocket updates
+			"min":  0.0,      // Min is required even when not changing
+			"max":  200.0,
+			"step": 5.0,
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), ExtractEntityID(entityID), updateConfig)
+	s.Require().NoError(err, "Failed to update input_number")
+
+	// Wait for update to propagate
+	time.Sleep(1 * time.Second)
+
+	// Set value to verify updated max works (150 would fail with old max of 100)
+	err = s.Client().SetHelperValue(s.Context(), entityID, 150.0)
+	s.Require().NoError(err, "Failed to set value with updated max")
+
+	time.Sleep(200 * time.Millisecond)
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+	s.Equal("150.0", entity.State, "State should be 150.0 with updated max")
+
+	// Cleanup
+	err = s.Client().DeleteHelper(s.Context(), entityID)
+	s.Require().NoError(err)
+}

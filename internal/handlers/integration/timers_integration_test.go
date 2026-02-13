@@ -240,3 +240,68 @@ func (s *TimerIntegrationTestSuite) TestTimerWithCustomDuration() {
 	err = s.Client().DeleteHelper(s.Context(), entityID)
 	s.Require().NoError(err)
 }
+
+func (s *TimerIntegrationTestSuite) TestTimerUpdate() {
+	testName := GenerateTestID("timer_update")
+	entityID := BuildEntityID("timer", testName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), entityID)
+	})
+
+	// Create timer with initial duration of 10 minutes
+	config := homeassistant.HelperConfig{
+		Platform: "timer",
+		Config: map[string]any{
+			"name":     testName,
+			"duration": "00:10:00",
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), config)
+	s.Require().NoError(err, "Failed to create timer")
+
+	entity, err := s.WaitForEntity(entityID, 5*time.Second)
+	s.Require().NoError(err, "Timer did not appear")
+	s.Equal("idle", entity.State, "Initial state should be idle")
+
+	// Update timer: change duration to 5 minutes
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "timer",
+		Config: map[string]any{
+			"name":     testName, // Name is required for WebSocket updates
+			"duration": "00:05:00",
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), ExtractEntityID(entityID), updateConfig)
+	s.Require().NoError(err, "Failed to update timer")
+
+	// Wait for update to propagate
+	time.Sleep(1 * time.Second)
+
+	// Start the timer to verify updated duration is used
+	_, err = s.Client().CallService(s.Context(), "timer", "start", map[string]any{
+		"entity_id": entityID,
+	})
+	s.Require().NoError(err, "Failed to start timer after update")
+
+	time.Sleep(200 * time.Millisecond)
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+	s.Equal("active", entity.State, "Timer should be active after start")
+
+	// Check that duration attribute reflects the updated value (5 minutes = 300 seconds)
+	if duration, ok := entity.Attributes["duration"].(string); ok {
+		s.Equal("0:05:00", duration, "Duration should be updated to 5 minutes")
+	}
+
+	// Cancel and cleanup
+	_, _ = s.Client().CallService(s.Context(), "timer", "cancel", map[string]any{
+		"entity_id": entityID,
+	})
+	time.Sleep(100 * time.Millisecond)
+
+	err = s.Client().DeleteHelper(s.Context(), entityID)
+	s.Require().NoError(err)
+}

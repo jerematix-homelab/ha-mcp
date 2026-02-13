@@ -72,6 +72,31 @@ func CleanupAllTestEntities(ctx context.Context, client homeassistant.Client) er
 		errors = append(errors, fmt.Sprintf("dashboards: %v", err))
 	}
 
+	// Clean up labels
+	if err := cleanupTestLabels(ctx, client); err != nil {
+		errors = append(errors, fmt.Sprintf("labels: %v", err))
+	}
+
+	// Clean up floors
+	if err := cleanupTestFloors(ctx, client); err != nil {
+		errors = append(errors, fmt.Sprintf("floors: %v", err))
+	}
+
+	// Clean up tags
+	if err := cleanupTestTags(ctx, client); err != nil {
+		errors = append(errors, fmt.Sprintf("tags: %v", err))
+	}
+
+	// Clean up zones
+	if err := cleanupTestZones(ctx, client); err != nil {
+		errors = append(errors, fmt.Sprintf("zones: %v", err))
+	}
+
+	// Clean up persons
+	if err := cleanupTestPersons(ctx, client); err != nil {
+		errors = append(errors, fmt.Sprintf("persons: %v", err))
+	}
+
 	if len(errors) > 0 {
 		return fmt.Errorf("cleanup errors: %s", strings.Join(errors, "; "))
 	}
@@ -447,4 +472,314 @@ func CountTestDashboards(ctx context.Context, client homeassistant.Client) (int,
 	}
 
 	return len(testDashboards), testDashboards, nil
+}
+
+// cleanupTestLabels removes all test labels.
+func cleanupTestLabels(ctx context.Context, client homeassistant.Client) error {
+	labels, err := client.GetLabelRegistry(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get label registry: %w", err)
+	}
+
+	var errors []string
+
+	for _, label := range labels {
+		if !IsTestEntity(label.LabelID) {
+			continue
+		}
+
+		if err := deleteLabelWithRetry(ctx, client, label.LabelID); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", label.LabelID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to delete labels: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
+// deleteLabelWithRetry attempts to delete a label with retry logic.
+func deleteLabelWithRetry(ctx context.Context, client homeassistant.Client, labelID string) error {
+	if err := ValidateTestEntityID(labelID); err != nil {
+		return err
+	}
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := client.DeleteLabel(ctx, labelID); err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// CountTestLabels returns the number of test labels still present.
+// Used for verification after cleanup.
+func CountTestLabels(ctx context.Context, client homeassistant.Client) (int, []string, error) {
+	labels, err := client.GetLabelRegistry(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get label registry: %w", err)
+	}
+
+	var testLabels []string
+	for _, label := range labels {
+		if IsTestEntity(label.LabelID) {
+			testLabels = append(testLabels, label.LabelID)
+		}
+	}
+
+	return len(testLabels), testLabels, nil
+}
+
+// cleanupTestFloors removes all test floors.
+func cleanupTestFloors(ctx context.Context, client homeassistant.Client) error {
+	floors, err := client.GetFloorRegistry(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get floor registry: %w", err)
+	}
+
+	var errors []string
+
+	for _, floor := range floors {
+		if !IsTestEntity(floor.FloorID) {
+			continue
+		}
+
+		if err := deleteFloorWithRetry(ctx, client, floor.FloorID); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", floor.FloorID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to delete floors: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
+// deleteFloorWithRetry attempts to delete a floor with retry logic.
+func deleteFloorWithRetry(ctx context.Context, client homeassistant.Client, floorID string) error {
+	if err := ValidateTestEntityID(floorID); err != nil {
+		return err
+	}
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := client.DeleteFloor(ctx, floorID); err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// CountTestFloors returns the number of test floors still present.
+// Used for verification after cleanup.
+func CountTestFloors(ctx context.Context, client homeassistant.Client) (int, []string, error) {
+	floors, err := client.GetFloorRegistry(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get floor registry: %w", err)
+	}
+
+	var testFloors []string
+	for _, floor := range floors {
+		if IsTestEntity(floor.FloorID) {
+			testFloors = append(testFloors, floor.FloorID)
+		}
+	}
+
+	return len(testFloors), testFloors, nil
+}
+
+// cleanupTestTags removes all test tags.
+func cleanupTestTags(ctx context.Context, client homeassistant.Client) error {
+	tags, err := client.GetTags(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get tags: %w", err)
+	}
+
+	var errors []string
+
+	for _, tag := range tags {
+		if !IsTestEntity(tag.TagID) {
+			continue
+		}
+
+		if err := deleteTagWithRetry(ctx, client, tag.TagID); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", tag.TagID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to delete tags: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
+// deleteTagWithRetry attempts to delete a tag with retry logic.
+func deleteTagWithRetry(ctx context.Context, client homeassistant.Client, tagID string) error {
+	if err := ValidateTestEntityID(tagID); err != nil {
+		return err
+	}
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := client.DeleteTag(ctx, tagID); err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// CountTestTags returns the number of test tags still present.
+// Used for verification after cleanup.
+func CountTestTags(ctx context.Context, client homeassistant.Client) (int, []string, error) {
+	tags, err := client.GetTags(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get tags: %w", err)
+	}
+
+	var testTags []string
+	for _, tag := range tags {
+		if IsTestEntity(tag.TagID) {
+			testTags = append(testTags, tag.TagID)
+		}
+	}
+
+	return len(testTags), testTags, nil
+}
+
+// cleanupTestZones removes all test zones.
+func cleanupTestZones(ctx context.Context, client homeassistant.Client) error {
+	zones, err := client.GetZones(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get zones: %w", err)
+	}
+
+	var errors []string
+
+	for _, zone := range zones {
+		if !IsTestEntity(zone.ID) {
+			continue
+		}
+
+		if err := deleteZoneWithRetry(ctx, client, zone.ID); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", zone.ID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to delete zones: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
+// deleteZoneWithRetry attempts to delete a zone with retry logic.
+func deleteZoneWithRetry(ctx context.Context, client homeassistant.Client, zoneID string) error {
+	if err := ValidateTestEntityID(zoneID); err != nil {
+		return err
+	}
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := client.DeleteZone(ctx, zoneID); err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// CountTestZones returns the number of test zones still present.
+// Used for verification after cleanup.
+func CountTestZones(ctx context.Context, client homeassistant.Client) (int, []string, error) {
+	zones, err := client.GetZones(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get zones: %w", err)
+	}
+
+	var testZones []string
+	for _, zone := range zones {
+		if IsTestEntity(zone.ID) {
+			testZones = append(testZones, zone.ID)
+		}
+	}
+
+	return len(testZones), testZones, nil
+}
+
+// cleanupTestPersons removes all test persons.
+func cleanupTestPersons(ctx context.Context, client homeassistant.Client) error {
+	persons, err := client.GetPersons(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get persons: %w", err)
+	}
+
+	var errors []string
+
+	for _, person := range persons {
+		if !IsTestEntity(person.ID) {
+			continue
+		}
+
+		if err := deletePersonWithRetry(ctx, client, person.ID); err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", person.ID, err))
+		}
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("failed to delete persons: %s", strings.Join(errors, "; "))
+	}
+
+	return nil
+}
+
+// deletePersonWithRetry attempts to delete a person with retry logic.
+func deletePersonWithRetry(ctx context.Context, client homeassistant.Client, personID string) error {
+	if err := ValidateTestEntityID(personID); err != nil {
+		return err
+	}
+
+	var lastErr error
+	for i := 0; i < 3; i++ {
+		if err := client.DeletePerson(ctx, personID); err != nil {
+			lastErr = err
+			time.Sleep(time.Duration(i+1) * 100 * time.Millisecond)
+			continue
+		}
+		return nil
+	}
+	return lastErr
+}
+
+// CountTestPersons returns the number of test persons still present.
+// Used for verification after cleanup.
+func CountTestPersons(ctx context.Context, client homeassistant.Client) (int, []string, error) {
+	persons, err := client.GetPersons(ctx)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to get persons: %w", err)
+	}
+
+	var testPersons []string
+	for _, person := range persons {
+		if IsTestEntity(person.ID) {
+			testPersons = append(testPersons, person.ID)
+		}
+	}
+
+	return len(testPersons), testPersons, nil
 }
