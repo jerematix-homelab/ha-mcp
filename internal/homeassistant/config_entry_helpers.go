@@ -17,19 +17,3 @@ var ConfigEntryPlatforms = map[string]bool{
 func RequiresConfigEntryFlow(platform string) bool {
 	return ConfigEntryPlatforms[platform]
 }
-
-// ConfigEntryEntityDomain maps Config Entry platforms to their entity domain.
-// This is used to determine the expected entity_id prefix for each platform.
-var ConfigEntryEntityDomain = map[string]string{
-	"threshold":   "binary_sensor",
-	"derivative":  "sensor",
-	"integration": "sensor",
-	"group":       "group",
-	"template":    "", // Can be either sensor or binary_sensor
-}
-
-// GetConfigEntryEntityDomain returns the expected entity domain for a Config Entry platform.
-// Returns empty string for platforms with variable entity domains (like template).
-func GetConfigEntryEntityDomain(platform string) string {
-	return ConfigEntryEntityDomain[platform]
-}

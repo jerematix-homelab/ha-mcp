@@ -23,9 +23,6 @@ type AnalysisSnapshot struct {
 
 	// AreaRegistry contains all registered areas.
 	AreaRegistry []homeassistant.AreaRegistryEntry
-
-	// errors tracks any fetch errors (non-fatal for analysis)
-	errors map[string]error
 }
 
 // CreateAnalysisSnapshot fetches all data needed for entity analysis in parallel.
@@ -34,9 +31,7 @@ type AnalysisSnapshot struct {
 //
 //nolint:funlen // Parallel fetch structure is clear and readable despite statement count.
 func CreateAnalysisSnapshot(ctx context.Context, client homeassistant.Client) *AnalysisSnapshot {
-	snapshot := &AnalysisSnapshot{
-		errors: make(map[string]error),
-	}
+	snapshot := &AnalysisSnapshot{}
 
 	var wg sync.WaitGroup
 	var mu sync.Mutex
@@ -45,12 +40,9 @@ func CreateAnalysisSnapshot(ctx context.Context, client homeassistant.Client) *A
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		states, err := client.GetStates(ctx)
+		states, _ := client.GetStates(ctx)
 		mu.Lock()
 		snapshot.AllStates = states
-		if err != nil {
-			snapshot.errors["states"] = err
-		}
 		mu.Unlock()
 	}()
 
@@ -58,12 +50,9 @@ func CreateAnalysisSnapshot(ctx context.Context, client homeassistant.Client) *A
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		entities, err := client.GetEntityRegistry(ctx)
+		entities, _ := client.GetEntityRegistry(ctx)
 		mu.Lock()
 		snapshot.EntityRegistry = entities
-		if err != nil {
-			snapshot.errors["entity_registry"] = err
-		}
 		mu.Unlock()
 	}()
 
@@ -71,12 +60,9 @@ func CreateAnalysisSnapshot(ctx context.Context, client homeassistant.Client) *A
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		devices, err := client.GetDeviceRegistry(ctx)
+		devices, _ := client.GetDeviceRegistry(ctx)
 		mu.Lock()
 		snapshot.DeviceRegistry = devices
-		if err != nil {
-			snapshot.errors["device_registry"] = err
-		}
 		mu.Unlock()
 	}()
 
@@ -84,12 +70,9 @@ func CreateAnalysisSnapshot(ctx context.Context, client homeassistant.Client) *A
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		areas, err := client.GetAreaRegistry(ctx)
+		areas, _ := client.GetAreaRegistry(ctx)
 		mu.Lock()
 		snapshot.AreaRegistry = areas
-		if err != nil {
-			snapshot.errors["area_registry"] = err
-		}
 		mu.Unlock()
 	}()
 
@@ -141,17 +124,6 @@ func (s *AnalysisSnapshot) GetEntityArea(entityID string) string {
 	return ""
 }
 
-// FindEntityRegistryEntry finds an entity registry entry by entity ID.
-// Returns nil if not found.
-func (s *AnalysisSnapshot) FindEntityRegistryEntry(entityID string) *homeassistant.EntityRegistryEntry {
-	for i := range s.EntityRegistry {
-		if s.EntityRegistry[i].EntityID == entityID {
-			return &s.EntityRegistry[i]
-		}
-	}
-	return nil
-}
-
 // FindDeviceByID finds a device registry entry by device ID.
 // Returns nil if not found.
 func (s *AnalysisSnapshot) FindDeviceByID(deviceID string) *homeassistant.DeviceRegistryEntry {
@@ -172,15 +144,4 @@ func (s *AnalysisSnapshot) FindAreaByID(areaID string) *homeassistant.AreaRegist
 		}
 	}
 	return nil
-}
-
-// HasError returns true if there was an error fetching the specified data type.
-func (s *AnalysisSnapshot) HasError(dataType string) bool {
-	_, exists := s.errors[dataType]
-	return exists
-}
-
-// GetError returns the error for the specified data type, or nil if no error.
-func (s *AnalysisSnapshot) GetError(dataType string) error {
-	return s.errors[dataType]
 }

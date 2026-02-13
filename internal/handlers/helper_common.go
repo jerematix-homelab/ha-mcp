@@ -42,13 +42,3 @@ func ParseHelperEntityID(entityID string) (platform, id string) {
 	}
 	return "", ""
 }
-
-// IsValidHelperPlatform checks if the given platform is a valid helper platform.
-func IsValidHelperPlatform(platform string) bool {
-	for _, p := range HelperPlatforms {
-		if p == platform {
-			return true
-		}
-	}
-	return false
-}

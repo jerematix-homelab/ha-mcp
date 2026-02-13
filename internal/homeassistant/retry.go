@@ -190,19 +190,3 @@ func IsRetryableHTTPStatus(statusCode int) bool {
 		return false
 	}
 }
-
-// RetryableHTTPError is an error that wraps an HTTP response indicating a retryable failure.
-type RetryableHTTPError struct {
-	StatusCode int
-	Body       string
-}
-
-// Error implements the error interface.
-func (e *RetryableHTTPError) Error() string {
-	return "retryable HTTP error: status " + http.StatusText(e.StatusCode)
-}
-
-// Unwrap returns nil as this error does not wrap another error.
-func (e *RetryableHTTPError) Unwrap() error {
-	return nil
-}
