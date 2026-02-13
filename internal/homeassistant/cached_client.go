@@ -916,6 +916,11 @@ func (c *CachedClient) GetConfigEntry(ctx context.Context, entryID string) (*Con
 	return c.client.GetConfigEntry(ctx, entryID)
 }
 
+// GetConfigEntryOptions retrieves config entry options via live Options Flow (no caching).
+func (c *CachedClient) GetConfigEntryOptions(ctx context.Context, entryID string) (map[string]any, error) {
+	return c.client.GetConfigEntryOptions(ctx, entryID)
+}
+
 //nolint:revive // Delegated method
 func (c *CachedClient) SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error) {
 	return c.client.SendHACSCommand(ctx, command, data)

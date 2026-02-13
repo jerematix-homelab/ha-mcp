@@ -339,6 +339,10 @@ func (m *mockHAClient) GetConfigEntry(_ context.Context, _ string) (*homeassista
 	return nil, nil
 }
 
+func (m *mockHAClient) GetConfigEntryOptions(context.Context, string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+
 func (m *mockHAClient) SendHACSCommand(_ context.Context, _ string, _ map[string]any) (any, error) {
 	return nil, nil
 }

@@ -1073,6 +1073,18 @@ func (m *mockRESTOperations) DeleteConfigEntry(ctx context.Context, entryID stri
 	return nil
 }
 
+func (m *mockRESTOperations) InitConfigEntryOptionsFlow(context.Context, string) (*OptionsFlowResult, error) {
+	return nil, nil
+}
+
+func (m *mockRESTOperations) SubmitConfigEntryOptionsFlowStep(context.Context, string, map[string]any) (*OptionsFlowResult, error) {
+	return nil, nil
+}
+
+func (m *mockRESTOperations) AbortConfigEntryOptionsFlow(context.Context, string) error {
+	return nil
+}
+
 func (m *mockRESTOperations) GetServices(ctx context.Context) ([]Service, error) {
 	if m.getServicesFunc != nil {
 		return m.getServicesFunc(ctx)

@@ -132,6 +132,7 @@ type Client interface {
 	// Config entry operations - get config entries with full details
 	GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error)
 	GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error)
+	GetConfigEntryOptions(ctx context.Context, entryID string) (map[string]any, error)
 
 	// Service discovery operations
 	GetServices(ctx context.Context) ([]Service, error)
