@@ -159,3 +159,62 @@ func (s *InputDatetimeIntegrationTestSuite) TestInputDatetimeTimeOnly() {
 	err = s.Client().DeleteHelper(s.Context(), entityID)
 	s.Require().NoError(err)
 }
+
+func (s *InputDatetimeIntegrationTestSuite) TestInputDatetimeUpdate() {
+	testName := GenerateTestID("input_datetime_update")
+	entityID := BuildEntityID("input_datetime", testName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), entityID)
+	})
+
+	// Create input_datetime with time only
+	config := homeassistant.HelperConfig{
+		Platform: "input_datetime",
+		Config: map[string]any{
+			"name":     testName,
+			"has_time": true,
+			"has_date": false,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), config)
+	s.Require().NoError(err, "Failed to create input_datetime")
+
+	entity, err := s.WaitForEntity(entityID, 5*time.Second)
+	s.Require().NoError(err, "Input datetime did not appear")
+
+	// Update: change to date+time mode (both flags must be provided)
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "input_datetime",
+		Config: map[string]any{
+			"name":     testName, // Name is required for WebSocket updates
+			"has_time": true,     // Keep time enabled
+			"has_date": true,     // Enable date
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), ExtractEntityID(entityID), updateConfig)
+	s.Require().NoError(err, "Failed to update input_datetime")
+
+	// Wait for update to propagate
+	time.Sleep(1 * time.Second)
+
+	// Set datetime with both date and time
+	_, err = s.Client().CallService(s.Context(), "input_datetime", "set_datetime", map[string]any{
+		"entity_id": entityID,
+		"date":      "2024-12-25",
+		"time":      "18:30:00",
+	})
+	s.Require().NoError(err, "Failed to set datetime after update")
+
+	time.Sleep(200 * time.Millisecond)
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+	s.True(strings.Contains(entity.State, "2024-12-25"), "State should contain date after update")
+	s.True(strings.Contains(entity.State, "18:30"), "State should contain time after update")
+
+	// Cleanup
+	err = s.Client().DeleteHelper(s.Context(), entityID)
+	s.Require().NoError(err)
+}

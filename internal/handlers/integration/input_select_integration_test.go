@@ -158,3 +158,64 @@ func (s *InputSelectIntegrationTestSuite) TestInputSelectSetOptions() {
 	err = s.Client().DeleteHelper(s.Context(), entityID)
 	s.Require().NoError(err)
 }
+
+func (s *InputSelectIntegrationTestSuite) TestInputSelectUpdate() {
+	testName := GenerateTestID("input_select_update")
+	entityID := BuildEntityID("input_select", testName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), entityID)
+	})
+
+	// Create input_select with initial options
+	config := homeassistant.HelperConfig{
+		Platform: "input_select",
+		Config: map[string]any{
+			"name":    testName,
+			"options": []string{"option1", "option2", "option3"},
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), config)
+	s.Require().NoError(err, "Failed to create input_select")
+
+	entity, err := s.WaitForEntity(entityID, 5*time.Second)
+	s.Require().NoError(err, "Input select did not appear")
+	s.Equal("option1", entity.State)
+
+	// Update: change options list
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "input_select",
+		Config: map[string]any{
+			"name":    testName, // Name is required for WebSocket updates
+			"options": []string{"new1", "new2", "new3", "new4", "new5"},
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), ExtractEntityID(entityID), updateConfig)
+	s.Require().NoError(err, "Failed to update input_select")
+
+	// Wait for update to propagate
+	time.Sleep(1 * time.Second)
+
+	// Verify updated options
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+
+	options, ok := entity.Attributes["options"].([]any)
+	s.True(ok, "options attribute should exist")
+	s.Len(options, 5, "Should have 5 options after update")
+
+	// Select one of the new options to verify they work
+	err = s.Client().SetHelperValue(s.Context(), entityID, "new3")
+	s.Require().NoError(err)
+
+	time.Sleep(200 * time.Millisecond)
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+	s.Equal("new3", entity.State, "Should be able to select new option")
+
+	// Cleanup
+	err = s.Client().DeleteHelper(s.Context(), entityID)
+	s.Require().NoError(err)
+}

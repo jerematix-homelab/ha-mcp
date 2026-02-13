@@ -152,3 +152,58 @@ func (s *InputTextIntegrationTestSuite) TestInputTextWithPattern() {
 	err = s.Client().DeleteHelper(s.Context(), entityID)
 	s.Require().NoError(err)
 }
+
+func (s *InputTextIntegrationTestSuite) TestInputTextUpdate() {
+	testName := GenerateTestID("input_text_update")
+	entityID := BuildEntityID("input_text", testName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), entityID)
+	})
+
+	// Create input_text with max length of 50
+	config := homeassistant.HelperConfig{
+		Platform: "input_text",
+		Config: map[string]any{
+			"name":    testName,
+			"initial": "initial value",
+			"max":     50,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), config)
+	s.Require().NoError(err, "Failed to create input_text")
+
+	entity, err := s.WaitForEntity(entityID, 5*time.Second)
+	s.Require().NoError(err, "Input text did not appear")
+	s.Equal("initial value", entity.State)
+
+	// Update: change max to 100
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "input_text",
+		Config: map[string]any{
+			"name": testName, // Name is required for WebSocket updates
+			"max":  100,
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), ExtractEntityID(entityID), updateConfig)
+	s.Require().NoError(err, "Failed to update input_text")
+
+	// Wait for update to propagate
+	time.Sleep(1 * time.Second)
+
+	// Set a long value to verify updated max works
+	longValue := "This is a much longer text that would exceed the old 50 character limit but fits in 100"
+	err = s.Client().SetHelperValue(s.Context(), entityID, longValue)
+	s.Require().NoError(err, "Failed to set long value with updated max")
+
+	time.Sleep(200 * time.Millisecond)
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+	s.Equal(longValue, entity.State, "State should contain the long value")
+
+	// Cleanup
+	err = s.Client().DeleteHelper(s.Context(), entityID)
+	s.Require().NoError(err)
+}

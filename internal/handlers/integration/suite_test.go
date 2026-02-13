@@ -132,6 +132,46 @@ func (s *IntegrationTestSuite) TearDownSuite() {
 		s.T().Errorf("Test dashboards still remain after cleanup: %v", dashboards)
 	}
 
+	// Verify no test labels remain
+	labelCount, labels, err := CountTestLabels(cleanupCtx, s.client)
+	if err != nil {
+		s.T().Logf("Failed to verify label cleanup: %v", err)
+	} else if labelCount > 0 {
+		s.T().Errorf("Test labels still remain after cleanup: %v", labels)
+	}
+
+	// Verify no test floors remain
+	floorCount, floors, err := CountTestFloors(cleanupCtx, s.client)
+	if err != nil {
+		s.T().Logf("Failed to verify floor cleanup: %v", err)
+	} else if floorCount > 0 {
+		s.T().Errorf("Test floors still remain after cleanup: %v", floors)
+	}
+
+	// Verify no test tags remain
+	tagCount, tags, err := CountTestTags(cleanupCtx, s.client)
+	if err != nil {
+		s.T().Logf("Failed to verify tag cleanup: %v", err)
+	} else if tagCount > 0 {
+		s.T().Errorf("Test tags still remain after cleanup: %v", tags)
+	}
+
+	// Verify no test zones remain
+	zoneCount, zones, err := CountTestZones(cleanupCtx, s.client)
+	if err != nil {
+		s.T().Logf("Failed to verify zone cleanup: %v", err)
+	} else if zoneCount > 0 {
+		s.T().Errorf("Test zones still remain after cleanup: %v", zones)
+	}
+
+	// Verify no test persons remain
+	personCount, persons, err := CountTestPersons(cleanupCtx, s.client)
+	if err != nil {
+		s.T().Logf("Failed to verify person cleanup: %v", err)
+	} else if personCount > 0 {
+		s.T().Errorf("Test persons still remain after cleanup: %v", persons)
+	}
+
 	if s.cancel != nil {
 		s.cancel()
 	}
@@ -335,4 +375,109 @@ func (s *DashboardTestSuite) FindDashboardByURLPath(urlPath string) (*homeassist
 	}
 
 	return nil, fmt.Errorf("dashboard with url_path %s not found", urlPath)
+}
+
+// LabelTestSuite is a specialized suite for label tests.
+type LabelTestSuite struct {
+	IntegrationTestSuite
+}
+
+// FindLabelByID finds a label by ID in the label registry.
+func (s *LabelTestSuite) FindLabelByID(labelID string) (*homeassistant.LabelRegistryEntry, error) {
+	labels, err := s.Client().GetLabelRegistry(s.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, label := range labels {
+		if label.LabelID == labelID {
+			return &label, nil
+		}
+	}
+
+	return nil, fmt.Errorf("label %s not found in registry", labelID)
+}
+
+// FloorTestSuite is a specialized suite for floor tests.
+type FloorTestSuite struct {
+	IntegrationTestSuite
+}
+
+// FindFloorByID finds a floor by ID in the floor registry.
+func (s *FloorTestSuite) FindFloorByID(floorID string) (*homeassistant.FloorRegistryEntry, error) {
+	floors, err := s.Client().GetFloorRegistry(s.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, floor := range floors {
+		if floor.FloorID == floorID {
+			return &floor, nil
+		}
+	}
+
+	return nil, fmt.Errorf("floor %s not found in registry", floorID)
+}
+
+// TagTestSuite is a specialized suite for tag tests.
+type TagTestSuite struct {
+	IntegrationTestSuite
+}
+
+// FindTagByID finds a tag by ID in the tag registry.
+func (s *TagTestSuite) FindTagByID(tagID string) (*homeassistant.TagRegistryEntry, error) {
+	tags, err := s.Client().GetTags(s.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, tag := range tags {
+		if tag.TagID == tagID {
+			return &tag, nil
+		}
+	}
+
+	return nil, fmt.Errorf("tag %s not found in registry", tagID)
+}
+
+// ZoneTestSuite is a specialized suite for zone tests.
+type ZoneTestSuite struct {
+	IntegrationTestSuite
+}
+
+// FindZoneByID finds a zone by ID in the zone registry.
+func (s *ZoneTestSuite) FindZoneByID(zoneID string) (*homeassistant.ZoneRegistryEntry, error) {
+	zones, err := s.Client().GetZones(s.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, zone := range zones {
+		if zone.ID == zoneID {
+			return &zone, nil
+		}
+	}
+
+	return nil, fmt.Errorf("zone %s not found in registry", zoneID)
+}
+
+// PersonTestSuite is a specialized suite for person tests.
+type PersonTestSuite struct {
+	IntegrationTestSuite
+}
+
+// FindPersonByID finds a person by ID in the person registry.
+func (s *PersonTestSuite) FindPersonByID(personID string) (*homeassistant.PersonRegistryEntry, error) {
+	persons, err := s.Client().GetPersons(s.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, person := range persons {
+		if person.ID == personID {
+			return &person, nil
+		}
+	}
+
+	return nil, fmt.Errorf("person %s not found in registry", personID)
 }

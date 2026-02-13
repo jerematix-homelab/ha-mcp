@@ -188,3 +188,74 @@ func (s *CounterIntegrationTestSuite) TestCounterMinMax() {
 	err = s.Client().DeleteHelper(s.Context(), entityID)
 	s.Require().NoError(err)
 }
+
+func (s *CounterIntegrationTestSuite) TestCounterUpdate() {
+	testName := GenerateTestID("counter_update")
+	entityID := BuildEntityID("counter", testName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), entityID)
+	})
+
+	// Create counter with initial config
+	config := homeassistant.HelperConfig{
+		Platform: "counter",
+		Config: map[string]any{
+			"name":    testName,
+			"initial": 0,
+			"step":    1,
+			"minimum": 0,
+			"maximum": 100,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), config)
+	s.Require().NoError(err, "Failed to create counter")
+
+	entity, err := s.WaitForEntity(entityID, 5*time.Second)
+	s.Require().NoError(err, "Counter did not appear")
+	s.Equal("0", entity.State, "Initial state should be 0")
+
+	// Update counter: change step to 5 and maximum to 50
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "counter",
+		Config: map[string]any{
+			"name":    testName, // Name is required for WebSocket updates
+			"step":    5,
+			"maximum": 50,
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), ExtractEntityID(entityID), updateConfig)
+	s.Require().NoError(err, "Failed to update counter")
+
+	// Wait for update to propagate
+	time.Sleep(1 * time.Second)
+
+	// Test that updated step value works
+	_, err = s.Client().CallService(s.Context(), "counter", "increment", map[string]any{
+		"entity_id": entityID,
+	})
+	s.Require().NoError(err)
+
+	time.Sleep(200 * time.Millisecond)
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+	s.Equal("5", entity.State, "State should be 5 after increment with updated step")
+
+	// Test that updated maximum is enforced
+	for i := 0; i < 15; i++ {
+		_, _ = s.Client().CallService(s.Context(), "counter", "increment", map[string]any{
+			"entity_id": entityID,
+		})
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	entity, err = s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err)
+	s.Equal("50", entity.State, fmt.Sprintf("Counter should be capped at updated maximum 50, got %s", entity.State))
+
+	// Cleanup
+	err = s.Client().DeleteHelper(s.Context(), entityID)
+	s.Require().NoError(err)
+}
