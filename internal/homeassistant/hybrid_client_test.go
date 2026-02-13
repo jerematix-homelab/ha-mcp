@@ -2,6 +2,7 @@ package homeassistant
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -970,23 +971,26 @@ func (m *mockWSOperations) SendHACSCommand(ctx context.Context, command string, 
 
 // mockRESTOperations implements RESTOperations for testing.
 type mockRESTOperations struct {
-	createAutomationFunc          func(ctx context.Context, config AutomationConfig) error
-	updateAutomationFunc          func(ctx context.Context, automationID string, config AutomationConfig) error
-	deleteAutomationFunc          func(ctx context.Context, automationID string) error
-	createScriptFunc              func(ctx context.Context, scriptID string, config ScriptConfig) error
-	updateScriptFunc              func(ctx context.Context, scriptID string, config ScriptConfig) error
-	deleteScriptFunc              func(ctx context.Context, scriptID string) error
-	createSceneFunc               func(ctx context.Context, sceneID string, config SceneConfig) error
-	updateSceneFunc               func(ctx context.Context, sceneID string, config SceneConfig) error
-	deleteSceneFunc               func(ctx context.Context, sceneID string) error
-	initConfigEntryFlowFunc       func(ctx context.Context, handler string) (*ConfigEntryFlowResult, error)
-	submitConfigEntryFlowStepFunc func(ctx context.Context, flowID string, data map[string]any) (*ConfigEntryFlowResult, error)
-	deleteConfigEntryFunc         func(ctx context.Context, entryID string) error
-	getServicesFunc               func(ctx context.Context) ([]Service, error)
-	getConfigFunc                 func(ctx context.Context) (*Config, error)
-	renderTemplateFunc            func(ctx context.Context, template string) (string, error)
-	getLogbookFunc                func(ctx context.Context, startTime, endTime, entityID string) ([]LogbookEntry, error)
-	checkConfigFunc               func(ctx context.Context) (*ConfigCheckResult, error)
+	createAutomationFunc                 func(ctx context.Context, config AutomationConfig) error
+	updateAutomationFunc                 func(ctx context.Context, automationID string, config AutomationConfig) error
+	deleteAutomationFunc                 func(ctx context.Context, automationID string) error
+	createScriptFunc                     func(ctx context.Context, scriptID string, config ScriptConfig) error
+	updateScriptFunc                     func(ctx context.Context, scriptID string, config ScriptConfig) error
+	deleteScriptFunc                     func(ctx context.Context, scriptID string) error
+	createSceneFunc                      func(ctx context.Context, sceneID string, config SceneConfig) error
+	updateSceneFunc                      func(ctx context.Context, sceneID string, config SceneConfig) error
+	deleteSceneFunc                      func(ctx context.Context, sceneID string) error
+	initConfigEntryFlowFunc              func(ctx context.Context, handler string) (*ConfigEntryFlowResult, error)
+	submitConfigEntryFlowStepFunc        func(ctx context.Context, flowID string, data map[string]any) (*ConfigEntryFlowResult, error)
+	deleteConfigEntryFunc                func(ctx context.Context, entryID string) error
+	getServicesFunc                      func(ctx context.Context) ([]Service, error)
+	getConfigFunc                        func(ctx context.Context) (*Config, error)
+	renderTemplateFunc                   func(ctx context.Context, template string) (string, error)
+	getLogbookFunc                       func(ctx context.Context, startTime, endTime, entityID string) ([]LogbookEntry, error)
+	checkConfigFunc                      func(ctx context.Context) (*ConfigCheckResult, error)
+	initConfigEntryOptionsFlowFunc       func(ctx context.Context, entryID string) (*OptionsFlowResult, error)
+	submitConfigEntryOptionsFlowStepFunc func(ctx context.Context, flowID string, data map[string]any) (*OptionsFlowResult, error)
+	abortConfigEntryOptionsFlowFunc      func(ctx context.Context, flowID string) error
 }
 
 func (m *mockRESTOperations) CreateAutomation(ctx context.Context, config AutomationConfig) error {
@@ -1073,15 +1077,24 @@ func (m *mockRESTOperations) DeleteConfigEntry(ctx context.Context, entryID stri
 	return nil
 }
 
-func (m *mockRESTOperations) InitConfigEntryOptionsFlow(context.Context, string) (*OptionsFlowResult, error) {
+func (m *mockRESTOperations) InitConfigEntryOptionsFlow(ctx context.Context, entryID string) (*OptionsFlowResult, error) {
+	if m.initConfigEntryOptionsFlowFunc != nil {
+		return m.initConfigEntryOptionsFlowFunc(ctx, entryID)
+	}
 	return nil, nil
 }
 
-func (m *mockRESTOperations) SubmitConfigEntryOptionsFlowStep(context.Context, string, map[string]any) (*OptionsFlowResult, error) {
+func (m *mockRESTOperations) SubmitConfigEntryOptionsFlowStep(ctx context.Context, flowID string, data map[string]any) (*OptionsFlowResult, error) {
+	if m.submitConfigEntryOptionsFlowStepFunc != nil {
+		return m.submitConfigEntryOptionsFlowStepFunc(ctx, flowID, data)
+	}
 	return nil, nil
 }
 
-func (m *mockRESTOperations) AbortConfigEntryOptionsFlow(context.Context, string) error {
+func (m *mockRESTOperations) AbortConfigEntryOptionsFlow(ctx context.Context, flowID string) error {
+	if m.abortConfigEntryOptionsFlowFunc != nil {
+		return m.abortConfigEntryOptionsFlowFunc(ctx, flowID)
+	}
 	return nil
 }
 
@@ -1385,6 +1398,107 @@ func TestHybridClient_WSOperations_UpdateHelper(t *testing.T) {
 	}
 	if !called {
 		t.Error("UpdateHelper was not called")
+	}
+}
+
+func TestHybridClient_UpdateHelper_ConfigEntryRouting(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		entityID      string
+		config        HelperConfig
+		registryEntry []EntityRegistryEntry
+		expectWS      bool
+		expectREST    bool
+	}{
+		{
+			name:     "config entry helper routes to options flow",
+			entityID: "sensor.my_template",
+			config:   HelperConfig{Platform: "template", Config: map[string]any{"state": "{{ 42 }}"}},
+			registryEntry: []EntityRegistryEntry{
+				{EntityID: "sensor.my_template", ConfigEntryID: "config123"},
+			},
+			expectWS:   false,
+			expectREST: true,
+		},
+		{
+			name:     "websocket helper uses websocket path",
+			entityID: "counter.test",
+			config:   HelperConfig{Platform: "counter", Config: map[string]any{"step": 1}},
+			registryEntry: []EntityRegistryEntry{
+				{EntityID: "counter.test", ConfigEntryID: ""},
+			},
+			expectWS:   true,
+			expectREST: false,
+		},
+		{
+			name:          "registry lookup failure falls back to websocket",
+			entityID:      "input_boolean.test",
+			config:        HelperConfig{Platform: "input_boolean", Config: map[string]any{}},
+			registryEntry: nil, // Will cause GetEntityRegistry to fail
+			expectWS:      true,
+			expectREST:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wsCalled := false
+			restCalled := false
+
+			mockWS := &mockWSOperations{
+				getEntityRegistryFunc: func(context.Context) ([]EntityRegistryEntry, error) {
+					if tt.registryEntry == nil {
+						return nil, fmt.Errorf("registry error")
+					}
+					return tt.registryEntry, nil
+				},
+				updateHelperFunc: func(context.Context, string, HelperConfig) error {
+					wsCalled = true
+					return nil
+				},
+				getConfigEntryFunc: func(context.Context, string) (*ConfigEntryFull, error) {
+					return &ConfigEntryFull{EntryID: "config123", Domain: "template"}, nil
+				},
+			}
+
+			mockREST := &mockRESTOperations{
+				initConfigEntryOptionsFlowFunc: func(context.Context, string) (*OptionsFlowResult, error) {
+					restCalled = true
+					return &OptionsFlowResult{
+						FlowID: "flow123",
+						Type:   "create_entry",
+						DataSchema: []OptionsFlowField{
+							{Name: "state", Description: map[string]any{"suggested_value": "{{ old }}"}},
+						},
+					}, nil
+				},
+				submitConfigEntryOptionsFlowStepFunc: func(context.Context, string, map[string]any) (*OptionsFlowResult, error) {
+					return &OptionsFlowResult{Type: "create_entry"}, nil
+				},
+			}
+
+			client := NewHybridClientWithInterfaces(mockWS, mockREST)
+			err := client.UpdateHelper(context.Background(), tt.entityID, tt.config)
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.expectWS && !wsCalled {
+				t.Error("expected WebSocket UpdateHelper to be called, but it wasn't")
+			}
+			if !tt.expectWS && wsCalled {
+				t.Error("WebSocket UpdateHelper was called unexpectedly")
+			}
+			if tt.expectREST && !restCalled {
+				t.Error("expected REST Options Flow to be called, but it wasn't")
+			}
+			if !tt.expectREST && restCalled {
+				t.Error("REST Options Flow was called unexpectedly")
+			}
+		})
 	}
 }
 
