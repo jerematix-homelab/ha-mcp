@@ -126,16 +126,6 @@ func (h HistoryEntry) LastChangedTime() time.Time {
 	return time.Unix(int64(ts), 0)
 }
 
-// LastUpdatedTime returns LastUpdated as time.Time.
-// The WebSocket API returns timestamps in seconds (Unix epoch).
-func (h HistoryEntry) LastUpdatedTime() time.Time {
-	// If timestamp looks like it's in milliseconds (very large number), convert
-	if h.LastUpdated > 1e12 {
-		return time.UnixMilli(int64(h.LastUpdated))
-	}
-	return time.Unix(int64(h.LastUpdated), 0)
-}
-
 // Automation represents a Home Assistant automation.
 type Automation struct {
 	EntityID      string            `json:"entity_id"`
@@ -165,53 +155,6 @@ type HelperConfig struct {
 	ID string `json:"id"`
 	// Config contains the platform-specific configuration
 	Config map[string]any `json:"config"`
-}
-
-// InputBooleanConfig represents configuration for an input_boolean helper.
-type InputBooleanConfig struct {
-	Name    string `json:"name"`
-	Icon    string `json:"icon,omitempty"`
-	Initial bool   `json:"initial,omitempty"`
-}
-
-// InputNumberConfig represents configuration for an input_number helper.
-type InputNumberConfig struct {
-	Name    string  `json:"name"`
-	Icon    string  `json:"icon,omitempty"`
-	Min     float64 `json:"min"`
-	Max     float64 `json:"max"`
-	Step    float64 `json:"step,omitempty"`
-	Initial float64 `json:"initial,omitempty"`
-	Mode    string  `json:"mode,omitempty"` // box or slider
-	Unit    string  `json:"unit_of_measurement,omitempty"`
-}
-
-// InputTextConfig represents configuration for an input_text helper.
-type InputTextConfig struct {
-	Name    string `json:"name"`
-	Icon    string `json:"icon,omitempty"`
-	Min     int    `json:"min,omitempty"`
-	Max     int    `json:"max,omitempty"`
-	Initial string `json:"initial,omitempty"`
-	Pattern string `json:"pattern,omitempty"`
-	Mode    string `json:"mode,omitempty"` // text or password
-}
-
-// InputSelectConfig represents configuration for an input_select helper.
-type InputSelectConfig struct {
-	Name    string   `json:"name"`
-	Icon    string   `json:"icon,omitempty"`
-	Options []string `json:"options"`
-	Initial string   `json:"initial,omitempty"`
-}
-
-// InputDateTimeConfig represents configuration for an input_datetime helper.
-type InputDateTimeConfig struct {
-	Name    string `json:"name"`
-	Icon    string `json:"icon,omitempty"`
-	HasDate bool   `json:"has_date"`
-	HasTime bool   `json:"has_time"`
-	Initial string `json:"initial,omitempty"`
 }
 
 // Script represents a Home Assistant script with state and configuration.
@@ -451,16 +394,6 @@ func (s StatisticsResult) StartTime() time.Time {
 	return time.Unix(int64(s.Start), 0)
 }
 
-// EndTime returns End as time.Time.
-// The WebSocket API may return timestamps in seconds or milliseconds.
-// If End > 1e12, assumes milliseconds and converts accordingly.
-func (s StatisticsResult) EndTime() time.Time {
-	if s.End > 1e12 {
-		return time.UnixMilli(int64(s.End))
-	}
-	return time.Unix(int64(s.End), 0)
-}
-
 // Target represents a target specification for entities, devices, areas, and labels.
 // This is used for service calls and for querying triggers, conditions, and services.
 type Target struct {
@@ -468,12 +401,6 @@ type Target struct {
 	DeviceID []string `json:"device_id,omitempty"`
 	AreaID   []string `json:"area_id,omitempty"`
 	LabelID  []string `json:"label_id,omitempty"`
-}
-
-// TargetRequest represents a request to get triggers, conditions, or services for a target.
-type TargetRequest struct {
-	Target      Target `json:"target"`
-	ExpandGroup *bool  `json:"expand_group,omitempty"`
 }
 
 // ExtractFromTargetResult represents the result of extracting entities, devices, and areas from a target.

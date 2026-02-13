@@ -1,10 +1,10 @@
 // Package homeassistant provides helper detection for Config Entry Flow platforms.
 package homeassistant
 
-// ConfigEntryPlatforms defines helper platforms that require HTTP Config Entry Flow.
+// configEntryPlatforms defines helper platforms that require HTTP Config Entry Flow.
 // These platforms cannot be created/deleted via WebSocket API and must use the
 // HTTP-based Config Entry Flow mechanism instead.
-var ConfigEntryPlatforms = map[string]bool{
+var configEntryPlatforms = map[string]bool{
 	"threshold":   true, // Creates binary_sensor entities
 	"derivative":  true, // Creates sensor entities
 	"integration": true, // Creates sensor entities (Home Assistant's name for integral)
@@ -15,5 +15,5 @@ var ConfigEntryPlatforms = map[string]bool{
 // RequiresConfigEntryFlow checks if the given platform requires HTTP Config Entry Flow.
 // Returns true for platforms that cannot be created/deleted via WebSocket API.
 func RequiresConfigEntryFlow(platform string) bool {
-	return ConfigEntryPlatforms[platform]
+	return configEntryPlatforms[platform]
 }

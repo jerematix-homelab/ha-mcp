@@ -4,7 +4,6 @@ package formatter
 
 import (
 	"context"
-	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 )
@@ -61,11 +60,6 @@ type EntityInfo struct {
 	FriendlyName string
 }
 
-// TargetAnalysisOptions configures target analysis formatting.
-type TargetAnalysisOptions struct {
-	Verbose bool
-}
-
 // Formatter defines the interface for formatting MCP tool responses.
 type Formatter interface {
 	// FormatEntity formats a single entity.
@@ -118,22 +112,6 @@ type TargetFormatter interface {
 	// FormatAllTargetInfo formats all target analysis combined.
 	FormatAllTargetInfo(ctx context.Context, triggers, conditions, services []string,
 		result *homeassistant.ExtractFromTargetResult) (string, error)
-}
-
-// FormattingContext provides context for formatting operations.
-type FormattingContext struct {
-	// Now is the current time for relative time calculations.
-	Now time.Time
-	// Timezone for time formatting (optional, defaults to UTC).
-	Timezone *time.Location
-}
-
-// NewFormattingContext creates a new FormattingContext with defaults.
-func NewFormattingContext() *FormattingContext {
-	return &FormattingContext{
-		Now:      time.Now(),
-		Timezone: time.UTC,
-	}
 }
 
 // New creates a new Formatter for the specified format.
