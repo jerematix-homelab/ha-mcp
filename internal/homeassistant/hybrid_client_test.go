@@ -1868,3 +1868,334 @@ func TestNewHybridClientWithInterfaces(t *testing.T) {
 		t.Error("rest client mismatch")
 	}
 }
+
+// =============================================================================
+// Group helper type detection tests
+// =============================================================================
+
+func TestDetermineGroupSubtype(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		config   HelperConfig
+		expected string
+	}{
+		// Test with []string entity types
+		{
+			name: "light entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"light.one", "light.two"}},
+			},
+			expected: domainLight,
+		},
+		{
+			name: "sensor entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"sensor.temp", "sensor.humidity"}},
+			},
+			expected: domainSensor,
+		},
+		{
+			name: "binary_sensor entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"binary_sensor.door", "binary_sensor.window"}},
+			},
+			expected: domainBinarySensor,
+		},
+		{
+			name: "switch entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"switch.plug1"}},
+			},
+			expected: domainSwitch,
+		},
+		{
+			name: "cover entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"cover.blind"}},
+			},
+			expected: domainCover,
+		},
+		{
+			name: "fan entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"fan.bedroom"}},
+			},
+			expected: domainFan,
+		},
+		{
+			name: "lock entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"lock.front_door"}},
+			},
+			expected: domainLock,
+		},
+		{
+			name: "input_number entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"input_number.value"}},
+			},
+			expected: domainSensor,
+		},
+		{
+			name: "number entities as []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"number.value"}},
+			},
+			expected: domainSensor,
+		},
+		// Test with []any entity types (from JSON unmarshaling)
+		{
+			name: "light entities as []any",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []any{"light.one", "light.two"}},
+			},
+			expected: domainLight,
+		},
+		{
+			name: "sensor entities as []any",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []any{"sensor.temp"}},
+			},
+			expected: domainSensor,
+		},
+		{
+			name: "binary_sensor entities as []any",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []any{"binary_sensor.motion"}},
+			},
+			expected: domainBinarySensor,
+		},
+		{
+			name: "cover entities as []any",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []any{"cover.garage"}},
+			},
+			expected: domainCover,
+		},
+		// Edge cases
+		{
+			name: "empty entities",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{}},
+			},
+			expected: domainSensor,
+		},
+		{
+			name: "nil entities",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{},
+			},
+			expected: domainSensor,
+		},
+		{
+			name: "unknown domain",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"unknown.entity"}},
+			},
+			expected: domainSensor,
+		},
+		{
+			name: "invalid entity format",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"no_dot_here"}},
+			},
+			expected: domainSensor,
+		},
+	}
+
+	client := &HybridClient{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			result := client.determineGroupSubtype(tt.config)
+			if result != tt.expected {
+				t.Errorf("determineGroupSubtype() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAddSensorGroupDefaults(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		config        HelperConfig
+		result        map[string]any
+		wantTypeAdded bool
+		wantTypeValue string
+	}{
+		// Sensor groups should get default type
+		{
+			name: "sensor group without type - []string",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"sensor.temp"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: true,
+			wantTypeValue: "sum",
+		},
+		{
+			name: "sensor group without type - []any",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []any{"sensor.temp"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: true,
+			wantTypeValue: "sum",
+		},
+		{
+			name: "input_number group without type",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"input_number.val"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: true,
+			wantTypeValue: "sum",
+		},
+		{
+			name: "number group without type",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"number.val"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: true,
+			wantTypeValue: "sum",
+		},
+		// Sensor group with existing type should not be overridden
+		{
+			name: "sensor group with existing type",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"sensor.temp"}},
+			},
+			result:        map[string]any{"type": "mean"},
+			wantTypeAdded: false,
+			wantTypeValue: "mean",
+		},
+		// Non-sensor groups should NOT get type added
+		{
+			name: "light group",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"light.one"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: false,
+		},
+		{
+			name: "light group - []any",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []any{"light.one"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: false,
+		},
+		{
+			name: "binary_sensor group",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"binary_sensor.door"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: false,
+		},
+		{
+			name: "switch group",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"switch.plug"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: false,
+		},
+		{
+			name: "cover group",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{"cover.blind"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: false,
+		},
+		// Non-group platform should be ignored
+		{
+			name: "non-group platform",
+			config: HelperConfig{
+				Platform: "threshold",
+				Config:   map[string]any{"entities": []string{"sensor.temp"}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: false,
+		},
+		// Empty entities
+		{
+			name: "empty entities",
+			config: HelperConfig{
+				Platform: "group",
+				Config:   map[string]any{"entities": []string{}},
+			},
+			result:        map[string]any{},
+			wantTypeAdded: false,
+		},
+	}
+
+	client := &HybridClient{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Make a copy of result to avoid test interference
+			resultCopy := make(map[string]any)
+			for k, v := range tt.result {
+				resultCopy[k] = v
+			}
+
+			client.addSensorGroupDefaults(tt.config, resultCopy)
+
+			typeVal, hasType := resultCopy["type"]
+			if tt.wantTypeAdded {
+				if !hasType {
+					t.Errorf("expected type to be added, but it wasn't")
+				} else if typeVal != tt.wantTypeValue {
+					t.Errorf("type = %q, want %q", typeVal, tt.wantTypeValue)
+				}
+			} else {
+				if hasType && tt.result["type"] == nil {
+					t.Errorf("type was added when it shouldn't have been: %v", typeVal)
+				}
+				// If tt.result had a type originally, verify it wasn't changed
+				if originalType, hadOriginal := tt.result["type"]; hadOriginal {
+					if typeVal != originalType {
+						t.Errorf("type was changed from %v to %v", originalType, typeVal)
+					}
+				}
+			}
+		})
+	}
+}
