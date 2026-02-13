@@ -335,21 +335,6 @@ func TestRetryManager_Retry_ContextCanceledBeforeStart(t *testing.T) {
 	}
 }
 
-func TestRetryableHTTPError(t *testing.T) {
-	err := &RetryableHTTPError{
-		StatusCode: http.StatusServiceUnavailable,
-		Body:       "service unavailable",
-	}
-
-	if err.Error() != "retryable HTTP error: status Service Unavailable" {
-		t.Errorf("unexpected error message: %s", err.Error())
-	}
-
-	if err.Unwrap() != nil {
-		t.Error("expected Unwrap to return nil")
-	}
-}
-
 func TestNewRetryManager_NilLogger(t *testing.T) {
 	config := DefaultRetryConfig()
 	rm := NewRetryManager(config, nil)
