@@ -440,6 +440,8 @@ func (f *NaturalHelperFormatter) formatSensorDetail(detail map[string]any) strin
 		fmt.Fprintf(&result, "Source: %s", source)
 	}
 
+	f.writeTemplateConfig(&result, detail)
+
 	return strings.TrimSuffix(result.String(), "\n")
 }
 
@@ -463,7 +465,35 @@ func (f *NaturalHelperFormatter) formatBinarySensorDetail(detail map[string]any)
 		fmt.Fprintf(&result, "Source entity: %s", source)
 	}
 
+	f.writeTemplateConfig(&result, detail)
+
 	return strings.TrimSuffix(result.String(), "\n")
+}
+
+// writeTemplateConfig writes template configuration section if present.
+func (f *NaturalHelperFormatter) writeTemplateConfig(result *strings.Builder, detail map[string]any) {
+	configType := f.getDetailString(detail, "config_entry_type")
+	if configType != "template" {
+		return
+	}
+
+	result.WriteString("\n\nTemplate Configuration:")
+
+	if stateTemplate := f.getDetailString(detail, "state_template"); stateTemplate != "" {
+		fmt.Fprintf(result, "\nState template: %s", stateTemplate)
+	}
+
+	if availTemplate := f.getDetailString(detail, "availability_template"); availTemplate != "" {
+		fmt.Fprintf(result, "\nAvailability template: %s", availTemplate)
+	}
+
+	if delayOn := detail["delay_on"]; delayOn != nil {
+		fmt.Fprintf(result, "\nDelay on: %v", delayOn)
+	}
+
+	if delayOff := detail["delay_off"]; delayOff != nil {
+		fmt.Fprintf(result, "\nDelay off: %v", delayOff)
+	}
 }
 
 func (f *NaturalHelperFormatter) getDetailBool(detail map[string]any, key string) bool {
