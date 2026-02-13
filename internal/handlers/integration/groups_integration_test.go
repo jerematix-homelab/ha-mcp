@@ -196,3 +196,24 @@ func (s *GroupIntegrationTestSuite) TestSensorGroupWithMinMax() {
 	_ = s.Client().DeleteHelper(s.Context(), num2EntityID)
 	_ = s.Client().DeleteHelper(s.Context(), num3EntityID)
 }
+
+func (s *GroupIntegrationTestSuite) TestGroupReload() {
+	// Test that group reload service works
+	// This is a system-level service that reloads all group configurations
+
+	// Call group reload service
+	_, err := s.Client().CallService(s.Context(), "group", "reload", map[string]any{})
+	s.Require().NoError(err, "Group reload should succeed")
+
+	// Wait for reload to complete
+	time.Sleep(1 * time.Second)
+
+	// Verify we can still list entities (indicating reload didn't break anything)
+	states, err := s.Client().GetStates(s.Context())
+	s.Require().NoError(err, "Should be able to get states after reload")
+	s.NotEmpty(states, "Should have entities after reload")
+
+	s.T().Log("Group reload completed successfully")
+}
+
+
