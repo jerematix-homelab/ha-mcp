@@ -15,13 +15,6 @@ func RegisterAutomationTools(registry *mcp.Registry) {
 	h.RegisterTools(registry)
 }
 
-// RegisterHelperTools registers all helper-related tools with the registry.
-// This registers the generic list_helpers tool.
-func RegisterHelperTools(registry *mcp.Registry) {
-	h := NewHelperHandlers()
-	h.RegisterTools(registry)
-}
-
 // RegisterConsolidatedHelperTools registers the consolidated manage_helper and helper_action tools.
 // This replaces individual create/delete/action tools for all 14 helper types.
 func RegisterConsolidatedHelperTools(registry *mcp.Registry) {
@@ -153,9 +146,6 @@ func RegisterAllTools(registry *mcp.Registry) {
 	RegisterAutomationTools(registry)
 	NewScriptHandlers().RegisterTools(registry)
 	NewSceneHandlers().RegisterTools(registry)
-
-	// Helper tools (generic list_helpers)
-	RegisterHelperTools(registry)
 
 	// Consolidated helper tools (manage_helper, helper_action)
 	// Replaces individual tools: create/delete/action for all 14 helper types

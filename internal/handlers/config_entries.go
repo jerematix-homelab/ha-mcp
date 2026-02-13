@@ -5,9 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
+)
+
+const (
+	configEntryActionList = "list"
+	configEntryActionGet  = "get"
 )
 
 // ConfigEntryHandlers provides MCP tool handlers for config entry operations.
@@ -20,44 +27,60 @@ func NewConfigEntryHandlers() *ConfigEntryHandlers {
 
 // RegisterTools registers all config entry tools with the registry.
 func (h *ConfigEntryHandlers) RegisterTools(registry *mcp.Registry) {
-	registry.RegisterTool(h.listConfigEntriesTool(), h.handleListConfigEntries)
-	registry.RegisterTool(h.getConfigEntryTool(), h.handleGetConfigEntry)
+	registry.RegisterTool(h.manageConfigEntryTool(), h.handleManageConfigEntry)
 }
 
-// listConfigEntriesTool returns the tool definition for listing config entries.
-func (h *ConfigEntryHandlers) listConfigEntriesTool() mcp.Tool {
+// manageConfigEntryTool returns the consolidated tool definition for config entry operations.
+func (h *ConfigEntryHandlers) manageConfigEntryTool() mcp.Tool {
 	return mcp.Tool{
-		Name:        "list_config_entries",
-		Description: "List entries in the Home Assistant config entry registry. Config entries store metadata about integrations and helpers (domain, title, state, entry_id). Use 'domain' filter to narrow down results (e.g., 'template', 'hue', 'zwave_js'). Note: Template definitions are not exposed through this API.",
+		Name:        "manage_config_entry",
+		Description: "Manage Home Assistant config entries. Config entries store metadata about integrations and helpers (domain, title, state, entry_id). By default returns natural language format optimized for LLMs. Use 'format=json' for structured data. Note: Template definitions are stored but not exposed through this API.",
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
-			Description: "Filter options for config entries",
+			Description: "Config entry management parameters",
 			Properties: map[string]mcp.JSONSchema{
+				"action": {
+					Type:        "string",
+					Description: "Action to perform: 'list' (list config entries, optionally filtered by domain), 'get' (get a single config entry by entry_id)",
+					Enum:        []string{configEntryActionList, configEntryActionGet},
+				},
 				"domain": {
 					Type:        "string",
-					Description: "Filter by domain (e.g., 'template', 'hue', 'zwave_js'). If not specified, returns all config entries.",
+					Description: "(For action=list) Filter by domain (e.g., 'template', 'hue', 'zwave_js'). If not specified, returns all config entries.",
+				},
+				"entry_id": {
+					Type:        "string",
+					Description: "(For action=get) The config entry ID to retrieve (e.g., from entity registry's config_entry_id field). Use get_registry with type=entities and verbose=true to find the config_entry_id for a specific entity.",
+				},
+				"format": {
+					Type:        "string",
+					Description: "Output format: 'natural' (default, human-readable LLM-optimized) or 'json' (structured data)",
+					Enum:        []string{"natural", "json"},
 				},
 			},
+			Required: []string{"action"},
 		},
 	}
 }
 
-// getConfigEntryTool returns the tool definition for getting a single config entry.
-func (h *ConfigEntryHandlers) getConfigEntryTool() mcp.Tool {
-	return mcp.Tool{
-		Name:        "get_config_entry",
-		Description: "Get a single config entry by its entry ID. Returns metadata about the config entry (domain, title, state, capabilities). Use get_registry with type=entities and verbose=true to find the config_entry_id for a specific entity. Note: Template definitions are stored but not exposed through this API.",
-		InputSchema: mcp.JSONSchema{
-			Type:        "object",
-			Description: "Config entry identifier",
-			Properties: map[string]mcp.JSONSchema{
-				"entry_id": {
-					Type:        "string",
-					Description: "The config entry ID to retrieve (e.g., from entity registry's config_entry_id field)",
-				},
-			},
-			Required: []string{"entry_id"},
-		},
+// handleManageConfigEntry dispatches config entry management requests.
+func (h *ConfigEntryHandlers) handleManageConfigEntry(
+	ctx context.Context,
+	client homeassistant.Client,
+	args map[string]any,
+) (*mcp.ToolsCallResult, error) {
+	action := getString(args, "action")
+	if action == "" {
+		return errorResult("action is required"), nil
+	}
+
+	switch action {
+	case configEntryActionList:
+		return h.handleListConfigEntries(ctx, client, args)
+	case configEntryActionGet:
+		return h.handleGetConfigEntry(ctx, client, args)
+	default:
+		return errorResult(fmt.Sprintf("invalid action %q, must be one of: list, get", action)), nil
 	}
 }
 
@@ -71,34 +94,15 @@ func (h *ConfigEntryHandlers) handleListConfigEntries(
 
 	entries, err := client.GetConfigEntries(ctx, domain)
 	if err != nil {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent(fmt.Sprintf("Error getting config entries: %v", err)),
-			},
-			IsError: true,
-		}, nil
+		return errorResult(fmt.Sprintf("error getting config entries: %v", err)), nil
 	}
 
-	output, err := json.MarshalIndent(entries, "", "  ")
-	if err != nil {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent(fmt.Sprintf("Error formatting response: %v", err)),
-			},
-			IsError: true,
-		}, nil
+	format := formatter.ParseFormat(getString(args, "format"))
+	if format == formatter.FormatNatural {
+		return h.formatListNatural(entries, domain), nil
 	}
 
-	summary := fmt.Sprintf("Found %d config entries", len(entries))
-	if domain != "" {
-		summary += fmt.Sprintf(" for domain '%s'", domain)
-	}
-
-	return &mcp.ToolsCallResult{
-		Content: []mcp.ContentBlock{
-			mcp.NewTextContent(summary + "\n\n" + string(output)),
-		},
-	}, nil
+	return h.formatListJSON(entries, domain)
 }
 
 // handleGetConfigEntry handles requests to get a single config entry.
@@ -109,38 +113,95 @@ func (h *ConfigEntryHandlers) handleGetConfigEntry(
 ) (*mcp.ToolsCallResult, error) {
 	entryID := getString(args, "entry_id")
 	if entryID == "" {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent("entry_id is required"),
-			},
-			IsError: true,
-		}, nil
+		return errorResult("entry_id is required"), nil
 	}
 
 	entry, err := client.GetConfigEntry(ctx, entryID)
 	if err != nil {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent(fmt.Sprintf("Error getting config entry: %v", err)),
-			},
-			IsError: true,
-		}, nil
+		return errorResult(fmt.Sprintf("error getting config entry: %v", err)), nil
 	}
 
+	format := formatter.ParseFormat(getString(args, "format"))
+	if format == formatter.FormatNatural {
+		return h.formatGetNatural(entry), nil
+	}
+
+	return h.formatGetJSON(entry)
+}
+
+// formatListNatural formats config entry list in natural language.
+func (h *ConfigEntryHandlers) formatListNatural(entries []homeassistant.ConfigEntryFull, domain string) *mcp.ToolsCallResult {
+	var output strings.Builder
+
+	summary := fmt.Sprintf("Found %d config entries", len(entries))
+	if domain != "" {
+		summary += fmt.Sprintf(" for domain '%s'", domain)
+	}
+	output.WriteString(summary)
+
+	if len(entries) > 0 {
+		output.WriteString("\n\n")
+		for i, entry := range entries {
+			if i > 0 {
+				output.WriteString("\n")
+			}
+			fmt.Fprintf(&output, "- %s (%s)\n", entry.Title, entry.Domain)
+			fmt.Fprintf(&output, "  Entry ID: %s\n", entry.EntryID)
+			fmt.Fprintf(&output, "  State: %s", entry.State)
+		}
+	}
+
+	return &mcp.ToolsCallResult{
+		Content: []mcp.ContentBlock{mcp.NewTextContent(output.String())},
+	}
+}
+
+// formatListJSON formats config entry list as JSON.
+func (h *ConfigEntryHandlers) formatListJSON(entries []homeassistant.ConfigEntryFull, domain string) (*mcp.ToolsCallResult, error) {
+	output, err := json.MarshalIndent(entries, "", "  ")
+	if err != nil {
+		return errorResult(fmt.Sprintf("error formatting response: %v", err)), nil
+	}
+
+	summary := fmt.Sprintf("Found %d config entries", len(entries))
+	if domain != "" {
+		summary += fmt.Sprintf(" for domain '%s'", domain)
+	}
+
+	return &mcp.ToolsCallResult{
+		Content: []mcp.ContentBlock{mcp.NewTextContent(summary + "\n\n" + string(output))},
+	}, nil
+}
+
+// formatGetNatural formats single config entry in natural language.
+func (h *ConfigEntryHandlers) formatGetNatural(entry *homeassistant.ConfigEntryFull) *mcp.ToolsCallResult {
+	var output strings.Builder
+
+	fmt.Fprintf(&output, "Config Entry: %s\n", entry.Title)
+	fmt.Fprintf(&output, "Domain: %s\n", entry.Domain)
+	fmt.Fprintf(&output, "Entry ID: %s\n", entry.EntryID)
+	fmt.Fprintf(&output, "State: %s", entry.State)
+
+	if len(entry.Options) > 0 {
+		output.WriteString("\n\nOptions:")
+		optionsJSON, _ := json.MarshalIndent(entry.Options, "  ", "  ")
+		fmt.Fprintf(&output, "\n  %s", string(optionsJSON))
+	}
+
+	return &mcp.ToolsCallResult{
+		Content: []mcp.ContentBlock{mcp.NewTextContent(output.String())},
+	}
+}
+
+// formatGetJSON formats single config entry as JSON.
+func (h *ConfigEntryHandlers) formatGetJSON(entry *homeassistant.ConfigEntryFull) (*mcp.ToolsCallResult, error) {
 	output, err := json.MarshalIndent(entry, "", "  ")
 	if err != nil {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent(fmt.Sprintf("Error formatting response: %v", err)),
-			},
-			IsError: true,
-		}, nil
+		return errorResult(fmt.Sprintf("error formatting response: %v", err)), nil
 	}
 
 	summary := fmt.Sprintf("Config entry '%s' (%s)", entry.Title, entry.Domain)
 	return &mcp.ToolsCallResult{
-		Content: []mcp.ContentBlock{
-			mcp.NewTextContent(summary + "\n\n" + string(output)),
-		},
+		Content: []mcp.ContentBlock{mcp.NewTextContent(summary + "\n\n" + string(output))},
 	}, nil
 }

@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type**             | Standalone Go binary (external server)     | HA integration (built-in)                                   |
 | **Transport**        | HTTP JSON-RPC                              | Streamable HTTP                                             |
 | **HA Communication** | WebSocket + REST API (Hybrid)              | Direct Python API (internal)                                |
-| **Tool Design**      | 35 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
+| **Tool Design**      | 33 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
 | **Authentication**   | Long-Lived Access Token                    | OAuth (IndieAuth) + Long-Lived Token                        |
 | **Entity Access**    | All entities (no filtering)                | Only explicitly exposed entities (Voice Assistant Exposure) |
 
@@ -77,7 +77,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 
 | Function         | ha-mcp                                                                      | Official HA MCP                      |
 | ---------------- | --------------------------------------------------------------------------- | ------------------------------------ |
-| List helpers     | `list_helpers`, `manage_helper` action=list                                 | ------------------------------------ |
+| List helpers     | `manage_helper` action=list                                                 | ------------------------------------ |
 | Create helper    | `manage_helper` action=create (15 types)                                    | ------------------------------------ |
 | Delete helper    | `manage_helper` action=delete                                               | ------------------------------------ |
 | Helper details   | `manage_helper` action=get_details (schedule, counter, timer; natural/json) | ------------------------------------ |
@@ -102,7 +102,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | List services          | `list_services`                                                                                              | ----------------------- |
 | System info     | `get_system_info`                                                                | ----------------------- |
 | Validate config | `validate_config`                                                                | ----------------------- |
-| Config entries  | `list_config_entries`, `get_config_entry`                                        | ----------------------- |
+| Config entries  | `manage_config_entry` (actions: list, get; format: natural/json)                 | ----------------------- |
 
 ### Analysis & Advanced
 

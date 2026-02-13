@@ -34,7 +34,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 35 specialized tools for advanced automation, scripts, scenes, helpers, devices, areas, labels, floors, zones, persons, and tags
+- **Power User Focus**: 33 specialized tools for advanced automation, scripts, scenes, helpers, devices, areas, labels, floors, zones, persons, and tags
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -455,8 +455,7 @@ Authorization: Bearer <your-ha-access-token>
 | `manage_tag`          | Consolidated tag management (actions: list, get, create, update, delete; format: natural/json for list/get)   |
 | `manage_entity`       | Entity registry management (actions: get, update; update fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases; format: natural/json) |
 | `manage_device`       | Device registry management (actions: get, update; update fields: name_by_user, area_id, disabled_by, labels; format: natural/json) |
-| `list_config_entries` | List config entries (integrations/helpers metadata), optionally filtered by domain                            |
-| `get_config_entry`    | Get a single config entry by entry ID                                                                         |
+| `manage_config_entry` | Consolidated config entry management (actions: list, get; list: optional domain filter; get: requires entry_id; format: natural/json) |
 
 #### Automation Tools
 
@@ -475,7 +474,6 @@ ha-mcp provides comprehensive support for all 14 Home Assistant helper types thr
 
 | Tool            | Description                                                                                                                |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `list_helpers`  | List all helpers across all types                                                                                          |
 | `manage_helper` | List, create, update, delete, or get details for any helper type (supports schedule, counter, timer details; format: natural/json) |
 | `helper_action` | Execute runtime actions (toggle, set, increment, start, etc.)                                                              |
 
@@ -972,7 +970,6 @@ ha-mcp/
 │   │   ├── devices_health.go    # Device health: detect and remove problematic devices
 │   │   ├── automations.go       # Consolidated manage_automation tool
 │   │   ├── automations_coverage.go # Automation coverage analysis
-│   │   ├── helpers.go           # list_helpers tool handler
 │   │   ├── helpers_consolidated.go  # manage_helper and helper_action tools
 │   │   ├── scripts.go           # Consolidated manage_script tool
 │   │   ├── scenes.go            # Consolidated manage_scene tool
