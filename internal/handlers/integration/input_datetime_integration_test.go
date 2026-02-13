@@ -209,7 +209,7 @@ func (s *InputDatetimeIntegrationTestSuite) TestInputDatetimeUpdate() {
 	s.Require().NoError(err, "Failed to set datetime after update")
 
 	time.Sleep(200 * time.Millisecond)
-	entity, err = s.Client().GetState(s.Context(), entityID)
+	entity, err := s.Client().GetState(s.Context(), entityID)
 	s.Require().NoError(err)
 	s.True(strings.Contains(entity.State, "2024-12-25"), "State should contain date after update")
 	s.True(strings.Contains(entity.State, "18:30"), "State should contain time after update")

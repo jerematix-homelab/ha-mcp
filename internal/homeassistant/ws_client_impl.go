@@ -28,11 +28,6 @@ type wsClientImpl struct {
 	ws CommandSender
 }
 
-// NewWSClientImpl creates a new WebSocket-based Client implementation.
-func NewWSClientImpl(ws *WSClient) Client {
-	return &wsClientImpl{ws: ws}
-}
-
 // NewWSClientImplWithSender creates a new WebSocket-based Client implementation
 // with a custom CommandSender. This is useful for testing.
 func NewWSClientImplWithSender(sender CommandSender) Client {

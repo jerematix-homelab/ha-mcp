@@ -134,14 +134,3 @@ func (s *AnalysisSnapshot) FindDeviceByID(deviceID string) *homeassistant.Device
 	}
 	return nil
 }
-
-// FindAreaByID finds an area registry entry by area ID.
-// Returns nil if not found.
-func (s *AnalysisSnapshot) FindAreaByID(areaID string) *homeassistant.AreaRegistryEntry {
-	for i := range s.AreaRegistry {
-		if s.AreaRegistry[i].AreaID == areaID {
-			return &s.AreaRegistry[i]
-		}
-	}
-	return nil
-}

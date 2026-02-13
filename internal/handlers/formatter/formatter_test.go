@@ -88,19 +88,3 @@ func TestNew(t *testing.T) {
 		})
 	}
 }
-
-func TestNewFormattingContext(t *testing.T) {
-	ctx := NewFormattingContext()
-
-	if ctx == nil {
-		t.Fatal("NewFormattingContext() returned nil")
-	}
-
-	if ctx.Now.IsZero() {
-		t.Error("FormattingContext.Now should not be zero")
-	}
-
-	if ctx.Timezone == nil {
-		t.Error("FormattingContext.Timezone should not be nil")
-	}
-}

@@ -36,26 +36,6 @@ func makeWSResultMsg(data any) *WSResultMessage {
 	}
 }
 
-func TestNewWSClientImpl(t *testing.T) {
-	t.Parallel()
-
-	ws := &WSClient{}
-	client := NewWSClientImpl(ws)
-
-	if client == nil {
-		t.Fatal("NewWSClientImpl returned nil")
-	}
-
-	impl, ok := client.(*wsClientImpl)
-	if !ok {
-		t.Fatal("NewWSClientImpl did not return *wsClientImpl")
-	}
-
-	if impl.ws != ws {
-		t.Error("wsClientImpl.ws does not match provided WSClient")
-	}
-}
-
 func TestWSClientImpl_GetStates(t *testing.T) {
 	t.Parallel()
 

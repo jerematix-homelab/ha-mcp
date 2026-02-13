@@ -48,22 +48,6 @@ type WSError struct {
 	Message string `json:"message"`
 }
 
-// WSEventMessage represents an event message from Home Assistant.
-type WSEventMessage struct {
-	ID    int64   `json:"id"`
-	Type  string  `json:"type"`
-	Event WSEvent `json:"event"`
-}
-
-// WSEvent contains event data.
-type WSEvent struct {
-	EventType string         `json:"event_type"`
-	Data      map[string]any `json:"data"`
-	Origin    string         `json:"origin"`
-	TimeFired string         `json:"time_fired"`
-	Context   Context        `json:"context"`
-}
-
 // WSCommand represents a command to send to Home Assistant.
 type WSCommand struct {
 	ID   int64  `json:"id"`
@@ -90,30 +74,6 @@ func (c *WSCommandWithPayload) MarshalJSON() ([]byte, error) {
 		m[k] = v
 	}
 	return json.Marshal(m)
-}
-
-// WSCallServiceCommand represents a call_service command.
-type WSCallServiceCommand struct {
-	ID          int64          `json:"id"`
-	Type        string         `json:"type"`
-	Domain      string         `json:"domain"`
-	Service     string         `json:"service"`
-	ServiceData map[string]any `json:"service_data,omitempty"`
-	Target      *WSTarget      `json:"target,omitempty"`
-}
-
-// WSTarget specifies targets for service calls.
-type WSTarget struct {
-	EntityID []string `json:"entity_id,omitempty"`
-	DeviceID []string `json:"device_id,omitempty"`
-	AreaID   []string `json:"area_id,omitempty"`
-}
-
-// WSSubscribeEventsCommand subscribes to events.
-type WSSubscribeEventsCommand struct {
-	ID        int64  `json:"id"`
-	Type      string `json:"type"`
-	EventType string `json:"event_type,omitempty"`
 }
 
 // ParseMessageType extracts the message type from a raw JSON message.
