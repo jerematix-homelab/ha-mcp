@@ -150,3 +150,22 @@ func (s *ScheduleIntegrationTestSuite) TestScheduleAllDays() {
 	err = s.Client().DeleteHelper(s.Context(), entityID)
 	s.Require().NoError(err)
 }
+
+func (s *ScheduleIntegrationTestSuite) TestScheduleReload() {
+	// Test that schedule reload service works
+	// This is a system-level service that reloads all schedule configurations
+
+	// Call schedule reload service
+	_, err := s.Client().CallService(s.Context(), "schedule", "reload", map[string]any{})
+	s.Require().NoError(err, "Schedule reload should succeed")
+
+	// Wait for reload to complete
+	time.Sleep(1 * time.Second)
+
+	// Verify we can still list entities (indicating reload didn't break anything)
+	states, err := s.Client().GetStates(s.Context())
+	s.Require().NoError(err, "Should be able to get states after reload")
+	s.NotEmpty(states, "Should have entities after reload")
+
+	s.T().Log("Schedule reload completed successfully")
+}

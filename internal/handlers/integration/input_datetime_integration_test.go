@@ -181,7 +181,7 @@ func (s *InputDatetimeIntegrationTestSuite) TestInputDatetimeUpdate() {
 	err := s.Client().CreateHelper(s.Context(), config)
 	s.Require().NoError(err, "Failed to create input_datetime")
 
-	entity, err := s.WaitForEntity(entityID, 5*time.Second)
+	_, err = s.WaitForEntity(entityID, 5*time.Second)
 	s.Require().NoError(err, "Input datetime did not appear")
 
 	// Update: change to date+time mode (both flags must be provided)
