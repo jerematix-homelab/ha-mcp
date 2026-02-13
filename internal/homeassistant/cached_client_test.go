@@ -309,6 +309,11 @@ func (m *mockClient) GetConfigEntries(ctx context.Context, domain string) ([]Con
 func (m *mockClient) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
 	return nil, nil
 }
+
+func (m *mockClient) GetConfigEntryOptions(context.Context, string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+
 func (m *mockClient) SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error) {
 	return nil, nil
 }

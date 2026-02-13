@@ -429,6 +429,10 @@ func (m *mockNonCloserClient) GetConfigEntry(_ context.Context, _ string) (*Conf
 	return &ConfigEntryFull{}, nil
 }
 
+func (m *mockNonCloserClient) GetConfigEntryOptions(context.Context, string) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+
 func (m *mockNonCloserClient) SendHACSCommand(_ context.Context, _ string, _ map[string]any) (any, error) {
 	return map[string]any{}, nil
 }

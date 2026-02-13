@@ -1643,16 +1643,12 @@ func TestManageHelper_GetDetails(t *testing.T) {
 						},
 					}, nil
 				}
-				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
-					return &homeassistant.ConfigEntryFull{
-						EntryID: entryID,
-						Domain:  "template",
-						Options: map[string]any{
-							"state":               "{{ states('sensor.source') | float }}",
-							"availability":        "{{ states('sensor.source') != 'unavailable' }}",
-							"unit_of_measurement": "°C",
-							"device_class":        "temperature",
-						},
+				m.GetConfigEntryOptionsFn = func(context.Context, string) (map[string]any, error) {
+					return map[string]any{
+						"state":               "{{ states('sensor.source') | float }}",
+						"availability":        "{{ states('sensor.source') != 'unavailable' }}",
+						"unit_of_measurement": "°C",
+						"device_class":        "temperature",
 					}, nil
 				}
 			},
@@ -1685,13 +1681,9 @@ func TestManageHelper_GetDetails(t *testing.T) {
 						},
 					}, nil
 				}
-				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
-					return &homeassistant.ConfigEntryFull{
-						EntryID: entryID,
-						Domain:  "template",
-						Options: map[string]any{
-							"state": "{{ states('sensor.source') | float }}",
-						},
+				m.GetConfigEntryOptionsFn = func(context.Context, string) (map[string]any, error) {
+					return map[string]any{
+						"state": "{{ states('sensor.source') | float }}",
 					}, nil
 				}
 			},
@@ -1724,15 +1716,11 @@ func TestManageHelper_GetDetails(t *testing.T) {
 						},
 					}, nil
 				}
-				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
-					return &homeassistant.ConfigEntryFull{
-						EntryID: entryID,
-						Domain:  "template",
-						Options: map[string]any{
-							"state":     "{{ states('binary_sensor.source') }}",
-							"delay_on":  map[string]any{"seconds": 5},
-							"delay_off": map[string]any{"seconds": 10},
-						},
+				m.GetConfigEntryOptionsFn = func(context.Context, string) (map[string]any, error) {
+					return map[string]any{
+						"state":     "{{ states('binary_sensor.source') }}",
+						"delay_on":  map[string]any{"seconds": 5},
+						"delay_off": map[string]any{"seconds": 10},
 					}, nil
 				}
 			},
@@ -1819,12 +1807,8 @@ func TestManageHelper_GetDetails(t *testing.T) {
 						},
 					}, nil
 				}
-				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
-					return &homeassistant.ConfigEntryFull{
-						EntryID: entryID,
-						Domain:  "template",
-						Options: map[string]any{},
-					}, nil
+				m.GetConfigEntryOptionsFn = func(context.Context, string) (map[string]any, error) {
+					return map[string]any{}, nil
 				}
 			},
 			wantError:       false,
@@ -1880,7 +1864,7 @@ func TestManageHelper_GetDetails(t *testing.T) {
 						},
 					}, nil
 				}
-				m.GetConfigEntryFn = func(_ context.Context, _ string) (*homeassistant.ConfigEntryFull, error) {
+				m.GetConfigEntryOptionsFn = func(context.Context, string) (map[string]any, error) {
 					return nil, fmt.Errorf("config entry not found")
 				}
 			},

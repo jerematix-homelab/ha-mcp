@@ -1099,15 +1099,16 @@ func enrichConfigEntryOptions(ctx context.Context, client homeassistant.Client, 
 		return // Not a template entity or no config entry
 	}
 
-	// Fetch the config entry
-	configEntry, err := client.GetConfigEntry(ctx, entry.ConfigEntryID)
-	if err != nil || configEntry == nil {
+	// Fetch config entry options via Options Flow REST API
+	// (WebSocket GetConfigEntry does not populate Options field)
+	options, err := client.GetConfigEntryOptions(ctx, entry.ConfigEntryID)
+	if err != nil {
 		return // Graceful degradation
 	}
 
 	// Extract template options if present
-	if len(configEntry.Options) > 0 {
-		addTemplateOptionsToDetails(configEntry.Options, details)
+	if len(options) > 0 {
+		addTemplateOptionsToDetails(options, details)
 	}
 }
 

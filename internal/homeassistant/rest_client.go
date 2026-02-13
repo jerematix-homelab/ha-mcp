@@ -1019,3 +1019,137 @@ func (c *RESTClient) DeleteConfigEntry(ctx context.Context, entryID string) erro
 		}
 	}
 }
+
+// Config Entry Options Flow Operations
+// Used for reading current option values from config entries
+// =============================================================================
+
+// InitConfigEntryOptionsFlow initializes an options flow for the given config entry.
+// Endpoint: POST /api/config/config_entries/options/flow
+// Returns the options flow result with flow_id for subsequent steps.
+func (c *RESTClient) InitConfigEntryOptionsFlow(ctx context.Context, entryID string) (*OptionsFlowResult, error) {
+	url := fmt.Sprintf("%s/api/config/config_entries/options/flow", c.baseURL)
+
+	reqBody := map[string]string{"handler": entryID}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling init options flow request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("creating init options flow request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("executing init options flow request: %w", err)
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading init options flow response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("failed to init config entry options flow for %s: %s", entryID, string(body)),
+		}
+	}
+
+	var result OptionsFlowResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("parsing init options flow response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// SubmitConfigEntryOptionsFlowStep submits data for an options flow step.
+// Endpoint: POST /api/config/config_entries/options/flow/{flow_id}
+// Returns the options flow result which may be another form step or create_entry on success.
+func (c *RESTClient) SubmitConfigEntryOptionsFlowStep(ctx context.Context, flowID string, data map[string]any) (*OptionsFlowResult, error) {
+	url := fmt.Sprintf("%s/api/config/config_entries/options/flow/%s", c.baseURL, flowID)
+
+	bodyBytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling options flow step data: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return nil, fmt.Errorf("creating options flow step request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("executing options flow step request: %w", err)
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading options flow step response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return nil, &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("failed to submit options flow step: %s", string(body)),
+		}
+	}
+
+	var result OptionsFlowResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("parsing options flow step response: %w", err)
+	}
+
+	return &result, nil
+}
+
+// AbortConfigEntryOptionsFlow aborts an active options flow.
+// Endpoint: DELETE /api/config/config_entries/options/flow/{flow_id}
+func (c *RESTClient) AbortConfigEntryOptionsFlow(ctx context.Context, flowID string) error {
+	url := fmt.Sprintf("%s/api/config/config_entries/options/flow/%s", c.baseURL, flowID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, http.NoBody)
+	if err != nil {
+		return fmt.Errorf("creating abort options flow request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doRequest(ctx, req)
+	if err != nil {
+		return fmt.Errorf("executing abort options flow request: %w", err)
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
+		return nil
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	return &APIError{
+		StatusCode: resp.StatusCode,
+		Message:    fmt.Sprintf("failed to abort options flow: %s", string(body)),
+	}
+}

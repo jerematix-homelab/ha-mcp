@@ -1736,6 +1736,7 @@ func (c *wsClientImpl) CheckConfig(_ context.Context) (*ConfigCheckResult, error
 // GetConfigEntries retrieves config entries, optionally filtered by domain.
 // Uses the config_entries/get WebSocket command.
 // Note: The options field is not populated by this API - it returns metadata only.
+// To read options, use GetConfigEntryOptions() which uses the Options Flow REST API.
 func (c *wsClientImpl) GetConfigEntries(ctx context.Context, domain string) ([]ConfigEntryFull, error) {
 	payload := map[string]any{}
 	if domain != "" {
@@ -1755,6 +1756,7 @@ func (c *wsClientImpl) GetConfigEntries(ctx context.Context, domain string) ([]C
 // GetConfigEntry retrieves a single config entry by its entry ID.
 // Uses the config_entries/get_single WebSocket command.
 // Note: The options field is not populated by this API - use GetConfigEntries for listing.
+// To read options, use GetConfigEntryOptions() which uses the Options Flow REST API.
 func (c *wsClientImpl) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
 	result, err := c.ws.SendCommand(ctx, "config_entries/get_single", map[string]any{
 		"entry_id": entryID,
@@ -1771,6 +1773,12 @@ func (c *wsClientImpl) GetConfigEntry(ctx context.Context, entryID string) (*Con
 		return nil, fmt.Errorf("failed to unmarshal config entry: %w", err)
 	}
 	return &wrapper.ConfigEntry, nil
+}
+
+// GetConfigEntryOptions is not supported via WebSocket.
+// Use HybridClient which implements this via the Options Flow REST API.
+func (c *wsClientImpl) GetConfigEntryOptions(context.Context, string) (map[string]any, error) {
+	return nil, fmt.Errorf("GetConfigEntryOptions not supported via WebSocket - use HybridClient")
 }
 
 // =============================================================================

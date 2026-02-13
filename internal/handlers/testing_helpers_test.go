@@ -114,8 +114,9 @@ type UniversalMockClient struct {
 	GetScheduleConfigFn func(ctx context.Context, scheduleID string) (map[string]any, error)
 
 	// Config entry operations
-	GetConfigEntriesFn func(ctx context.Context, domain string) ([]homeassistant.ConfigEntryFull, error)
-	GetConfigEntryFn   func(ctx context.Context, entryID string) (*homeassistant.ConfigEntryFull, error)
+	GetConfigEntriesFn      func(ctx context.Context, domain string) ([]homeassistant.ConfigEntryFull, error)
+	GetConfigEntryFn        func(ctx context.Context, entryID string) (*homeassistant.ConfigEntryFull, error)
+	GetConfigEntryOptionsFn func(ctx context.Context, entryID string) (map[string]any, error)
 
 	// Service discovery operations
 	GetServicesFn func(ctx context.Context) ([]homeassistant.Service, error)
@@ -666,6 +667,13 @@ func (m *UniversalMockClient) GetConfigEntry(ctx context.Context, entryID string
 		return m.GetConfigEntryFn(ctx, entryID)
 	}
 	return &homeassistant.ConfigEntryFull{EntryID: entryID}, nil
+}
+
+func (m *UniversalMockClient) GetConfigEntryOptions(ctx context.Context, entryID string) (map[string]any, error) {
+	if m.GetConfigEntryOptionsFn != nil {
+		return m.GetConfigEntryOptionsFn(ctx, entryID)
+	}
+	return map[string]any{}, nil
 }
 
 // Service discovery operations implementation

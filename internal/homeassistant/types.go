@@ -622,6 +622,25 @@ type ConfigEntryFull struct {
 	SupportsRemoveDevice   bool           `json:"supports_remove_device,omitempty"`
 }
 
+// OptionsFlowResult represents a config entry options flow step response.
+// Options Flow is used to read current option values from config entries.
+type OptionsFlowResult struct {
+	FlowID      string             `json:"flow_id"`
+	Type        string             `json:"type"` // "form", "menu", "create_entry", "abort"
+	StepID      string             `json:"step_id,omitempty"`
+	Handler     string             `json:"handler"`
+	DataSchema  []OptionsFlowField `json:"data_schema,omitempty"`
+	Errors      map[string]string  `json:"errors,omitempty"`
+	MenuOptions []string           `json:"menu_options,omitempty"` // For "menu" type
+}
+
+// OptionsFlowField represents a field in an options flow data schema.
+type OptionsFlowField struct {
+	Name        string         `json:"name"`
+	Type        string         `json:"type,omitempty"`
+	Description map[string]any `json:"description,omitempty"` // Contains "suggested_value"
+}
+
 // DashboardEntry represents a Home Assistant Lovelace dashboard entry.
 type DashboardEntry struct {
 	ID            string `json:"id"`

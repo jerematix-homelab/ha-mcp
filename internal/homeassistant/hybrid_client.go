@@ -152,6 +152,11 @@ type RESTOperations interface {
 	SubmitConfigEntryFlowStep(ctx context.Context, flowID string, data map[string]any) (*ConfigEntryFlowResult, error)
 	DeleteConfigEntry(ctx context.Context, entryID string) error
 
+	// Config Entry Options Flow operations (for reading current option values)
+	InitConfigEntryOptionsFlow(ctx context.Context, entryID string) (*OptionsFlowResult, error)
+	SubmitConfigEntryOptionsFlowStep(ctx context.Context, flowID string, data map[string]any) (*OptionsFlowResult, error)
+	AbortConfigEntryOptionsFlow(ctx context.Context, flowID string) error
+
 	// Service discovery
 	GetServices(ctx context.Context) ([]Service, error)
 
@@ -941,6 +946,112 @@ func (c *HybridClient) GetConfigEntries(ctx context.Context, domain string) ([]C
 // GetConfigEntry retrieves a single config entry by its entry ID.
 func (c *HybridClient) GetConfigEntry(ctx context.Context, entryID string) (*ConfigEntryFull, error) {
 	return c.ws.GetConfigEntry(ctx, entryID)
+}
+
+// GetConfigEntryOptions retrieves the current option values for a config entry
+// using the Options Flow REST API. This is necessary because the WebSocket API's
+// config_entries/get_single command does not populate the Options field.
+func (c *HybridClient) GetConfigEntryOptions(ctx context.Context, entryID string) (map[string]any, error) {
+	// Initialize the options flow
+	result, err := c.rest.InitConfigEntryOptionsFlow(ctx, entryID)
+	if err != nil {
+		return nil, fmt.Errorf("init options flow: %w", err)
+	}
+
+	// Always abort the flow when we're done (cleanup)
+	defer func() {
+		_ = c.rest.AbortConfigEntryOptionsFlow(context.Background(), result.FlowID)
+	}()
+
+	// If the response is a menu (e.g., template helpers show sensor/binary_sensor menu),
+	// we need to navigate to the actual form step
+	if result.Type == "menu" {
+		result, err = c.navigateOptionsFlowMenu(ctx, entryID, result)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Extract option values from data_schema suggested_value fields
+	return extractOptionsFromSchema(result.DataSchema), nil
+}
+
+// navigateOptionsFlowMenu navigates an options flow menu to the correct form step.
+func (c *HybridClient) navigateOptionsFlowMenu(ctx context.Context, entryID string, result *OptionsFlowResult) (*OptionsFlowResult, error) {
+	// Find the entity domain for this config entry
+	entityDomain, err := c.findEntityDomainForConfigEntry(ctx, entryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Find matching menu option
+	menuChoice := findMatchingMenuOption(result.MenuOptions, entityDomain)
+	if menuChoice == "" {
+		return result, nil // No match found, return original result
+	}
+
+	// Navigate to the selected form
+	navigatedResult, err := c.rest.SubmitConfigEntryOptionsFlowStep(ctx, result.FlowID, map[string]any{
+		"next_step_id": menuChoice,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("navigate menu: %w", err)
+	}
+
+	return navigatedResult, nil
+}
+
+// findEntityDomainForConfigEntry finds the entity domain for a config entry.
+func (c *HybridClient) findEntityDomainForConfigEntry(ctx context.Context, entryID string) (string, error) {
+	configEntry, err := c.ws.GetConfigEntry(ctx, entryID)
+	if err != nil {
+		return "", fmt.Errorf("get config entry for menu navigation: %w", err)
+	}
+
+	registry, err := c.ws.GetEntityRegistry(ctx)
+	if err != nil {
+		return "", fmt.Errorf("get entity registry for menu navigation: %w", err)
+	}
+
+	for _, regEntry := range registry {
+		if regEntry.ConfigEntryID == configEntry.EntryID {
+			// Extract domain from entity_id (format: domain.name)
+			parts := strings.SplitN(regEntry.EntityID, ".", 2)
+			if len(parts) == 2 {
+				return parts[0], nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
+// findMatchingMenuOption finds a menu option that matches the entity domain.
+func findMatchingMenuOption(menuOptions []string, entityDomain string) string {
+	if entityDomain == "" || len(menuOptions) == 0 {
+		return ""
+	}
+
+	for _, option := range menuOptions {
+		if strings.Contains(option, entityDomain) {
+			return option
+		}
+	}
+
+	return ""
+}
+
+// extractOptionsFromSchema extracts option values from data schema suggested_value fields.
+func extractOptionsFromSchema(dataSchema []OptionsFlowField) map[string]any {
+	options := make(map[string]any)
+	for _, field := range dataSchema {
+		if field.Description != nil {
+			if suggestedValue, ok := field.Description["suggested_value"]; ok {
+				options[field.Name] = suggestedValue
+			}
+		}
+	}
+	return options
 }
 
 // =============================================================================

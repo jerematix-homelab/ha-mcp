@@ -132,3 +132,127 @@ func (s *ConfigEntriesIntegrationTestSuite) TestGetConfigEntryNotFound() {
 	_, err := s.Client().GetConfigEntry(s.Context(), "nonexistent_entry_id_12345")
 	s.Error(err, "Getting non-existent config entry should return an error")
 }
+
+func (s *ConfigEntriesIntegrationTestSuite) TestConfigEntryOptionsDiscovery() {
+	// Phase 1: Diagnostic test to verify API behavior for config entry options
+	templateName := GenerateTestID("cfg_opts_discovery")
+	templateEntityID := BuildEntityID("sensor", templateName)
+	knownTemplate := "{{ states('sensor.test') | float }}"
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+	})
+
+	// Create template sensor with known Jinja2 template
+	templateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"name":  templateName,
+			"state": knownTemplate,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), templateConfig)
+	s.Require().NoError(err, "Failed to create template sensor")
+
+	_, err = s.WaitForEntity(templateEntityID, 5*time.Second)
+	s.Require().NoError(err, "Template sensor did not appear")
+
+	// Get entity registry to find config_entry_id
+	registry, err := s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err, "Failed to get entity registry")
+
+	var configEntryID string
+	for _, entry := range registry {
+		if entry.EntityID == templateEntityID {
+			configEntryID = entry.ConfigEntryID
+			break
+		}
+	}
+	s.Require().NotEmpty(configEntryID, "Template entity should have a config_entry_id")
+
+	// Test 1: Check if WebSocket API returns options
+	configEntry, err := s.Client().GetConfigEntry(s.Context(), configEntryID)
+	s.Require().NoError(err, "Failed to get config entry")
+
+	s.T().Logf("Config Entry Options from WS API: %v", configEntry.Options)
+	if configEntry.Options == nil {
+		s.T().Log("DIAGNOSTIC: WebSocket API returns nil Options (expected)")
+	} else if len(configEntry.Options) == 0 {
+		s.T().Log("DIAGNOSTIC: WebSocket API returns empty Options map")
+	} else {
+		s.T().Logf("DIAGNOSTIC: WebSocket API returns Options: %+v", configEntry.Options)
+	}
+
+	// Test 2: Try Options Flow REST API
+	s.T().Log("DIAGNOSTIC: Testing Options Flow REST API")
+	options, err := s.Client().GetConfigEntryOptions(s.Context(), configEntryID)
+	s.Require().NoError(err, "Failed to get config entry options")
+	s.T().Logf("DIAGNOSTIC: Options Flow API returned %d options", len(options))
+
+	if stateTemplate, ok := options["state"].(string); ok {
+		s.T().Logf("DIAGNOSTIC: State template found: %s", stateTemplate)
+		s.Equal(knownTemplate, stateTemplate, "State template should match known template")
+	} else {
+		s.T().Log("DIAGNOSTIC: State template not found in options")
+	}
+
+	s.T().Logf("DIAGNOSTIC: Full options: %+v", options)
+}
+
+func (s *ConfigEntriesIntegrationTestSuite) TestGetConfigEntryOptionsViaFlow() {
+	// Phase 3: Integration test for Options Flow
+	templateName := GenerateTestID("cfg_opts_flow_test")
+	templateEntityID := BuildEntityID("sensor", templateName)
+	knownTemplate := "{{ 42 | float }}"
+	knownUnit := "count"
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+	})
+
+	// Create template sensor with known Jinja2 template
+	templateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"name":                templateName,
+			"state":               knownTemplate,
+			"unit_of_measurement": knownUnit,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), templateConfig)
+	s.Require().NoError(err, "Failed to create template sensor")
+
+	_, err = s.WaitForEntity(templateEntityID, 5*time.Second)
+	s.Require().NoError(err, "Template sensor did not appear")
+
+	// Get entity registry to find config_entry_id
+	registry, err := s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err, "Failed to get entity registry")
+
+	var configEntryID string
+	for _, entry := range registry {
+		if entry.EntityID == templateEntityID {
+			configEntryID = entry.ConfigEntryID
+			break
+		}
+	}
+	s.Require().NotEmpty(configEntryID, "Template entity should have a config_entry_id")
+
+	// Call GetConfigEntryOptions via the new method
+	options, err := s.Client().GetConfigEntryOptions(s.Context(), configEntryID)
+	s.Require().NoError(err, "Failed to get config entry options")
+	s.NotNil(options, "Options should not be nil")
+	s.NotEmpty(options, "Options should not be empty")
+
+	// Assert state option matches the created template
+	stateTemplate, ok := options["state"].(string)
+	s.Require().True(ok, "State option should be a string")
+	s.Equal(knownTemplate, stateTemplate, "State template should match the created template")
+
+	// Assert unit_of_measurement is present
+	unit, ok := options["unit_of_measurement"].(string)
+	s.Require().True(ok, "Unit of measurement should be a string")
+	s.Equal(knownUnit, unit, "Unit should match the created unit")
+}
