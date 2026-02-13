@@ -1551,51 +1551,46 @@ func buildConfigEntryUpdateConfig(_ string, args map[string]any) map[string]any 
 	return config
 }
 
+// configBuilderFunc is a function that builds type-specific helper configuration.
+type configBuilderFunc func(config, args map[string]any) error
+
+// helperConfigBuilders maps helper types to their configuration builders.
+var helperConfigBuilders = map[string]configBuilderFunc{
+	platformInputBoolean:           buildInputBooleanConfig,
+	platformInputButton:            buildInputButtonConfig,
+	platformInputNumber:            buildInputNumberConfig,
+	platformInputText:              buildInputTextConfigWrapper,
+	platformInputSelect:            buildInputSelectConfigWrapper,
+	platformInputDatetime:          buildInputDatetimeConfigWrapper,
+	platformCounter:                buildCounterConfig,
+	platformTimer:                  buildTimerConfigWrapper,
+	platformSchedule:               buildScheduleConfigWrapper,
+	platformGroup:                  buildGroupConfigWrapper,
+	helperTypeTemplateSensor:       buildTemplateSensorConfig,
+	helperTypeTemplateBinarySensor: buildTemplateBinarySensorConfig,
+	"threshold":                    buildThresholdConfigWrapper,
+	"derivative":                   buildDerivativeConfigWrapper,
+	"integral":                     buildIntegralConfigWrapper,
+}
+
 func buildHelperConfig(helperType, name string, args map[string]any) (map[string]any, error) {
 	config := map[string]any{"name": name}
 	addOptionalString(config, args, "icon")
 
-	// Route to type-specific config builders
-	switch helperType {
-	case platformInputBoolean, platformInputButton:
-		buildInputSimpleConfig(config, args, helperType)
-	case platformInputNumber:
-		if err := buildInputNumberConfig(config, args); err != nil {
-			return nil, err
-		}
-	case platformInputText:
-		buildInputTextConfig(config, args)
-	case platformInputSelect:
-		buildInputSelectConfig(config, args)
-	case platformInputDatetime:
-		buildInputDatetimeConfig(config, args)
-	case platformCounter:
-		if err := buildCounterConfig(config, args); err != nil {
-			return nil, err
-		}
-	case platformTimer:
-		buildTimerConfig(config, args)
-	case platformSchedule:
-		buildScheduleConfig(config, args)
-	case platformGroup:
-		buildGroupConfig(config, args)
-	case helperTypeTemplateSensor, helperTypeTemplateBinarySensor:
-		buildTemplateConfig(config, args, helperType)
-	case "threshold":
-		buildThresholdConfigConsolidated(config, args)
-	case "derivative":
-		buildDerivativeConfigConsolidated(config, args)
-	case "integral":
-		buildIntegralConfigConsolidated(config, args)
+	if builder, exists := helperConfigBuilders[helperType]; exists {
+		return config, builder(config, args)
 	}
 
 	return config, nil
 }
 
-func buildInputSimpleConfig(config, args map[string]any, helperType string) {
-	if helperType == platformInputBoolean {
-		addOptionalBool(config, args, "initial")
-	}
+func buildInputBooleanConfig(config, args map[string]any) error {
+	addOptionalBool(config, args, "initial")
+	return nil
+}
+
+func buildInputButtonConfig(_, _ map[string]any) error {
+	return nil
 }
 
 func buildInputNumberConfig(config, args map[string]any) error {
@@ -1623,6 +1618,11 @@ func buildInputTextConfig(config, args map[string]any) {
 	addOptionalString(config, args, "initial")
 }
 
+func buildInputTextConfigWrapper(config, args map[string]any) error {
+	buildInputTextConfig(config, args)
+	return nil
+}
+
 func buildInputSelectConfig(config, args map[string]any) {
 	addOptionalString(config, args, "initial")
 	if options, ok := args["options"].([]any); ok {
@@ -1630,10 +1630,20 @@ func buildInputSelectConfig(config, args map[string]any) {
 	}
 }
 
+func buildInputSelectConfigWrapper(config, args map[string]any) error {
+	buildInputSelectConfig(config, args)
+	return nil
+}
+
 func buildInputDatetimeConfig(config, args map[string]any) {
 	addOptionalBool(config, args, "has_date")
 	addOptionalBool(config, args, "has_time")
 	addOptionalString(config, args, "initial")
+}
+
+func buildInputDatetimeConfigWrapper(config, args map[string]any) error {
+	buildInputDatetimeConfig(config, args)
+	return nil
 }
 
 func buildCounterConfig(config, args map[string]any) error {
@@ -1656,6 +1666,11 @@ func buildTimerConfig(config, args map[string]any) {
 	addOptionalBool(config, args, "restore")
 }
 
+func buildTimerConfigWrapper(config, args map[string]any) error {
+	buildTimerConfig(config, args)
+	return nil
+}
+
 func buildScheduleConfig(config, args map[string]any) {
 	days := []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
 	for _, day := range days {
@@ -1663,6 +1678,11 @@ func buildScheduleConfig(config, args map[string]any) {
 			config[day] = daySchedule
 		}
 	}
+}
+
+func buildScheduleConfigWrapper(config, args map[string]any) error {
+	buildScheduleConfig(config, args)
+	return nil
 }
 
 func buildGroupConfig(config, args map[string]any) {
@@ -1673,18 +1693,27 @@ func buildGroupConfig(config, args map[string]any) {
 	}
 }
 
-func buildTemplateConfig(config, args map[string]any, helperType string) {
+func buildGroupConfigWrapper(config, args map[string]any) error {
+	buildGroupConfig(config, args)
+	return nil
+}
+
+func buildTemplateSensorConfig(config, args map[string]any) error {
 	config["state"] = args["state"]
-	if helperType == helperTypeTemplateSensor {
-		addOptionalString(config, args, "unit_of_measurement")
-		addOptionalString(config, args, "state_class")
-		config["template_type"] = "sensor"
-	} else {
-		addOptionalString(config, args, "delay_on")
-		addOptionalString(config, args, "delay_off")
-		config["template_type"] = "binary_sensor"
-	}
+	addOptionalString(config, args, "unit_of_measurement")
+	addOptionalString(config, args, "state_class")
+	config["template_type"] = "sensor"
 	addOptionalString(config, args, "device_class")
+	return nil
+}
+
+func buildTemplateBinarySensorConfig(config, args map[string]any) error {
+	config["state"] = args["state"]
+	addOptionalString(config, args, "delay_on")
+	addOptionalString(config, args, "delay_off")
+	config["template_type"] = "binary_sensor"
+	addOptionalString(config, args, "device_class")
+	return nil
 }
 
 func buildThresholdConfigConsolidated(config, args map[string]any) {
@@ -1695,6 +1724,11 @@ func buildThresholdConfigConsolidated(config, args map[string]any) {
 	config["entity_id"] = args["entity_id"]
 }
 
+func buildThresholdConfigWrapper(config, args map[string]any) error {
+	buildThresholdConfigConsolidated(config, args)
+	return nil
+}
+
 func buildDerivativeConfigConsolidated(config, args map[string]any) {
 	addOptionalInt(config, args, "round")
 	addOptionalString(config, args, "time_window")
@@ -1703,12 +1737,22 @@ func buildDerivativeConfigConsolidated(config, args map[string]any) {
 	config["source"] = args["source"]
 }
 
+func buildDerivativeConfigWrapper(config, args map[string]any) error {
+	buildDerivativeConfigConsolidated(config, args)
+	return nil
+}
+
 func buildIntegralConfigConsolidated(config, args map[string]any) {
 	addOptionalString(config, args, "method")
 	addOptionalInt(config, args, "round")
 	addOptionalString(config, args, "unit_time")
 	addOptionalString(config, args, "unit_prefix")
 	config["source"] = args["source"]
+}
+
+func buildIntegralConfigWrapper(config, args map[string]any) error {
+	buildIntegralConfigConsolidated(config, args)
+	return nil
 }
 
 // =============================================================================
