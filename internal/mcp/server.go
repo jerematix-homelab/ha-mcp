@@ -25,6 +25,23 @@ const (
 	ProtocolVersion = "2024-11-05"
 )
 
+// serverInstructions contains the comprehensive server instructions sent to AI clients.
+const serverInstructions = `Home Assistant MCP Server - provides tools for managing and querying a Home Assistant instance.
+
+Manageable objects: entities, devices, automations, scripts, scenes, helpers (14 types including input_boolean, input_number, input_text, input_select, input_datetime, input_button, counter, timer, schedule, template sensors, threshold, derivative, integral, group), areas, floors, zones, labels, persons, tags, dashboards, media, config entries, HACS repositories.
+
+Query and analysis: entity state/history/statistics/presence/health, device health, logbook with correlation analysis, entity dependencies, automation coverage, target analysis (triggers/conditions/services), service discovery, system info, date/time, template rendering, config validation.
+
+Format parameter: Most tools support format="natural" (default) and format="json". Use natural format for status checks, diagnostics, and general queries - it is LLM-optimized and token-efficient. Use json format when creating or updating entities (exact field structure needed), processing complex nested data, or extracting specific fields for subsequent API calls.
+
+Useful patterns:
+- get_state with entity_ids array to check multiple entities at once
+- get_logbook(mode="correlation") to analyze timing and causal relationships across entities
+- manage_script(action="get", format="json") to view full script config including sequence
+- query_entities(mode="health") to find stale, unavailable, or orphaned entities
+- query_devices(mode="health") to find disabled or orphaned devices
+- analyze_entity to trace entity usage across automations, scripts, and scenes`
+
 // HTTP server timeout constants.
 const (
 	httpReadHeaderTimeout = 10 * time.Second
@@ -254,7 +271,7 @@ func (s *Server) handleInitialize(req *Request) *Response {
 			Name:    ServerName,
 			Version: ServerVersion,
 		},
-		Instructions: "Home Assistant MCP Server - provides tools for interacting with Home Assistant entities, automations, helpers, scripts, and scenes.",
+		Instructions: serverInstructions,
 	}
 
 	return NewSuccessResponse(req.ID, result)
