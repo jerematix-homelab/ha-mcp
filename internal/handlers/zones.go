@@ -66,7 +66,7 @@ func (h *ZoneHandlers) buildZoneSchema() mcp.JSONSchema {
 			},
 			"zone_id": {
 				Type:        "string",
-				Description: "Zone identifier. Required for get/update/delete.",
+				Description: "Zone identifier or name. Required for get/update/delete. Accepts exact zone_id or case-insensitive name search.",
 			},
 			"name": {
 				Type:        "string",
@@ -162,16 +162,9 @@ func (h *ZoneHandlers) handleGet(ctx context.Context, client homeassistant.Clien
 		return errorResult(fmt.Sprintf("error getting zones: %v", err)), nil
 	}
 
-	var zone *homeassistant.ZoneRegistryEntry
-	for i := range zones {
-		if zones[i].ID == zoneID {
-			zone = &zones[i]
-			break
-		}
-	}
-
-	if zone == nil {
-		return errorResult(fmt.Sprintf("zone not found: %s", zoneID)), nil
+	zone, findErr := h.findZoneByInput(zones, zoneID)
+	if findErr != nil {
+		return errorResult(findErr.Error()), nil
 	}
 
 	formatStr, _ := args["format"].(string)
@@ -222,9 +215,14 @@ func (h *ZoneHandlers) handleUpdate(ctx context.Context, client homeassistant.Cl
 		return errorResult("zone_id is required for update action"), nil
 	}
 
+	resolvedID, err := h.resolveZoneID(ctx, client, zoneID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
 	config := h.buildZoneConfig(args)
 
-	zone, err := client.UpdateZone(ctx, zoneID, config)
+	zone, err := client.UpdateZone(ctx, resolvedID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating zone: %v", err)), nil
 	}
@@ -238,16 +236,56 @@ func (h *ZoneHandlers) handleDelete(ctx context.Context, client homeassistant.Cl
 		return errorResult("zone_id is required for delete action"), nil
 	}
 
-	if err := client.DeleteZone(ctx, zoneID); err != nil {
+	resolvedID, err := h.resolveZoneID(ctx, client, zoneID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	if err := client.DeleteZone(ctx, resolvedID); err != nil {
 		return errorResult(fmt.Sprintf("error deleting zone: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Zone '%s' deleted successfully", zoneID)), nil
+	return successResult(fmt.Sprintf("Zone '%s' deleted successfully", resolvedID)), nil
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// findZoneByInput performs two-phase lookup: exact ID match, then case-insensitive name substring match.
+func (h *ZoneHandlers) findZoneByInput(zones []homeassistant.ZoneRegistryEntry, input string) (*homeassistant.ZoneRegistryEntry, error) {
+	// Phase 1: Exact ID match
+	for i := range zones {
+		if zones[i].ID == input {
+			return &zones[i], nil
+		}
+	}
+
+	// Phase 2: Case-insensitive name substring match
+	lowerInput := strings.ToLower(input)
+	for i := range zones {
+		if strings.Contains(strings.ToLower(zones[i].Name), lowerInput) {
+			return &zones[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("zone not found: %s (tried as zone_id and name)", input)
+}
+
+// resolveZoneID resolves a zone input (ID or name) to the actual zone ID.
+func (h *ZoneHandlers) resolveZoneID(ctx context.Context, client homeassistant.Client, input string) (string, error) {
+	zones, err := client.GetZones(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error fetching zones: %w", err)
+	}
+
+	zone, err := h.findZoneByInput(zones, input)
+	if err != nil {
+		return "", err
+	}
+
+	return zone.ID, nil
+}
 
 func (h *ZoneHandlers) buildZoneConfig(args map[string]any) homeassistant.ZoneConfig {
 	config := homeassistant.ZoneConfig{}
