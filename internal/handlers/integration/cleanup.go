@@ -274,6 +274,16 @@ func deleteHelperWithRetry(ctx context.Context, client homeassistant.Client, ent
 		}
 		return nil
 	}
+
+	// Fallback: Config Entry groups return unknown_command for DeleteHelper.
+	// Try RemoveEntityRegistryEntry to clean up the orphaned entity.
+	if err := client.RemoveEntityRegistryEntry(ctx, entityID); err == nil {
+		return nil
+	} else if strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "does not exist") {
+		// Entity already removed from registry, consider this a success
+		return nil
+	}
+
 	return lastErr
 }
 
