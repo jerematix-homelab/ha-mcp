@@ -904,34 +904,126 @@ func TestManageHelper_Update(t *testing.T) {
 			wantContains: []string{"entity_id", "required"},
 		},
 		{
-			name: "update config entry helper returns error",
+			name: "update config entry helper success",
 			args: map[string]any{
 				"action":    "update",
 				"entity_id": "binary_sensor.threshold_test",
 				"upper":     float64(30),
 			},
-			wantError:    true,
-			wantContains: []string{"update not supported", "config entry flow"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "binary_sensor.threshold_test", ConfigEntryID: "config123"},
+					}, nil
+				}
+				m.UpdateHelperFn = func(context.Context, string, homeassistant.HelperConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated", "binary_sensor.threshold_test"},
 		},
 		{
-			name: "update group helper returns error",
+			name: "update group helper success",
 			args: map[string]any{
 				"action":    "update",
 				"entity_id": "group.lights",
 				"entities":  []any{"light.one", "light.two"},
 			},
-			wantError:    true,
-			wantContains: []string{"update not supported", "config entry flow"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "group.lights", ConfigEntryID: "config456"},
+					}, nil
+				}
+				m.UpdateHelperFn = func(context.Context, string, homeassistant.HelperConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated", "group.lights"},
 		},
 		{
-			name: "update template_sensor returns error",
+			name: "update template_sensor success",
 			args: map[string]any{
 				"action":    "update",
 				"entity_id": "sensor.my_template",
 				"state":     "{{ 100 }}",
 			},
-			wantError:    true,
-			wantContains: []string{"update not supported", "config entry flow"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "sensor.my_template", ConfigEntryID: "config789"},
+					}, nil
+				}
+				m.UpdateHelperFn = func(context.Context, string, homeassistant.HelperConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated", "sensor.my_template"},
+		},
+		{
+			name: "update template_sensor partial (only device_class)",
+			args: map[string]any{
+				"action":       "update",
+				"entity_id":    "sensor.my_template",
+				"device_class": "temperature",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "sensor.my_template", ConfigEntryID: "config789"},
+					}, nil
+				}
+				m.UpdateHelperFn = func(context.Context, string, homeassistant.HelperConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated", "sensor.my_template"},
+		},
+		{
+			name: "update threshold helper with multiple fields",
+			args: map[string]any{
+				"action":     "update",
+				"entity_id":  "binary_sensor.threshold_test",
+				"upper":      float64(30),
+				"lower":      float64(10),
+				"hysteresis": float64(1.5),
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "binary_sensor.threshold_test", ConfigEntryID: "config123"},
+					}, nil
+				}
+				m.UpdateHelperFn = func(context.Context, string, homeassistant.HelperConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated", "binary_sensor.threshold_test"},
+		},
+		{
+			name: "update websocket helper (counter) - fallback path",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "counter.test",
+				"step":      float64(5),
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "counter.test", ConfigEntryID: ""}, // No config entry
+					}, nil
+				}
+				m.UpdateHelperFn = func(context.Context, string, homeassistant.HelperConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated", "counter.test"},
 		},
 		{
 			name: "update API error",

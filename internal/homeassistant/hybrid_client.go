@@ -22,6 +22,9 @@ const (
 
 	platformTemplate = "template"
 	platformGroup    = "group"
+
+	flowTypeMenu        = "menu"
+	flowTypeCreateEntry = "create_entry"
 )
 
 // binaryDeviceClasses maps device classes that indicate a binary sensor.
@@ -323,7 +326,27 @@ func (c *HybridClient) CreateHelper(ctx context.Context, config HelperConfig) er
 }
 
 // UpdateHelper updates an existing input helper.
+// For Config Entry platforms, this looks up the config_entry_id from the entity registry
+// and updates via Options Flow REST API.
+// For standard helpers, this uses WebSocket.
 func (c *HybridClient) UpdateHelper(ctx context.Context, helperID string, config HelperConfig) error {
+	// Check if this entity belongs to a Config Entry platform
+	// Config Entry entities have their config_entry_id in the entity registry
+	entries, err := c.ws.GetEntityRegistry(ctx)
+	if err != nil {
+		// Fall back to WebSocket if registry lookup fails
+		return c.ws.UpdateHelper(ctx, helperID, config)
+	}
+
+	// Find the entity and check if it has a config_entry_id
+	for _, entry := range entries {
+		if entry.EntityID == helperID && entry.ConfigEntryID != "" {
+			// This is a Config Entry-based helper, update via Options Flow
+			return c.updateHelperViaOptionsFlow(ctx, helperID, entry.ConfigEntryID, config)
+		}
+	}
+
+	// Not a Config Entry helper, use WebSocket
 	return c.ws.UpdateHelper(ctx, helperID, config)
 }
 
@@ -350,6 +373,79 @@ func (c *HybridClient) DeleteHelper(ctx context.Context, helperID string) error 
 
 	// Not a Config Entry helper, use WebSocket
 	return c.ws.DeleteHelper(ctx, helperID)
+}
+
+// updateHelperViaOptionsFlow updates a Config Entry-based helper via Options Flow REST API.
+func (c *HybridClient) updateHelperViaOptionsFlow(ctx context.Context, entityID, configEntryID string, config HelperConfig) error {
+	// Extract icon from config - Options Flow doesn't support icons
+	icon, hasIcon := config.Config["icon"].(string)
+	if hasIcon {
+		delete(config.Config, "icon")
+	}
+
+	// Init Options Flow
+	result, err := c.rest.InitConfigEntryOptionsFlow(ctx, configEntryID)
+	if err != nil {
+		return fmt.Errorf("init options flow: %w", err)
+	}
+
+	// Navigate menu if needed (e.g., template helpers have sensor/binary_sensor menu)
+	if result.Type == flowTypeMenu {
+		result, err = c.navigateOptionsFlowMenu(ctx, configEntryID, result)
+		if err != nil {
+			// Abort flow on error
+			_ = c.rest.AbortConfigEntryOptionsFlow(ctx, result.FlowID)
+			return fmt.Errorf("navigate options flow menu: %w", err)
+		}
+	}
+
+	// Extract current values from schema
+	currentValues := extractOptionsFromSchema(result.DataSchema)
+
+	// Merge user-provided values with current values
+	mergedConfig := mergeOptionsFlowConfig(currentValues, config.Config)
+
+	// Submit merged config
+	submitResult, err := c.rest.SubmitConfigEntryOptionsFlowStep(ctx, result.FlowID, mergedConfig)
+	if err != nil {
+		_ = c.rest.AbortConfigEntryOptionsFlow(ctx, result.FlowID)
+		return fmt.Errorf("submit options flow: %w", err)
+	}
+
+	// Validate result
+	if submitResult.Type != flowTypeCreateEntry {
+		_ = c.rest.AbortConfigEntryOptionsFlow(ctx, result.FlowID)
+		return fmt.Errorf("unexpected options flow result type: %s", submitResult.Type)
+	}
+
+	// Update icon via Entity Registry if provided
+	if hasIcon && icon != "" {
+		time.Sleep(500 * time.Millisecond) // Wait for entity registry to be updated
+		updateCfg := EntityRegistryUpdateConfig{Icon: &icon}
+		if _, err := c.ws.UpdateEntityRegistryEntry(ctx, entityID, updateCfg); err != nil {
+			return fmt.Errorf("helper updated, but failed to set icon: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// mergeOptionsFlowConfig merges user-provided config values with current schema values.
+// Only fields present in userConfig override the current values.
+func mergeOptionsFlowConfig(currentValues, userConfig map[string]any) map[string]any {
+	merged := make(map[string]any)
+
+	// Start with current values
+	for k, v := range currentValues {
+		merged[k] = v
+	}
+
+	// Override with user-provided values
+	for k, v := range userConfig {
+		merged[k] = v
+	}
+
+	return merged
 }
 
 // SetHelperValue sets the value of an input helper.

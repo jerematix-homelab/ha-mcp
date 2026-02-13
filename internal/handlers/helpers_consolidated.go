@@ -213,7 +213,7 @@ Helper Types:
 Actions:
 - list: List all helpers (optional: format=natural|json, verbose=true|false)
 - create: Create a new helper (requires type, id, name)
-- update: Update an existing helper (requires entity_id; WebSocket helpers only)
+- update: Update an existing helper (requires entity_id; supports all helper types including Config Entry helpers via Options Flow)
 - delete: Delete an existing helper (requires entity_id)
 - get_details: Get helper details (requires entity_id)`,
 		InputSchema: mcp.JSONSchema{
@@ -693,40 +693,34 @@ func (h *ConsolidatedHelperHandlers) handleUpdate(ctx context.Context, client ho
 	// Determine helper type from platform
 	// For most platforms, the helper type matches the platform
 	// Special cases: sensor/binary_sensor could be template/threshold/derivative/integral/group
-	// However, those are Config Entry Flow helpers and don't support update
 	helperType := platform
 
-	// Check if this is a Config Entry Flow helper
-	// Config Entry Flow helpers: group, threshold, derivative, integral, template_*
-	// These don't support update via WebSocket
-	if homeassistant.RequiresConfigEntryFlow(platform) {
-		return errorResult("update not supported for config entry flow helpers (group, threshold, derivative, integral, template)"), nil
-	}
-
 	// Get metadata for validation
-	meta, ok := helperTypes[helperType]
-	if !ok {
-		// For sensor/binary_sensor entities that are not in our metadata,
-		// they might be Config Entry helpers
-		return errorResult("update not supported for config entry flow helpers (group, threshold, derivative, integral, template)"), nil
-	}
+	_, ok := helperTypes[helperType]
+	var config map[string]any
+	var err error
 
-	// Build partial update config from provided args
-	// Only include fields that are actually present in args
-	config, err := buildHelperConfig(helperType, "", args)
-	if err != nil {
-		return errorResult(err.Error()), nil
-	}
+	if ok {
+		// Known WebSocket helper type - use metadata-driven config builder
+		config, err = buildHelperConfig(helperType, "", args)
+		if err != nil {
+			return errorResult(err.Error()), nil
+		}
 
-	// Remove name from config if it wasn't explicitly provided
-	// (buildHelperConfig adds empty name by default)
-	if _, hasName := args["name"]; !hasName {
-		delete(config, "name")
+		// Remove name from config if it wasn't explicitly provided
+		// (buildHelperConfig adds empty name by default)
+		if _, hasName := args["name"]; !hasName {
+			delete(config, "name")
+		}
+	} else {
+		// Unknown helper type (sensor/binary_sensor without metadata)
+		// These are Config Entry Flow helpers - build loose config
+		config = buildConfigEntryUpdateConfig(entityID, args)
 	}
 
 	// Create UpdateHelper request
 	updateConfig := homeassistant.HelperConfig{
-		Platform: meta.platform,
+		Platform: platform,
 		Config:   config,
 	}
 
@@ -1506,7 +1500,57 @@ func (h *ConsolidatedHelperHandlers) handleGroupEntities(ctx context.Context, cl
 // Config Builders
 // =============================================================================
 
+// buildConfigEntryUpdateConfig builds a loose config for Config Entry helper updates.
+// Extracts all recognized Config Entry fields from args.
+//
 //nolint:gocyclo // Routing to type-specific builders requires switch over all helper types
+func buildConfigEntryUpdateConfig(_ string, args map[string]any) map[string]any {
+	config := make(map[string]any)
+
+	// Common fields
+	addOptionalString(config, args, "name")
+	addOptionalString(config, args, "icon")
+
+	// Template helper fields
+	addOptionalString(config, args, "state")
+	addOptionalString(config, args, "entity_id")
+	addOptionalString(config, args, "source")
+	addOptionalString(config, args, "unit_of_measurement")
+	addOptionalString(config, args, "device_class")
+	addOptionalString(config, args, "state_class")
+
+	// Threshold helper fields
+	addOptionalFloat(config, args, "lower")
+	addOptionalFloat(config, args, "upper")
+	addOptionalFloat(config, args, "hysteresis")
+
+	// Derivative/Integral helper fields
+	addOptionalInt(config, args, "round")
+	addOptionalInt(config, args, "time_window")
+	addOptionalString(config, args, "unit_time")
+	addOptionalString(config, args, "unit_prefix")
+	addOptionalString(config, args, "method")
+
+	// Group helper fields
+	if entities, ok := args["entities"].([]any); ok {
+		config["entities"] = entities
+	}
+	if all, ok := args["all"].(bool); ok {
+		config["all"] = all
+	}
+	addOptionalString(config, args, "group_type")
+
+	// Template binary sensor fields
+	if delayOn, ok := args["delay_on"].(float64); ok {
+		config["delay_on"] = int(delayOn)
+	}
+	if delayOff, ok := args["delay_off"].(float64); ok {
+		config["delay_off"] = int(delayOff)
+	}
+
+	return config
+}
+
 func buildHelperConfig(helperType, name string, args map[string]any) (map[string]any, error) {
 	config := map[string]any{"name": name}
 	addOptionalString(config, args, "icon")

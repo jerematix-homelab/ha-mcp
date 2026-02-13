@@ -368,3 +368,259 @@ func (s *TemplateHelperIntegrationTestSuite) TestTemplateBinarySensorWithIcon() 
 	_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
 	_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
 }
+
+func (s *TemplateHelperIntegrationTestSuite) TestTemplateSensorUpdate() {
+	// Test updating a template sensor via Options Flow
+	sourceName := GenerateTestID("tmpl_upd_src")
+	sourceEntityID := BuildEntityID("input_number", sourceName)
+	templateName := GenerateTestID("tmpl_update")
+	templateEntityID := BuildEntityID("sensor", templateName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+		_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+	})
+
+	// Create source input_number
+	sourceConfig := homeassistant.HelperConfig{
+		Platform: "input_number",
+		Config: map[string]any{
+			"name":    sourceName,
+			"min":     0.0,
+			"max":     100.0,
+			"initial": 50.0,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), sourceConfig)
+	s.Require().NoError(err, "Failed to create source input_number")
+
+	_, err = s.WaitForEntity(sourceEntityID, 5*time.Second)
+	s.Require().NoError(err, "Source input_number did not appear")
+
+	// Create initial template sensor
+	templateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"name":                templateName,
+			"state":               "{{ states('" + sourceEntityID + "') | float }}",
+			"unit_of_measurement": "units",
+			"device_class":        "temperature",
+		},
+	}
+
+	err = s.Client().CreateHelper(s.Context(), templateConfig)
+	s.Require().NoError(err, "Failed to create template sensor")
+
+	entity, err := s.WaitForEntity(templateEntityID, 5*time.Second)
+	s.Require().NoError(err, "Template sensor did not appear")
+	s.NotNil(entity)
+
+	// Update the template sensor with a new state formula
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"state": "{{ states('" + sourceEntityID + "') | float * 2 }}",
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), templateEntityID, updateConfig)
+	s.Require().NoError(err, "Failed to update template sensor")
+
+	// Wait for update to propagate
+	time.Sleep(2 * time.Second)
+
+	// Verify the updated formula works (source is 50, so result should be 100)
+	entity, err = s.Client().GetState(s.Context(), templateEntityID)
+	s.Require().NoError(err)
+	s.Equal("100.0", entity.State, "Template sensor should show doubled value after update")
+
+	// Verify other fields were preserved (device_class, unit_of_measurement)
+	if deviceClass, ok := entity.Attributes["device_class"].(string); ok {
+		s.Equal("temperature", deviceClass, "Device class should be preserved")
+	}
+	if uom, ok := entity.Attributes["unit_of_measurement"].(string); ok {
+		s.Equal("units", uom, "Unit of measurement should be preserved")
+	}
+
+	// Cleanup
+	_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+	_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+}
+
+func (s *TemplateHelperIntegrationTestSuite) TestTemplateSensorUpdatePartial() {
+	// Test partial update (only change device_class, preserve state template)
+	sourceName := GenerateTestID("tmpl_part_src")
+	sourceEntityID := BuildEntityID("input_number", sourceName)
+	templateName := GenerateTestID("tmpl_partial")
+	templateEntityID := BuildEntityID("sensor", templateName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+		_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+	})
+
+	// Create source input_number
+	sourceConfig := homeassistant.HelperConfig{
+		Platform: "input_number",
+		Config: map[string]any{
+			"name":    sourceName,
+			"min":     0.0,
+			"max":     100.0,
+			"initial": 25.0,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), sourceConfig)
+	s.Require().NoError(err, "Failed to create source input_number")
+
+	_, err = s.WaitForEntity(sourceEntityID, 5*time.Second)
+	s.Require().NoError(err, "Source input_number did not appear")
+
+	// Create initial template sensor
+	templateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"name":                templateName,
+			"state":               "{{ states('" + sourceEntityID + "') | float + 10 }}",
+			"unit_of_measurement": "units",
+			"device_class":        "temperature",
+		},
+	}
+
+	err = s.Client().CreateHelper(s.Context(), templateConfig)
+	s.Require().NoError(err, "Failed to create template sensor")
+
+	entity, err := s.WaitForEntity(templateEntityID, 5*time.Second)
+	s.Require().NoError(err, "Template sensor did not appear")
+	s.NotNil(entity)
+
+	// Update only device_class (partial update should preserve state template)
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"device_class": "power",
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), templateEntityID, updateConfig)
+	s.Require().NoError(err, "Failed to update template sensor")
+
+	// Wait for update to propagate
+	time.Sleep(2 * time.Second)
+
+	// Verify the state template still works (source is 25, so result should be 35)
+	entity, err = s.Client().GetState(s.Context(), templateEntityID)
+	s.Require().NoError(err)
+	s.Equal("35.0", entity.State, "Template sensor should still use original formula (25 + 10 = 35)")
+
+	// Verify device_class was updated
+	if deviceClass, ok := entity.Attributes["device_class"].(string); ok {
+		s.Equal("power", deviceClass, "Device class should be updated to power")
+	}
+
+	// Verify unit_of_measurement was preserved
+	if uom, ok := entity.Attributes["unit_of_measurement"].(string); ok {
+		s.Equal("units", uom, "Unit of measurement should be preserved")
+	}
+
+	// Cleanup
+	_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+	_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+}
+
+func (s *TemplateHelperIntegrationTestSuite) TestTemplateSensorUpdateWithIcon() {
+	// Test that icon updates work via Entity Registry
+	sourceName := GenerateTestID("tmpl_icon_upd_src")
+	sourceEntityID := BuildEntityID("input_number", sourceName)
+	templateName := GenerateTestID("tmpl_icon_upd")
+	templateEntityID := BuildEntityID("sensor", templateName)
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+		_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+	})
+
+	// Create source input_number
+	sourceConfig := homeassistant.HelperConfig{
+		Platform: "input_number",
+		Config: map[string]any{
+			"name":    sourceName,
+			"min":     0.0,
+			"max":     100.0,
+			"initial": 42.0,
+		},
+	}
+
+	err := s.Client().CreateHelper(s.Context(), sourceConfig)
+	s.Require().NoError(err, "Failed to create source input_number")
+
+	_, err = s.WaitForEntity(sourceEntityID, 5*time.Second)
+	s.Require().NoError(err, "Source input_number did not appear")
+
+	// Create template sensor with initial icon
+	templateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"name":  templateName,
+			"state": "{{ states('" + sourceEntityID + "') | float }}",
+			"icon":  "mdi:thermometer",
+		},
+	}
+
+	err = s.Client().CreateHelper(s.Context(), templateConfig)
+	s.Require().NoError(err, "Failed to create template sensor")
+
+	entity, err := s.WaitForEntity(templateEntityID, 5*time.Second)
+	s.Require().NoError(err, "Template sensor did not appear")
+	s.NotNil(entity)
+
+	// Wait for registry update
+	time.Sleep(2 * time.Second)
+
+	// Verify initial icon
+	registry, err := s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err, "Failed to get entity registry")
+
+	var foundEntry *homeassistant.EntityRegistryEntry
+	for i := range registry {
+		if registry[i].EntityID == templateEntityID {
+			foundEntry = &registry[i]
+			break
+		}
+	}
+	s.Require().NotNil(foundEntry, "Template sensor should exist in entity registry")
+	s.Equal("mdi:thermometer", foundEntry.Icon, "Initial icon should be mdi:thermometer")
+
+	// Update the icon
+	updateConfig := homeassistant.HelperConfig{
+		Platform: "template",
+		Config: map[string]any{
+			"icon": "mdi:fire",
+		},
+	}
+
+	err = s.Client().UpdateHelper(s.Context(), templateEntityID, updateConfig)
+	s.Require().NoError(err, "Failed to update template sensor icon")
+
+	// Wait for update to propagate
+	time.Sleep(2 * time.Second)
+
+	// Verify updated icon
+	registry, err = s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err, "Failed to get entity registry")
+
+	foundEntry = nil
+	for i := range registry {
+		if registry[i].EntityID == templateEntityID {
+			foundEntry = &registry[i]
+			break
+		}
+	}
+	s.Require().NotNil(foundEntry, "Template sensor should still exist in entity registry")
+	s.Equal("mdi:fire", foundEntry.Icon, "Icon should be updated to mdi:fire")
+
+	// Cleanup
+	_ = s.Client().DeleteHelper(s.Context(), templateEntityID)
+	_ = s.Client().DeleteHelper(s.Context(), sourceEntityID)
+}
