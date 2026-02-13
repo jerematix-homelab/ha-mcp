@@ -121,7 +121,7 @@ var helperTypes = map[string]helperTypeMetadata{
 		entityPrefix:       "group",
 		supportedActions:   []string{"add_entities", "remove_entities", "reload"},
 		requiredFields:     []string{"entities"},
-		optionalFields:     []string{"icon", "all"},
+		optionalFields:     []string{"icon", "all", "group_type"},
 		validEntityDomains: []string{"group"},
 	},
 	"template_sensor": {
@@ -347,6 +347,11 @@ Actions:
 				"all": {
 					Type:        "boolean",
 					Description: "Require all entities to be on for group to be on (group)",
+				},
+				"group_type": {
+					Type:        "string",
+					Description: "Explicit group type override (group, optional): sensor, binary_sensor, light, cover, switch, fan, lock. If not provided, automatically inferred from member entity domains.",
+					Enum:        []string{"sensor", "binary_sensor", "light", "cover", "switch", "fan", "lock"},
 				},
 				"state": {
 					Type:        "string",
@@ -643,7 +648,11 @@ func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
 	}
 
 	predictedSlug := slugifyName(name)
-	entityID := fmt.Sprintf("%s.%s", meta.entityPrefix, predictedSlug)
+	prefix := meta.entityPrefix
+	if meta.platform == platformGroup {
+		prefix = groupEntityPrefix(config)
+	}
+	entityID := fmt.Sprintf("%s.%s", prefix, predictedSlug)
 
 	// Set icon via Entity Registry if provided
 	// Note: We need to wait briefly for the entity to appear in the registry
@@ -1352,6 +1361,7 @@ func buildScheduleConfig(config, args map[string]any) {
 
 func buildGroupConfig(config, args map[string]any) {
 	addOptionalBool(config, args, "all")
+	addOptionalString(config, args, "group_type")
 	if entities, ok := args["entities"].([]any); ok {
 		config["entities"] = entities
 	}
@@ -1538,6 +1548,19 @@ func capitalizeFirst(s string) string {
 // slugifyName converts a name to a valid helper ID using the same logic as automation IDs.
 func slugifyName(name string) string {
 	return generateAutomationID(name)
+}
+
+// groupEntityPrefix derives the entity prefix for group helpers based on member entity domains.
+// Returns the domain of the first member entity, or "group" as fallback.
+func groupEntityPrefix(config map[string]any) string {
+	if entities, ok := config["entities"].([]any); ok && len(entities) > 0 {
+		if first, ok := entities[0].(string); ok {
+			if idx := strings.Index(first, "."); idx > 0 {
+				return first[:idx]
+			}
+		}
+	}
+	return "group"
 }
 
 // =============================================================================

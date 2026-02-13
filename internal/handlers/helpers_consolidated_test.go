@@ -295,7 +295,7 @@ func TestManageHelper_CreateGroup(t *testing.T) {
 
 	tests := []handlerTestCase{
 		{
-			name: "create group successfully",
+			name: "create light group successfully",
 			args: map[string]any{
 				"action":   "create",
 				"type":     "group",
@@ -304,7 +304,44 @@ func TestManageHelper_CreateGroup(t *testing.T) {
 				"entities": []any{"light.one", "light.two"},
 			},
 			wantError:    false,
-			wantContains: []string{"group.test_group", "created"},
+			wantContains: []string{"light.test_group", "created"},
+		},
+		{
+			name: "create sensor group successfully",
+			args: map[string]any{
+				"action":   "create",
+				"type":     "group",
+				"id":       "sensor_group",
+				"name":     "Sensor Group",
+				"entities": []any{"sensor.temp1", "sensor.temp2"},
+			},
+			wantError:    false,
+			wantContains: []string{"sensor.sensor_group", "created"},
+		},
+		{
+			name: "create binary_sensor group successfully",
+			args: map[string]any{
+				"action":   "create",
+				"type":     "group",
+				"id":       "motion_group",
+				"name":     "Motion Group",
+				"entities": []any{"binary_sensor.motion1", "binary_sensor.motion2"},
+			},
+			wantError:    false,
+			wantContains: []string{"binary_sensor.motion_group", "created"},
+		},
+		{
+			name: "create group with explicit group_type override",
+			args: map[string]any{
+				"action":     "create",
+				"type":       "group",
+				"id":         "override_group",
+				"name":       "Override Group",
+				"entities":   []any{"light.one"},
+				"group_type": "sensor",
+			},
+			wantError:    false,
+			wantContains: []string{"created"},
 		},
 		{
 			name: "create group without entities",

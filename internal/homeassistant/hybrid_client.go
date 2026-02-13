@@ -498,13 +498,25 @@ func (c *HybridClient) determineTemplateSubtype(config HelperConfig) string {
 	return domainSensor
 }
 
+// firstEntityDomainFromConfig extracts the domain from the first entity in the config.
+// Handles both []string and []any types (from JSON unmarshaling).
+func firstEntityDomainFromConfig(config map[string]any) string {
+	// Try []string first
+	if entities, ok := config["entities"].([]string); ok && len(entities) > 0 {
+		return extractEntityDomain(entities[0])
+	}
+	// Try []any (from JSON unmarshaling)
+	if entities, ok := config["entities"].([]any); ok && len(entities) > 0 {
+		if first, ok := entities[0].(string); ok {
+			return extractEntityDomain(first)
+		}
+	}
+	return ""
+}
+
 // determineGroupSubtype infers the group type from member entities.
 func (c *HybridClient) determineGroupSubtype(config HelperConfig) string {
-	entities, ok := config.Config["entities"].([]string)
-	if !ok || len(entities) == 0 {
-		return domainSensor
-	}
-	if domain := extractEntityDomain(entities[0]); domain != "" {
+	if domain := firstEntityDomainFromConfig(config.Config); domain != "" {
 		if groupType, ok := entityDomainToGroupType[domain]; ok {
 			return groupType
 		}
@@ -573,11 +585,7 @@ func (c *HybridClient) addSensorGroupDefaults(config HelperConfig, result map[st
 	if config.Platform != "group" {
 		return
 	}
-	entities, ok := config.Config["entities"].([]string)
-	if !ok || len(entities) == 0 {
-		return
-	}
-	domain := extractEntityDomain(entities[0])
+	domain := firstEntityDomainFromConfig(config.Config)
 	if sensorGroupDomains[domain] {
 		if _, hasType := result["type"]; !hasType {
 			result["type"] = "sum"

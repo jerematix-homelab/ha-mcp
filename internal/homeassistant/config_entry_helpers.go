@@ -8,7 +8,7 @@ var ConfigEntryPlatforms = map[string]bool{
 	"threshold":   true, // Creates binary_sensor entities
 	"derivative":  true, // Creates sensor entities
 	"integration": true, // Creates sensor entities (Home Assistant's name for integral)
-	"group":       true, // Creates group.* entities
+	"group":       true, // Creates entities matching member domain (light.*, sensor.*, etc.)
 	"template":    true, // Creates sensor or binary_sensor entities
 }
 
