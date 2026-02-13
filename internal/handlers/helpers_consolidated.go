@@ -27,6 +27,7 @@ const (
 	platformIntegration            = "integration"
 	platformSensorEntity           = "sensor"
 	platformBinarySensorEntity     = "binary_sensor"
+	platformTemplate               = "template"
 	helperTypeTemplateSensor       = "template_sensor"
 	helperTypeTemplateBinarySensor = "template_binary_sensor"
 	serviceSetValue                = "set_value"
@@ -125,7 +126,7 @@ var helperTypes = map[string]helperTypeMetadata{
 		validEntityDomains: []string{"group"},
 	},
 	"template_sensor": {
-		platform:           "template",
+		platform:           platformTemplate,
 		entityPrefix:       "sensor",
 		supportedActions:   []string{},
 		requiredFields:     []string{"state"},
@@ -133,7 +134,7 @@ var helperTypes = map[string]helperTypeMetadata{
 		validEntityDomains: []string{"sensor"},
 	},
 	"template_binary_sensor": {
-		platform:           "template",
+		platform:           platformTemplate,
 		entityPrefix:       "binary_sensor",
 		supportedActions:   []string{},
 		requiredFields:     []string{"state"},
@@ -1094,7 +1095,7 @@ func enrichConfigEntryOptions(ctx context.Context, client homeassistant.Client, 
 		}
 	}
 
-	if entry == nil || entry.Platform != "template" || entry.ConfigEntryID == "" {
+	if entry == nil || entry.Platform != platformTemplate || entry.ConfigEntryID == "" {
 		return // Not a template entity or no config entry
 	}
 
@@ -1112,7 +1113,7 @@ func enrichConfigEntryOptions(ctx context.Context, client homeassistant.Client, 
 
 // addTemplateOptionsToDetails extracts template options from config entry Options.
 func addTemplateOptionsToDetails(options, details map[string]any) {
-	details["config_entry_type"] = "template"
+	details["config_entry_type"] = platformTemplate
 
 	if state, ok := options["state"].(string); ok && state != "" {
 		details["state_template"] = state
