@@ -132,14 +132,26 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.SendHACSCommandFn = func(_ context.Context, _ string, data map[string]any) (any, error) {
-					// Verify filter is passed
-					if !data["installed_only"].(bool) {
-						return nil, fmt.Errorf("expected installed_only filter")
+					// Verify filter is NOT passed to API (client-side filter)
+					if _, exists := data["installed_only"]; exists {
+						return nil, fmt.Errorf("installed_only should not be sent to API")
 					}
-					return []any{}, nil
+					return []any{
+						map[string]any{
+							"id":        "1",
+							"name":      "installed-repo",
+							"installed": true,
+						},
+						map[string]any{
+							"id":        "2",
+							"name":      "not-installed-repo",
+							"installed": false,
+						},
+					}, nil
 				}
 			},
-			wantContains: []string{"[]"},
+			wantContains:    []string{"installed-repo"},
+			wantNotContains: []string{"not-installed-repo"},
 		},
 		{
 			name: "list_pending_update",
@@ -150,13 +162,26 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.SendHACSCommandFn = func(_ context.Context, _ string, data map[string]any) (any, error) {
-					if !data["pending_update"].(bool) {
-						return nil, fmt.Errorf("expected pending_update filter")
+					// Verify filter is NOT passed to API (client-side filter)
+					if _, exists := data["pending_update"]; exists {
+						return nil, fmt.Errorf("pending_update should not be sent to API")
 					}
-					return []any{}, nil
+					return []any{
+						map[string]any{
+							"id":              "1",
+							"name":            "pending-upgrade-repo",
+							"pending_upgrade": true,
+						},
+						map[string]any{
+							"id":              "2",
+							"name":            "no-pending-repo",
+							"pending_upgrade": false,
+						},
+					}, nil
 				}
 			},
-			wantContains: []string{"[]"},
+			wantContains:    []string{"pending-upgrade-repo"},
+			wantNotContains: []string{"no-pending-repo"},
 		},
 		{
 			name: "list_category_filter",
@@ -310,30 +335,37 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.SendHACSCommandFn = func(_ context.Context, _ string, data map[string]any) (any, error) {
-					// Verify installed_only is sent to API
-					if !data["installed_only"].(bool) {
-						return nil, fmt.Errorf("expected installed_only filter")
+					// Verify NO filters are sent to API (all are client-side)
+					if _, exists := data["installed_only"]; exists {
+						return nil, fmt.Errorf("installed_only should not be sent to API")
 					}
-					// Verify category is NOT sent to API
 					if _, exists := data["category"]; exists {
 						return nil, fmt.Errorf("category should not be sent to API")
 					}
 					return []any{
 						map[string]any{
-							"id":       "1",
-							"name":     "installed-integration",
-							"category": "integration",
+							"id":        "1",
+							"name":      "installed-integration",
+							"category":  "integration",
+							"installed": true,
 						},
 						map[string]any{
-							"id":       "2",
-							"name":     "installed-plugin",
-							"category": "plugin",
+							"id":        "2",
+							"name":      "installed-plugin",
+							"category":  "plugin",
+							"installed": true,
+						},
+						map[string]any{
+							"id":        "3",
+							"name":      "not-installed-integration",
+							"category":  "integration",
+							"installed": false,
 						},
 					}, nil
 				}
 			},
 			wantContains:    []string{"installed-integration"},
-			wantNotContains: []string{"installed-plugin"},
+			wantNotContains: []string{"installed-plugin", "not-installed-integration"},
 		},
 
 		// =============================================================================
