@@ -297,6 +297,12 @@ func TestManagePerson_Update(t *testing.T) {
 				"name":      "Updated Name",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetPersonsFn = func(context.Context) ([]homeassistant.PersonRegistryEntry, error) {
+					return []homeassistant.PersonRegistryEntry{
+						{ID: "person_1", Name: "Test Person"},
+						{ID: "person_2", Name: "Test Person 2"},
+					}, nil
+				}
 				m.UpdatePersonFn = func(_ context.Context, personID string, config homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error) {
 					if personID != "person_1" {
 						return nil, fmt.Errorf("unexpected person_id: %s", personID)
@@ -318,6 +324,12 @@ func TestManagePerson_Update(t *testing.T) {
 				"device_trackers": []any{"device_tracker.new_phone"},
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetPersonsFn = func(context.Context) ([]homeassistant.PersonRegistryEntry, error) {
+					return []homeassistant.PersonRegistryEntry{
+						{ID: "person_1", Name: "Test Person"},
+						{ID: "person_2", Name: "Test"},
+					}, nil
+				}
 				m.UpdatePersonFn = func(_ context.Context, personID string, _ homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error) {
 					return &homeassistant.PersonRegistryEntry{
 						ID:   personID,
@@ -345,6 +357,11 @@ func TestManagePerson_Update(t *testing.T) {
 				"name":      "Test",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetPersonsFn = func(context.Context) ([]homeassistant.PersonRegistryEntry, error) {
+					return []homeassistant.PersonRegistryEntry{
+						{ID: "person_1", Name: "Test Person"},
+					}, nil
+				}
 				m.UpdatePersonFn = func(context.Context, string, homeassistant.PersonConfig) (*homeassistant.PersonRegistryEntry, error) {
 					return nil, fmt.Errorf("not found")
 				}
@@ -373,6 +390,12 @@ func TestManagePerson_Delete(t *testing.T) {
 				"person_id": "person_old",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetPersonsFn = func(context.Context) ([]homeassistant.PersonRegistryEntry, error) {
+					return []homeassistant.PersonRegistryEntry{
+						{ID: "person_old", Name: "Old Person"},
+						{ID: "person_new", Name: "New Person"},
+					}, nil
+				}
 				m.DeletePersonFn = func(_ context.Context, personID string) error {
 					if personID != "person_old" {
 						return fmt.Errorf("unexpected person_id: %s", personID)
@@ -398,6 +421,11 @@ func TestManagePerson_Delete(t *testing.T) {
 				"person_id": "person_1",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetPersonsFn = func(context.Context) ([]homeassistant.PersonRegistryEntry, error) {
+					return []homeassistant.PersonRegistryEntry{
+						{ID: "person_1", Name: "Test Person"},
+					}, nil
+				}
 				m.DeletePersonFn = func(context.Context, string) error {
 					return fmt.Errorf("person linked to user")
 				}

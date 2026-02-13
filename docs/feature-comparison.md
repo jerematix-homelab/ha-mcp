@@ -80,7 +80,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | List helpers     | `manage_helper` action=list                                                 | ------------------------------------ |
 | Create helper    | `manage_helper` action=create (15 types)                                    | ------------------------------------ |
 | Delete helper    | `manage_helper` action=delete                                               | ------------------------------------ |
-| Helper details   | `manage_helper` action=get_details (schedule, counter, timer; natural/json) | ------------------------------------ |
+| Helper details   | `manage_helper` action=get_details (all 14 helper types; natural/json)      | ------------------------------------ |
 | Helper actions   | `helper_action` (toggle, set, increment, etc.)                              | via `call_service` Intents (limited) |
 | Timer management | `helper_action` (start/pause/cancel/finish)                                 | Timer Intents (HassStartTimer, etc.) |
 

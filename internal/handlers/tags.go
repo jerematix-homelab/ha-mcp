@@ -66,7 +66,7 @@ func (h *TagHandlers) buildTagSchema() mcp.JSONSchema {
 			},
 			"tag_id": {
 				Type:        "string",
-				Description: "Tag identifier (required for get/update/delete; optional for create to set deterministic ID)",
+				Description: "Tag identifier or name (required for get/update/delete; optional for create to set deterministic ID). Accepts exact tag_id or case-insensitive name search.",
 			},
 			"name": {
 				Type:        "string",
@@ -146,16 +146,9 @@ func (h *TagHandlers) handleGet(ctx context.Context, client homeassistant.Client
 		return errorResult(fmt.Sprintf("error getting tags: %v", err)), nil
 	}
 
-	var tag *homeassistant.TagRegistryEntry
-	for i := range tags {
-		if tags[i].TagID == tagID {
-			tag = &tags[i]
-			break
-		}
-	}
-
-	if tag == nil {
-		return errorResult(fmt.Sprintf("tag not found: %s", tagID)), nil
+	tag, findErr := h.findTagByInput(tags, tagID)
+	if findErr != nil {
+		return errorResult(findErr.Error()), nil
 	}
 
 	formatStr, _ := args["format"].(string)
@@ -188,9 +181,14 @@ func (h *TagHandlers) handleUpdate(ctx context.Context, client homeassistant.Cli
 		return errorResult("tag_id is required for update action"), nil
 	}
 
+	resolvedID, err := h.resolveTagID(ctx, client, tagID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
 	config := h.buildTagConfig(args)
 
-	tag, err := client.UpdateTag(ctx, tagID, config)
+	tag, err := client.UpdateTag(ctx, resolvedID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating tag: %v", err)), nil
 	}
@@ -204,16 +202,56 @@ func (h *TagHandlers) handleDelete(ctx context.Context, client homeassistant.Cli
 		return errorResult("tag_id is required for delete action"), nil
 	}
 
-	if err := client.DeleteTag(ctx, tagID); err != nil {
+	resolvedID, err := h.resolveTagID(ctx, client, tagID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	if err := client.DeleteTag(ctx, resolvedID); err != nil {
 		return errorResult(fmt.Sprintf("error deleting tag: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Tag '%s' deleted successfully", tagID)), nil
+	return successResult(fmt.Sprintf("Tag '%s' deleted successfully", resolvedID)), nil
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// findTagByInput performs two-phase lookup: exact ID match, then case-insensitive name substring match.
+func (h *TagHandlers) findTagByInput(tags []homeassistant.TagRegistryEntry, input string) (*homeassistant.TagRegistryEntry, error) {
+	// Phase 1: Exact ID match
+	for i := range tags {
+		if tags[i].TagID == input {
+			return &tags[i], nil
+		}
+	}
+
+	// Phase 2: Case-insensitive name substring match
+	lowerInput := strings.ToLower(input)
+	for i := range tags {
+		if strings.Contains(strings.ToLower(tags[i].Name), lowerInput) {
+			return &tags[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("tag not found: %s (tried as tag_id and name)", input)
+}
+
+// resolveTagID resolves a tag input (ID or name) to the actual tag ID.
+func (h *TagHandlers) resolveTagID(ctx context.Context, client homeassistant.Client, input string) (string, error) {
+	tags, err := client.GetTags(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error fetching tags: %w", err)
+	}
+
+	tag, err := h.findTagByInput(tags, input)
+	if err != nil {
+		return "", err
+	}
+
+	return tag.TagID, nil
+}
 
 func (h *TagHandlers) buildTagConfig(args map[string]any) homeassistant.TagConfig {
 	config := homeassistant.TagConfig{}

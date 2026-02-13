@@ -14,6 +14,10 @@ import (
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
+const (
+	usedInAction = "action"
+)
+
 // AnalysisHandlers provides MCP tool handlers for entity analysis operations.
 type AnalysisHandlers struct{}
 
@@ -312,7 +316,7 @@ func (h *AnalysisHandlers) findScriptReferences(ctx context.Context, client home
 		refs.Scripts = append(refs.Scripts, ScriptReference{
 			EntityID:     script.EntityID,
 			FriendlyName: fn,
-			UsedIn:       "action",
+			UsedIn:       usedInAction,
 		})
 	}
 }
@@ -425,7 +429,7 @@ func (h *AnalysisHandlers) findAreaReferencesWithSnapshot(ctx context.Context, c
 				Alias:    fn,
 				Type:     "script",
 				AreaID:   entityArea,
-				UsedIn:   []string{"action"},
+				UsedIn:   []string{usedInAction},
 			})
 		}
 	}
@@ -442,7 +446,7 @@ func (h *AnalysisHandlers) findAreaUsageInConfig(triggers, conditions, actions [
 		usedIn = append(usedIn, "condition")
 	}
 	if h.searchAreaInSlice(actions, areaID) {
-		usedIn = append(usedIn, "action")
+		usedIn = append(usedIn, usedInAction)
 	}
 
 	return usedIn
@@ -616,7 +620,7 @@ func (h *AnalysisHandlers) getAutomationDependencies(ctx context.Context, client
 	deps.Dependencies.Conditions = h.extractDependenciesFromSlice(automation.Config.Conditions, "condition")
 
 	// Extract actions
-	deps.Dependencies.Actions = h.extractDependenciesFromSlice(automation.Config.Actions, "action")
+	deps.Dependencies.Actions = h.extractDependenciesFromSlice(automation.Config.Actions, usedInAction)
 
 	// Extract services used
 	deps.Dependencies.Services = h.extractServicesFromSlice(automation.Config.Actions)
@@ -652,7 +656,7 @@ func (h *AnalysisHandlers) getScriptDependencies(ctx context.Context, client hom
 
 	// Scripts only have actions (sequence)
 	if sequence, ok := state.Attributes["sequence"].([]any); ok {
-		deps.Dependencies.Actions = h.extractDependenciesFromSlice(sequence, "action")
+		deps.Dependencies.Actions = h.extractDependenciesFromSlice(sequence, usedInAction)
 		deps.Dependencies.Services = h.extractServicesFromSlice(sequence)
 		deps.Dependencies.Areas = h.extractAreasFromSlice(sequence)
 		deps.Dependencies.Devices = h.extractDevicesFromSlice(sequence)
@@ -674,7 +678,7 @@ func (h *AnalysisHandlers) findEntityUsageInAutomation(config *homeassistant.Aut
 		usedIn = append(usedIn, "condition")
 	}
 	if searchInConfigSlice(config.Actions, entityID) {
-		usedIn = append(usedIn, "action")
+		usedIn = append(usedIn, usedInAction)
 	}
 
 	return usedIn
@@ -819,7 +823,7 @@ func (h *AnalysisHandlers) extractTriggerType(m map[string]any) string {
 		return "condition"
 	}
 	if _, ok := m["action"].(string); ok {
-		return "action"
+		return usedInAction
 	}
 	if _, ok := m["service"].(string); ok {
 		return "service_call"

@@ -343,6 +343,12 @@ func TestManageZone_Update(t *testing.T) {
 				"name":    "Updated Zone",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetZonesFn = func(context.Context) ([]homeassistant.ZoneRegistryEntry, error) {
+					return []homeassistant.ZoneRegistryEntry{
+						{ID: "zone_1", Name: "Test Zone", Latitude: 0, Longitude: 0, Radius: 100},
+						{ID: "zone_2", Name: "Test Zone 2", Latitude: 0, Longitude: 0, Radius: 100},
+					}, nil
+				}
 				m.UpdateZoneFn = func(_ context.Context, zoneID string, config homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error) {
 					if zoneID != "zone_1" {
 						return nil, fmt.Errorf("unexpected zone_id: %s", zoneID)
@@ -366,6 +372,12 @@ func TestManageZone_Update(t *testing.T) {
 				"radius":    float64(75),
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetZonesFn = func(context.Context) ([]homeassistant.ZoneRegistryEntry, error) {
+					return []homeassistant.ZoneRegistryEntry{
+						{ID: "zone_1", Name: "Test Zone", Latitude: 0, Longitude: 0, Radius: 100},
+						{ID: "zone_2", Name: "Test", Latitude: 0, Longitude: 0, Radius: 50},
+					}, nil
+				}
 				m.UpdateZoneFn = func(_ context.Context, zoneID string, _ homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error) {
 					return &homeassistant.ZoneRegistryEntry{
 						ID:   zoneID,
@@ -393,6 +405,11 @@ func TestManageZone_Update(t *testing.T) {
 				"name":    "Test",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetZonesFn = func(context.Context) ([]homeassistant.ZoneRegistryEntry, error) {
+					return []homeassistant.ZoneRegistryEntry{
+						{ID: "zone_1", Name: "Test Zone", Latitude: 0, Longitude: 0, Radius: 100},
+					}, nil
+				}
 				m.UpdateZoneFn = func(context.Context, string, homeassistant.ZoneConfig) (*homeassistant.ZoneRegistryEntry, error) {
 					return nil, fmt.Errorf("not found")
 				}
@@ -421,6 +438,12 @@ func TestManageZone_Delete(t *testing.T) {
 				"zone_id": "zone_old",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetZonesFn = func(context.Context) ([]homeassistant.ZoneRegistryEntry, error) {
+					return []homeassistant.ZoneRegistryEntry{
+						{ID: "zone_old", Name: "Old Zone", Latitude: 0, Longitude: 0, Radius: 100},
+						{ID: "zone_new", Name: "New Zone", Latitude: 0, Longitude: 0, Radius: 100},
+					}, nil
+				}
 				m.DeleteZoneFn = func(_ context.Context, zoneID string) error {
 					if zoneID != "zone_old" {
 						return fmt.Errorf("unexpected zone_id: %s", zoneID)
@@ -446,6 +469,11 @@ func TestManageZone_Delete(t *testing.T) {
 				"zone_id": "zone_home",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetZonesFn = func(context.Context) ([]homeassistant.ZoneRegistryEntry, error) {
+					return []homeassistant.ZoneRegistryEntry{
+						{ID: "zone_home", Name: "Home Zone", Latitude: 0, Longitude: 0, Radius: 100},
+					}, nil
+				}
 				m.DeleteZoneFn = func(context.Context, string) error {
 					return fmt.Errorf("cannot delete home zone")
 				}

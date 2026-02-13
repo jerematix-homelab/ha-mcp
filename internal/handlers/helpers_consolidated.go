@@ -214,7 +214,7 @@ Actions:
 - create: Create a new helper (requires type, id, name)
 - update: Update an existing helper (requires entity_id; WebSocket helpers only)
 - delete: Delete an existing helper (requires entity_id)
-- get_details: Get helper details (requires entity_id; supports schedule, counter, timer)`,
+- get_details: Get helper details (requires entity_id)`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Helper management operation",
@@ -767,8 +767,11 @@ func (h *ConsolidatedHelperHandlers) handleGetDetails(ctx context.Context, clien
 		return h.handleGetDetailsCounter(ctx, client, args)
 	case platformTimer:
 		return h.handleGetDetailsTimer(ctx, client, args)
+	case platformInputBoolean, platformInputNumber, platformInputText, platformInputSelect,
+		platformInputDatetime, platformInputButton, platformGroup, platformSensorEntity, platformBinarySensorEntity:
+		return h.handleGetDetailsGeneric(ctx, client, args, platform)
 	default:
-		return errorResult("get_details is not supported for this helper type (supported: schedule, counter, timer)"), nil
+		return errorResult(fmt.Sprintf("get_details is not supported for helper type: %s", platform)), nil
 	}
 }
 
@@ -875,6 +878,197 @@ func (h *ConsolidatedHelperHandlers) handleGetDetailsTimer(ctx context.Context, 
 	}
 
 	return successResult(output), nil
+}
+
+func (h *ConsolidatedHelperHandlers) handleGetDetailsGeneric(ctx context.Context, client homeassistant.Client, args map[string]any, helperType string) (*mcp.ToolsCallResult, error) {
+	entityID, _ := args["entity_id"].(string)
+
+	state, err := client.GetState(ctx, entityID)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error getting helper state: %v", err)), nil
+	}
+
+	details := buildHelperDetails(state, helperType)
+
+	formatStr, _ := args["format"].(string)
+	format := formatter.ParseFormat(formatStr)
+
+	helperFormatter := formatter.NewHelperFormatter(format)
+	output, err := helperFormatter.FormatHelperDetail(ctx, helperType, details)
+	if err != nil {
+		return errorResult(fmt.Sprintf("Error formatting helper: %v", err)), nil
+	}
+
+	return successResult(output), nil
+}
+
+func buildHelperDetails(state *homeassistant.Entity, helperType string) map[string]any {
+	details := map[string]any{
+		"entity_id":     state.EntityID,
+		"state":         state.State,
+		"friendly_name": state.Attributes["friendly_name"],
+	}
+
+	switch helperType {
+	case platformInputBoolean:
+		addInputBooleanDetails(details, state)
+	case platformInputNumber:
+		addInputNumberDetails(details, state)
+	case platformInputText:
+		addInputTextDetails(details, state)
+	case platformInputSelect:
+		addInputSelectDetails(details, state)
+	case platformInputDatetime:
+		addInputDatetimeDetails(details, state)
+	case platformInputButton:
+		addInputButtonDetails(details, state)
+	case platformGroup:
+		addGroupDetails(details, state)
+	case platformSensorEntity:
+		addSensorDetails(details, state)
+	case platformBinarySensorEntity:
+		addBinarySensorDetails(details, state)
+	}
+
+	return details
+}
+
+func addInputBooleanDetails(details map[string]any, state *homeassistant.Entity) {
+	if icon, ok := state.Attributes["icon"]; ok {
+		details["icon"] = icon
+	}
+	if editable, ok := state.Attributes["editable"]; ok {
+		details["editable"] = editable
+	}
+}
+
+func addInputNumberDetails(details map[string]any, state *homeassistant.Entity) {
+	if minVal, ok := state.Attributes["min"]; ok {
+		details["min"] = fmt.Sprintf("%v", minVal)
+	}
+	if maxVal, ok := state.Attributes["max"]; ok {
+		details["max"] = fmt.Sprintf("%v", maxVal)
+	}
+	if step, ok := state.Attributes["step"]; ok {
+		details["step"] = fmt.Sprintf("%v", step)
+	}
+	if mode, ok := state.Attributes["mode"]; ok {
+		details["mode"] = mode
+	}
+	if unit, ok := state.Attributes["unit_of_measurement"]; ok {
+		details["unit_of_measurement"] = unit
+	}
+	if editable, ok := state.Attributes["editable"]; ok {
+		details["editable"] = editable
+	}
+}
+
+func addInputTextDetails(details map[string]any, state *homeassistant.Entity) {
+	if minVal, ok := state.Attributes["min"]; ok {
+		details["min"] = fmt.Sprintf("%v", minVal)
+	}
+	if maxVal, ok := state.Attributes["max"]; ok {
+		details["max"] = fmt.Sprintf("%v", maxVal)
+	}
+	if mode, ok := state.Attributes["mode"]; ok {
+		details["mode"] = mode
+	}
+	if pattern, ok := state.Attributes["pattern"]; ok {
+		details["pattern"] = pattern
+	}
+	if editable, ok := state.Attributes["editable"]; ok {
+		details["editable"] = editable
+	}
+}
+
+func addInputSelectDetails(details map[string]any, state *homeassistant.Entity) {
+	if options, ok := state.Attributes["options"]; ok {
+		details["options"] = options
+	}
+	if editable, ok := state.Attributes["editable"]; ok {
+		details["editable"] = editable
+	}
+}
+
+func addInputDatetimeDetails(details map[string]any, state *homeassistant.Entity) {
+	if hasDate, ok := state.Attributes["has_date"]; ok {
+		details["has_date"] = hasDate
+	}
+	if hasTime, ok := state.Attributes["has_time"]; ok {
+		details["has_time"] = hasTime
+	}
+	if year, ok := state.Attributes["year"]; ok {
+		details["year"] = year
+	}
+	if month, ok := state.Attributes["month"]; ok {
+		details["month"] = month
+	}
+	if day, ok := state.Attributes["day"]; ok {
+		details["day"] = day
+	}
+	if hour, ok := state.Attributes["hour"]; ok {
+		details["hour"] = hour
+	}
+	if minute, ok := state.Attributes["minute"]; ok {
+		details["minute"] = minute
+	}
+	if second, ok := state.Attributes["second"]; ok {
+		details["second"] = second
+	}
+	if timestamp, ok := state.Attributes["timestamp"]; ok {
+		details["timestamp"] = timestamp
+	}
+	if editable, ok := state.Attributes["editable"]; ok {
+		details["editable"] = editable
+	}
+}
+
+func addInputButtonDetails(details map[string]any, state *homeassistant.Entity) {
+	if icon, ok := state.Attributes["icon"]; ok {
+		details["icon"] = icon
+	}
+	if editable, ok := state.Attributes["editable"]; ok {
+		details["editable"] = editable
+	}
+}
+
+func addGroupDetails(details map[string]any, state *homeassistant.Entity) {
+	if members, ok := state.Attributes["entity_id"]; ok {
+		details["members"] = members
+	}
+	if all, ok := state.Attributes["all"]; ok {
+		details["all"] = all
+	}
+}
+
+func addSensorDetails(details map[string]any, state *homeassistant.Entity) {
+	if unit, ok := state.Attributes["unit_of_measurement"]; ok {
+		details["unit_of_measurement"] = unit
+	}
+	if deviceClass, ok := state.Attributes["device_class"]; ok {
+		details["device_class"] = deviceClass
+	}
+	if stateClass, ok := state.Attributes["state_class"]; ok {
+		details["state_class"] = stateClass
+	}
+	if source, ok := state.Attributes["source"]; ok {
+		details["source"] = source
+	}
+}
+
+func addBinarySensorDetails(details map[string]any, state *homeassistant.Entity) {
+	if deviceClass, ok := state.Attributes["device_class"]; ok {
+		details["device_class"] = deviceClass
+	}
+	if sourceEntity, ok := state.Attributes["entity_id"]; ok {
+		details["source_entity"] = sourceEntity
+	}
+	if hysteresis, ok := state.Attributes["hysteresis"]; ok {
+		details["hysteresis"] = hysteresis
+	}
+	if sensorValue, ok := state.Attributes["sensor_value"]; ok {
+		details["sensor_value"] = sensorValue
+	}
 }
 
 // =============================================================================

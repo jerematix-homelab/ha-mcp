@@ -296,6 +296,12 @@ func TestManageTag_Update(t *testing.T) {
 				"name":   "Updated Name",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetTagsFn = func(context.Context) ([]homeassistant.TagRegistryEntry, error) {
+					return []homeassistant.TagRegistryEntry{
+						{TagID: "tag_1", Name: "Test Tag"},
+						{TagID: "tag_2", Name: "Test Tag 2"},
+					}, nil
+				}
 				m.UpdateTagFn = func(_ context.Context, tagID string, config homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error) {
 					if tagID != "tag_1" {
 						return nil, fmt.Errorf("unexpected tag_id: %s", tagID)
@@ -317,6 +323,12 @@ func TestManageTag_Update(t *testing.T) {
 				"description": "New description",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetTagsFn = func(context.Context) ([]homeassistant.TagRegistryEntry, error) {
+					return []homeassistant.TagRegistryEntry{
+						{TagID: "tag_1", Name: "Test Tag"},
+						{TagID: "tag_2", Name: "Test"},
+					}, nil
+				}
 				m.UpdateTagFn = func(_ context.Context, tagID string, _ homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error) {
 					return &homeassistant.TagRegistryEntry{
 						TagID: tagID,
@@ -344,6 +356,11 @@ func TestManageTag_Update(t *testing.T) {
 				"name":   "Test",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetTagsFn = func(context.Context) ([]homeassistant.TagRegistryEntry, error) {
+					return []homeassistant.TagRegistryEntry{
+						{TagID: "tag_1", Name: "Test Tag"},
+					}, nil
+				}
 				m.UpdateTagFn = func(context.Context, string, homeassistant.TagConfig) (*homeassistant.TagRegistryEntry, error) {
 					return nil, fmt.Errorf("not found")
 				}
@@ -372,6 +389,12 @@ func TestManageTag_Delete(t *testing.T) {
 				"tag_id": "tag_old",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetTagsFn = func(context.Context) ([]homeassistant.TagRegistryEntry, error) {
+					return []homeassistant.TagRegistryEntry{
+						{TagID: "tag_old", Name: "Old Tag"},
+						{TagID: "tag_new", Name: "New Tag"},
+					}, nil
+				}
 				m.DeleteTagFn = func(_ context.Context, tagID string) error {
 					if tagID != "tag_old" {
 						return fmt.Errorf("unexpected tag_id: %s", tagID)
@@ -397,6 +420,11 @@ func TestManageTag_Delete(t *testing.T) {
 				"tag_id": "tag_1",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetTagsFn = func(context.Context) ([]homeassistant.TagRegistryEntry, error) {
+					return []homeassistant.TagRegistryEntry{
+						{TagID: "tag_1", Name: "Test Tag"},
+					}, nil
+				}
 				m.DeleteTagFn = func(context.Context, string) error {
 					return fmt.Errorf("tag in use")
 				}

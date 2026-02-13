@@ -67,7 +67,7 @@ func (h *LabelHandlers) buildLabelSchema() mcp.JSONSchema {
 			},
 			"label_id": {
 				Type:        "string",
-				Description: "Label identifier. Required for get/update/delete.",
+				Description: "Label identifier or name. Required for get/update/delete. Accepts exact label_id or case-insensitive name search.",
 			},
 			"name": {
 				Type:        "string",
@@ -157,16 +157,9 @@ func (h *LabelHandlers) handleGet(ctx context.Context, client homeassistant.Clie
 		return errorResult(fmt.Sprintf("error getting labels: %v", err)), nil
 	}
 
-	var label *homeassistant.LabelRegistryEntry
-	for i := range labels {
-		if labels[i].LabelID == labelID {
-			label = &labels[i]
-			break
-		}
-	}
-
-	if label == nil {
-		return errorResult(fmt.Sprintf("label not found: %s", labelID)), nil
+	label, findErr := h.findLabelByInput(labels, labelID)
+	if findErr != nil {
+		return errorResult(findErr.Error()), nil
 	}
 
 	formatStr, _ := args["format"].(string)
@@ -201,9 +194,14 @@ func (h *LabelHandlers) handleUpdate(ctx context.Context, client homeassistant.C
 		return errorResult("label_id is required for update action"), nil
 	}
 
+	resolvedID, err := h.resolveLabelID(ctx, client, labelID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
 	config := h.buildLabelConfig(args)
 
-	label, err := client.UpdateLabel(ctx, labelID, config)
+	label, err := client.UpdateLabel(ctx, resolvedID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating label: %v", err)), nil
 	}
@@ -217,16 +215,56 @@ func (h *LabelHandlers) handleDelete(ctx context.Context, client homeassistant.C
 		return errorResult("label_id is required for delete action"), nil
 	}
 
-	if err := client.DeleteLabel(ctx, labelID); err != nil {
+	resolvedID, err := h.resolveLabelID(ctx, client, labelID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	if err := client.DeleteLabel(ctx, resolvedID); err != nil {
 		return errorResult(fmt.Sprintf("error deleting label: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Label '%s' deleted successfully", labelID)), nil
+	return successResult(fmt.Sprintf("Label '%s' deleted successfully", resolvedID)), nil
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// findLabelByInput performs two-phase lookup: exact ID match, then case-insensitive name substring match.
+func (h *LabelHandlers) findLabelByInput(labels []homeassistant.LabelRegistryEntry, input string) (*homeassistant.LabelRegistryEntry, error) {
+	// Phase 1: Exact ID match
+	for i := range labels {
+		if labels[i].LabelID == input {
+			return &labels[i], nil
+		}
+	}
+
+	// Phase 2: Case-insensitive name substring match
+	lowerInput := strings.ToLower(input)
+	for i := range labels {
+		if strings.Contains(strings.ToLower(labels[i].Name), lowerInput) {
+			return &labels[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("label not found: %s (tried as label_id and name)", input)
+}
+
+// resolveLabelID resolves a label input (ID or name) to the actual label ID.
+func (h *LabelHandlers) resolveLabelID(ctx context.Context, client homeassistant.Client, input string) (string, error) {
+	labels, err := client.GetLabelRegistry(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error fetching labels: %w", err)
+	}
+
+	label, err := h.findLabelByInput(labels, input)
+	if err != nil {
+		return "", err
+	}
+
+	return label.LabelID, nil
+}
 
 func (h *LabelHandlers) buildLabelConfig(args map[string]any) homeassistant.LabelConfig {
 	config := homeassistant.LabelConfig{}

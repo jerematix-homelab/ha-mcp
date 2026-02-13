@@ -320,6 +320,12 @@ func TestHandleManageArea(t *testing.T) {
 				"format":  "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+						{AreaID: "kitchen", Name: "Kitchen"},
+					}, nil
+				}
 				m.UpdateAreaFn = func(_ context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
 					return &homeassistant.AreaRegistryEntry{
 						AreaID: areaID,
@@ -339,6 +345,12 @@ func TestHandleManageArea(t *testing.T) {
 				"format":  "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+						{AreaID: "kitchen", Name: "Kitchen"},
+					}, nil
+				}
 				m.UpdateAreaFn = func(_ context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
 					return &homeassistant.AreaRegistryEntry{
 						AreaID: areaID,
@@ -368,6 +380,11 @@ func TestHandleManageArea(t *testing.T) {
 				"format":  "natural",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
 				m.UpdateAreaFn = func(_ context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
 					return &homeassistant.AreaRegistryEntry{
 						AreaID: areaID,
@@ -389,6 +406,12 @@ func TestHandleManageArea(t *testing.T) {
 				"area_id": "old_room",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "old_room", Name: "Old Room"},
+						{AreaID: "new_room", Name: "New Room"},
+					}, nil
+				}
 				m.DeleteAreaFn = func(context.Context, string) error {
 					return nil
 				}
@@ -411,6 +434,11 @@ func TestHandleManageArea(t *testing.T) {
 				"area_id": "protected_area",
 			},
 			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "protected_area", Name: "Protected Area"},
+					}, nil
+				}
 				m.DeleteAreaFn = func(context.Context, string) error {
 					return fmt.Errorf("cannot delete protected area")
 				}

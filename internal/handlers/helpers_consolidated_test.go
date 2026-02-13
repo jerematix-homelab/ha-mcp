@@ -1165,13 +1165,456 @@ func TestManageHelper_GetDetails(t *testing.T) {
 			wantContains: []string{"Pomodoro Timer", "idle", "Duration"},
 		},
 		{
-			name: "get_details for unsupported helper type",
+			name: "get_details for input_boolean with natural format",
 			args: map[string]any{
 				"action":    "get_details",
-				"entity_id": "input_boolean.test",
+				"entity_id": "input_boolean.living_room_light",
+				"format":    "natural",
 			},
-			wantError:    true,
-			wantContains: []string{"not supported"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "on",
+						Attributes: map[string]any{
+							"friendly_name": "Living Room Light",
+							"icon":          "mdi:lightbulb",
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Toggle", "Living Room Light", "on", "Editable: true"},
+		},
+		{
+			name: "get_details for input_boolean with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_boolean.living_room_light",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "on",
+						Attributes: map[string]any{
+							"friendly_name": "Living Room Light",
+							"icon":          "mdi:lightbulb",
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"input_boolean.living_room_light", "\"state\"", "\"on\"", "\"icon\""},
+		},
+		{
+			name: "get_details for input_number with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_number.target_temperature",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "22.5",
+						Attributes: map[string]any{
+							"friendly_name":       "Target Temperature",
+							"min":                 float64(15),
+							"max":                 float64(30),
+							"step":                float64(0.5),
+							"mode":                "slider",
+							"unit_of_measurement": "°C",
+							"editable":            true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Number", "Target Temperature", "22.5", "Range: 15 - 30", "Step: 0.5", "°C"},
+		},
+		{
+			name: "get_details for input_number with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_number.target_temperature",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "22.5",
+						Attributes: map[string]any{
+							"friendly_name":       "Target Temperature",
+							"min":                 float64(15),
+							"max":                 float64(30),
+							"step":                float64(0.5),
+							"mode":                "slider",
+							"unit_of_measurement": "°C",
+							"editable":            true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"input_number.target_temperature", "\"min\"", "\"max\"", "\"step\""},
+		},
+		{
+			name: "get_details for input_text with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_text.notification_message",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "Hello World",
+						Attributes: map[string]any{
+							"friendly_name": "Notification Message",
+							"min":           float64(0),
+							"max":           float64(100),
+							"mode":          "text",
+							"pattern":       "[A-Za-z0-9 ]+",
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Text", "Notification Message", "Hello World", "Length: 0 - 100", "Pattern"},
+		},
+		{
+			name: "get_details for input_text with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_text.notification_message",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "Hello World",
+						Attributes: map[string]any{
+							"friendly_name": "Notification Message",
+							"min":           float64(0),
+							"max":           float64(100),
+							"mode":          "text",
+							"pattern":       "[A-Za-z0-9 ]+",
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"input_text.notification_message", "\"min\"", "\"max\"", "\"pattern\""},
+		},
+		{
+			name: "get_details for input_select with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_select.theme",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "dark",
+						Attributes: map[string]any{
+							"friendly_name": "Theme",
+							"options":       []any{"light", "dark", "auto"},
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Select", "Theme", "Selected: dark", "Options: light, dark, auto"},
+		},
+		{
+			name: "get_details for input_select with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_select.theme",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "dark",
+						Attributes: map[string]any{
+							"friendly_name": "Theme",
+							"options":       []any{"light", "dark", "auto"},
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"input_select.theme", "\"options\"", "\"dark\""},
+		},
+		{
+			name: "get_details for input_datetime with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_datetime.alarm_time",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "2024-01-15 07:30:00",
+						Attributes: map[string]any{
+							"friendly_name": "Alarm Time",
+							"has_date":      true,
+							"has_time":      true,
+							"year":          float64(2024),
+							"month":         float64(1),
+							"day":           float64(15),
+							"hour":          float64(7),
+							"minute":        float64(30),
+							"second":        float64(0),
+							"timestamp":     float64(1705305000),
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Date/Time", "Alarm Time", "2024-01-15 07:30:00", "Date and time"},
+		},
+		{
+			name: "get_details for input_datetime with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_datetime.alarm_time",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "2024-01-15 07:30:00",
+						Attributes: map[string]any{
+							"friendly_name": "Alarm Time",
+							"has_date":      true,
+							"has_time":      true,
+							"year":          float64(2024),
+							"month":         float64(1),
+							"day":           float64(15),
+							"hour":          float64(7),
+							"minute":        float64(30),
+							"second":        float64(0),
+							"timestamp":     float64(1705305000),
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"input_datetime.alarm_time", "\"has_date\"", "\"has_time\"", "\"timestamp\""},
+		},
+		{
+			name: "get_details for input_button with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_button.doorbell",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "2024-01-15T10:30:00+00:00",
+						Attributes: map[string]any{
+							"friendly_name": "Doorbell",
+							"icon":          "mdi:doorbell",
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Button", "Doorbell", "Last pressed"},
+		},
+		{
+			name: "get_details for input_button with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "input_button.doorbell",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "2024-01-15T10:30:00+00:00",
+						Attributes: map[string]any{
+							"friendly_name": "Doorbell",
+							"icon":          "mdi:doorbell",
+							"editable":      true,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"input_button.doorbell", "\"icon\""},
+		},
+		{
+			name: "get_details for group with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "group.all_lights",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "on",
+						Attributes: map[string]any{
+							"friendly_name": "All Lights",
+							"entity_id":     []any{"light.living_room", "light.bedroom", "light.kitchen"},
+							"all":           false,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Group", "All Lights", "on", "Mode: any", "Members (3)", "light.living_room"},
+		},
+		{
+			name: "get_details for group with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "group.all_lights",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "on",
+						Attributes: map[string]any{
+							"friendly_name": "All Lights",
+							"entity_id":     []any{"light.living_room", "light.bedroom", "light.kitchen"},
+							"all":           false,
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"group.all_lights", "\"members\"", "\"all\""},
+		},
+		{
+			name: "get_details for sensor (Config Entry) with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.power_usage",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "125.5",
+						Attributes: map[string]any{
+							"friendly_name":       "Power Usage",
+							"unit_of_measurement": "W",
+							"device_class":        "power",
+							"state_class":         "measurement",
+							"source":              "sensor.raw_power",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Sensor", "Power Usage", "125.5", "W", "Device class: power"},
+		},
+		{
+			name: "get_details for sensor (Config Entry) with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.power_usage",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "125.5",
+						Attributes: map[string]any{
+							"friendly_name":       "Power Usage",
+							"unit_of_measurement": "W",
+							"device_class":        "power",
+							"state_class":         "measurement",
+							"source":              "sensor.raw_power",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"sensor.power_usage", "\"unit_of_measurement\"", "\"device_class\""},
+		},
+		{
+			name: "get_details for binary_sensor (Config Entry) with natural format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "binary_sensor.garage_door",
+				"format":    "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "off",
+						Attributes: map[string]any{
+							"friendly_name": "Garage Door",
+							"device_class":  "door",
+							"entity_id":     "binary_sensor.raw_garage",
+							"hysteresis":    float64(0.0),
+							"sensor_value":  "off",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Binary Sensor", "Garage Door", "off", "Device class: door"},
+		},
+		{
+			name: "get_details for binary_sensor (Config Entry) with json format",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "binary_sensor.garage_door",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "off",
+						Attributes: map[string]any{
+							"friendly_name": "Garage Door",
+							"device_class":  "door",
+							"entity_id":     "binary_sensor.raw_garage",
+							"hysteresis":    float64(0.0),
+							"sensor_value":  "off",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"binary_sensor.garage_door", "\"device_class\"", "\"source_entity\""},
 		},
 	}
 

@@ -66,7 +66,7 @@ func (h *FloorHandlers) buildFloorSchema() mcp.JSONSchema {
 			},
 			"floor_id": {
 				Type:        "string",
-				Description: "Floor identifier. Required for get/update/delete.",
+				Description: "Floor identifier or name. Required for get/update/delete. Accepts exact floor_id or case-insensitive name search.",
 			},
 			"name": {
 				Type:        "string",
@@ -164,16 +164,9 @@ func (h *FloorHandlers) handleGet(ctx context.Context, client homeassistant.Clie
 		return errorResult(fmt.Sprintf("error getting floors: %v", err)), nil
 	}
 
-	var floor *homeassistant.FloorRegistryEntry
-	for i := range floors {
-		if floors[i].FloorID == floorID {
-			floor = &floors[i]
-			break
-		}
-	}
-
-	if floor == nil {
-		return errorResult(fmt.Sprintf("floor not found: %s", floorID)), nil
+	floor, findErr := h.findFloorByInput(floors, floorID)
+	if findErr != nil {
+		return errorResult(findErr.Error()), nil
 	}
 
 	// Get areas for this floor
@@ -214,9 +207,14 @@ func (h *FloorHandlers) handleUpdate(ctx context.Context, client homeassistant.C
 		return errorResult("floor_id is required for update action"), nil
 	}
 
+	resolvedID, err := h.resolveFloorID(ctx, client, floorID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
 	config := h.buildFloorConfig(args)
 
-	floor, err := client.UpdateFloor(ctx, floorID, config)
+	floor, err := client.UpdateFloor(ctx, resolvedID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating floor: %v", err)), nil
 	}
@@ -230,16 +228,56 @@ func (h *FloorHandlers) handleDelete(ctx context.Context, client homeassistant.C
 		return errorResult("floor_id is required for delete action"), nil
 	}
 
-	if err := client.DeleteFloor(ctx, floorID); err != nil {
+	resolvedID, err := h.resolveFloorID(ctx, client, floorID)
+	if err != nil {
+		return errorResult(err.Error()), nil
+	}
+
+	if err := client.DeleteFloor(ctx, resolvedID); err != nil {
 		return errorResult(fmt.Sprintf("error deleting floor: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Floor '%s' deleted successfully", floorID)), nil
+	return successResult(fmt.Sprintf("Floor '%s' deleted successfully", resolvedID)), nil
 }
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
+
+// findFloorByInput performs two-phase lookup: exact ID match, then case-insensitive name substring match.
+func (h *FloorHandlers) findFloorByInput(floors []homeassistant.FloorRegistryEntry, input string) (*homeassistant.FloorRegistryEntry, error) {
+	// Phase 1: Exact ID match
+	for i := range floors {
+		if floors[i].FloorID == input {
+			return &floors[i], nil
+		}
+	}
+
+	// Phase 2: Case-insensitive name substring match
+	lowerInput := strings.ToLower(input)
+	for i := range floors {
+		if strings.Contains(strings.ToLower(floors[i].Name), lowerInput) {
+			return &floors[i], nil
+		}
+	}
+
+	return nil, fmt.Errorf("floor not found: %s (tried as floor_id and name)", input)
+}
+
+// resolveFloorID resolves a floor input (ID or name) to the actual floor ID.
+func (h *FloorHandlers) resolveFloorID(ctx context.Context, client homeassistant.Client, input string) (string, error) {
+	floors, err := client.GetFloorRegistry(ctx)
+	if err != nil {
+		return "", fmt.Errorf("error fetching floors: %w", err)
+	}
+
+	floor, err := h.findFloorByInput(floors, input)
+	if err != nil {
+		return "", err
+	}
+
+	return floor.FloorID, nil
+}
 
 func (h *FloorHandlers) buildFloorConfig(args map[string]any) homeassistant.FloorConfig {
 	config := homeassistant.FloorConfig{}
