@@ -890,6 +890,11 @@ func (h *ConsolidatedHelperHandlers) handleGetDetailsGeneric(ctx context.Context
 
 	details := buildHelperDetails(state, helperType)
 
+	// Enrich with template config for template sensors/binary_sensors
+	if helperType == platformSensorEntity || helperType == platformBinarySensorEntity {
+		enrichConfigEntryOptions(ctx, client, entityID, details)
+	}
+
 	formatStr, _ := args["format"].(string)
 	format := formatter.ParseFormat(formatStr)
 
@@ -1068,6 +1073,67 @@ func addBinarySensorDetails(details map[string]any, state *homeassistant.Entity)
 	}
 	if sensorValue, ok := state.Attributes["sensor_value"]; ok {
 		details["sensor_value"] = sensorValue
+	}
+}
+
+// enrichConfigEntryOptions enriches details with config entry options for template helpers.
+// Gracefully degrades: if registry lookup fails or entity is not template-based, returns silently.
+func enrichConfigEntryOptions(ctx context.Context, client homeassistant.Client, entityID string, details map[string]any) {
+	// Look up entity in registry
+	registry, err := client.GetEntityRegistry(ctx)
+	if err != nil {
+		return // Graceful degradation
+	}
+
+	// Find the entity entry
+	var entry *homeassistant.EntityRegistryEntry
+	for i := range registry {
+		if registry[i].EntityID == entityID {
+			entry = &registry[i]
+			break
+		}
+	}
+
+	if entry == nil || entry.Platform != "template" || entry.ConfigEntryID == "" {
+		return // Not a template entity or no config entry
+	}
+
+	// Fetch the config entry
+	configEntry, err := client.GetConfigEntry(ctx, entry.ConfigEntryID)
+	if err != nil || configEntry == nil {
+		return // Graceful degradation
+	}
+
+	// Extract template options if present
+	if len(configEntry.Options) > 0 {
+		addTemplateOptionsToDetails(configEntry.Options, details)
+	}
+}
+
+// addTemplateOptionsToDetails extracts template options from config entry Options.
+func addTemplateOptionsToDetails(options, details map[string]any) {
+	details["config_entry_type"] = "template"
+
+	if state, ok := options["state"].(string); ok && state != "" {
+		details["state_template"] = state
+	}
+	if availability, ok := options["availability"].(string); ok && availability != "" {
+		details["availability_template"] = availability
+	}
+	if unit, ok := options["unit_of_measurement"].(string); ok && unit != "" {
+		details["unit_of_measurement"] = unit
+	}
+	if deviceClass, ok := options["device_class"].(string); ok && deviceClass != "" {
+		details["device_class"] = deviceClass
+	}
+	if stateClass, ok := options["state_class"].(string); ok && stateClass != "" {
+		details["state_class"] = stateClass
+	}
+	if delayOn, ok := options["delay_on"]; ok && delayOn != nil {
+		details["delay_on"] = delayOn
+	}
+	if delayOff, ok := options["delay_off"]; ok && delayOff != nil {
+		details["delay_off"] = delayOff
 	}
 }
 

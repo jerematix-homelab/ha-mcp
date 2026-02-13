@@ -1616,6 +1616,278 @@ func TestManageHelper_GetDetails(t *testing.T) {
 			wantError:    false,
 			wantContains: []string{"binary_sensor.garage_door", "\"device_class\"", "\"source_entity\""},
 		},
+		{
+			name: "get_details for template sensor with options (natural)",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.template_test",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "42",
+						Attributes: map[string]any{
+							"friendly_name":       "Template Test",
+							"unit_of_measurement": "°C",
+							"device_class":        "temperature",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{
+							EntityID:      "sensor.template_test",
+							Platform:      "template",
+							ConfigEntryID: "config123",
+						},
+					}, nil
+				}
+				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
+					return &homeassistant.ConfigEntryFull{
+						EntryID: entryID,
+						Domain:  "template",
+						Options: map[string]any{
+							"state":               "{{ states('sensor.source') | float }}",
+							"availability":        "{{ states('sensor.source') != 'unavailable' }}",
+							"unit_of_measurement": "°C",
+							"device_class":        "temperature",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Sensor: Template Test", "Template Configuration:", "State template:", "{{ states('sensor.source') | float }}", "Availability template:"},
+		},
+		{
+			name: "get_details for template sensor with options (json)",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.template_test",
+				"format":    "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "42",
+						Attributes: map[string]any{
+							"friendly_name": "Template Test",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{
+							EntityID:      "sensor.template_test",
+							Platform:      "template",
+							ConfigEntryID: "config123",
+						},
+					}, nil
+				}
+				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
+					return &homeassistant.ConfigEntryFull{
+						EntryID: entryID,
+						Domain:  "template",
+						Options: map[string]any{
+							"state": "{{ states('sensor.source') | float }}",
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"\"state_template\"", "\"config_entry_type\"", "template"},
+		},
+		{
+			name: "get_details for template binary_sensor with delays",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "binary_sensor.template_test",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "on",
+						Attributes: map[string]any{
+							"friendly_name": "Template Binary",
+							"device_class":  "motion",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{
+							EntityID:      "binary_sensor.template_test",
+							Platform:      "template",
+							ConfigEntryID: "config456",
+						},
+					}, nil
+				}
+				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
+					return &homeassistant.ConfigEntryFull{
+						EntryID: entryID,
+						Domain:  "template",
+						Options: map[string]any{
+							"state":     "{{ states('binary_sensor.source') }}",
+							"delay_on":  map[string]any{"seconds": 5},
+							"delay_off": map[string]any{"seconds": 10},
+						},
+					}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"Binary Sensor: Template Binary", "Template Configuration:", "Delay on:", "Delay off:"},
+		},
+		{
+			name: "get_details for non-template sensor (no enrichment)",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.derivative_test",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "5.5",
+						Attributes: map[string]any{
+							"friendly_name":       "Derivative Test",
+							"unit_of_measurement": "W",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{
+							EntityID:      "sensor.derivative_test",
+							Platform:      "derivative",
+							ConfigEntryID: "config789",
+						},
+					}, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"Sensor: Derivative Test", "5.5"},
+			wantNotContains: []string{"Template Configuration"},
+		},
+		{
+			name: "get_details for sensor not in registry (graceful)",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.unknown",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "123",
+						Attributes: map[string]any{
+							"friendly_name": "Unknown Sensor",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{}, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"Sensor: Unknown Sensor", "123"},
+			wantNotContains: []string{"Template Configuration"},
+		},
+		{
+			name: "get_details for template sensor with empty options (graceful)",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.template_empty",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "100",
+						Attributes: map[string]any{
+							"friendly_name": "Empty Template",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{
+							EntityID:      "sensor.template_empty",
+							Platform:      "template",
+							ConfigEntryID: "config_empty",
+						},
+					}, nil
+				}
+				m.GetConfigEntryFn = func(_ context.Context, entryID string) (*homeassistant.ConfigEntryFull, error) {
+					return &homeassistant.ConfigEntryFull{
+						EntryID: entryID,
+						Domain:  "template",
+						Options: map[string]any{},
+					}, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"Sensor: Empty Template", "100"},
+			wantNotContains: []string{"Template Configuration"},
+		},
+		{
+			name: "get_details for sensor with GetEntityRegistry error (graceful)",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.error_test",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "99",
+						Attributes: map[string]any{
+							"friendly_name": "Error Test",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return nil, fmt.Errorf("registry unavailable")
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"Sensor: Error Test", "99"},
+			wantNotContains: []string{"Template Configuration"},
+		},
+		{
+			name: "get_details for template sensor with GetConfigEntry error (graceful)",
+			args: map[string]any{
+				"action":    "get_details",
+				"entity_id": "sensor.config_error",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStateFn = func(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID: entityID,
+						State:    "77",
+						Attributes: map[string]any{
+							"friendly_name": "Config Error",
+						},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{
+							EntityID:      "sensor.config_error",
+							Platform:      "template",
+							ConfigEntryID: "config_err",
+						},
+					}, nil
+				}
+				m.GetConfigEntryFn = func(_ context.Context, _ string) (*homeassistant.ConfigEntryFull, error) {
+					return nil, fmt.Errorf("config entry not found")
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"Sensor: Config Error", "77"},
+			wantNotContains: []string{"Template Configuration"},
+		},
 	}
 
 	h := NewConsolidatedHelperHandlers()
