@@ -18,4 +18,4 @@ USER hamcp
 EXPOSE 8080
 
 ENTRYPOINT ["ha-mcp"]
-CMD ["--help"]
+CMD []
