@@ -63,6 +63,23 @@ func (r *Registry) RegisterResource(resource Resource, handler ResourceHandler) 
 	}
 }
 
+// RemoveTool removes a tool and its handler by name.
+func (r *Registry) RemoveTool(name string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.tools, name)
+}
+
+// UpdateTool updates a tool's definition while keeping its handler.
+func (r *Registry) UpdateTool(name string, tool Tool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if entry, exists := r.tools[name]; exists {
+		entry.tool = tool
+		r.tools[name] = entry
+	}
+}
+
 // ListTools returns all registered tools.
 func (r *Registry) ListTools() []Tool {
 	r.mu.RLock()
