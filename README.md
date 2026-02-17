@@ -27,6 +27,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with access to
 - **Auto-Reconnect**: Automatic reconnection with exponential backoff
 - **Request Retries**: Automatic retries with exponential backoff for transient failures (5xx, 429, network errors)
 - **Optional Caching**: TTL-based caching for static data (services, config, registries) to reduce API calls
+- **Access Control**: Flexible tool filtering with read-only mode, whitelist/blacklist, and fine-grained action control
 
 ## Comparison with Official Home Assistant MCP Server
 
@@ -44,8 +45,10 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 - **Simplicity**: Intent-based approach, fewer tools, easier for basic scenarios
 - **Built-in**: No external server needed, runs inside Home Assistant
-- **Security**: Entity exposure control (only whitelisted entities visible)
+- **Entity-Level Security**: Fine-grained entity exposure control (only whitelisted entities visible)
 - **Calendar & Todos**: Dedicated calendar and todo list tools
+
+**Note:** ha-mcp now provides tool-level access control (read-only mode, whitelist/blacklist), complementing the official integration's entity-level controls
 
 ### When to Use ha-mcp
 
@@ -62,8 +65,10 @@ Choose ha-mcp if you need:
 Choose the official integration if you need:
 - Simple entity control and status queries
 - Calendar and todo list management
-- Tighter security with entity exposure control
+- Entity-level security (fine-grained entity exposure control)
 - No external infrastructure
+
+**Security note:** Both solutions offer access control - ha-mcp at tool/action level, official integration at entity level. Choose based on your security model.
 
 **Full comparison:** See [docs/feature-comparison.md](docs/feature-comparison.md) for detailed feature matrices and architectural differences.
 
@@ -279,6 +284,10 @@ homeassistant:
 
 server:
   port: 8080
+  read_only: false  # Enable read-only mode (blocks all write operations)
+  tool_filter:
+    whitelist: []   # If non-empty, ONLY these tools/actions are allowed
+    blacklist: []   # Block specific tools/actions (only if whitelist is empty)
 
 logging:
   level: "info"  # debug, info, warn, error
@@ -311,6 +320,11 @@ export HA_CACHE_CONFIG_TTL_MIN=30          # Config cache TTL (default: 30)
 export HA_CACHE_ENTITY_REG_TTL_MIN=10      # Entity registry TTL (default: 10)
 export HA_CACHE_DEVICE_REG_TTL_MIN=10      # Device registry TTL (default: 10)
 export HA_CACHE_AREA_REG_TTL_MIN=30        # Area registry TTL (default: 30)
+
+# Access control settings (optional)
+export HA_MCP_READ_ONLY=false              # Enable read-only mode (default: false)
+export HA_MCP_TOOL_FILTER_WHITELIST=""     # Comma-separated whitelist (default: empty)
+export HA_MCP_TOOL_FILTER_BLACKLIST=""     # Comma-separated blacklist (default: empty)
 ```
 
 ### Command-Line Flags
@@ -319,7 +333,8 @@ export HA_CACHE_AREA_REG_TTL_MIN=30        # Area registry TTL (default: 30)
 ha-mcp \
   --ha-url http://homeassistant.local:8123 \
   --ha-token your-long-lived-access-token \
-  --port 8080
+  --port 8080 \
+  --read-only  # Optional: enable read-only mode
 ```
 
 ### Getting a Home Assistant Token
@@ -330,6 +345,181 @@ ha-mcp \
 4. Click "Create Token"
 5. Give it a name (e.g., "ha-mcp")
 6. Copy the token (it won't be shown again!)
+
+## Access Control & Tool Filtering
+
+ha-mcp provides flexible access control to restrict which tools and actions are available. This is useful for security-conscious deployments, shared instances, or limiting AI capabilities.
+
+### Read-Only Mode
+
+The simplest form of access control is read-only mode, which blocks all write operations while allowing read operations:
+
+```yaml
+# config.yaml
+server:
+  read_only: true
+```
+
+```bash
+# Command line
+ha-mcp --read-only
+
+# Environment variable
+export HA_MCP_READ_ONLY=true
+```
+
+**What gets blocked in read-only mode:**
+- All `create`, `update`, `delete` actions in `manage_*` tools
+- Service calls (`call_service`)
+- Helper actions (`helper_action` - toggle, set_value, increment, etc.)
+- Script execution, scene activation
+- Any operation that modifies Home Assistant state
+
+**What remains available:**
+- All `list` and `get` actions
+- State queries (`get_state`, `query_entities`, `query_devices`)
+- History and statistics
+- Analysis tools (`analyze_entity`, `get_entity_dependencies`)
+- Registry queries (`get_registry`)
+- Logbook access
+
+### Tool Filtering
+
+For more granular control, use the tool filter system with whitelist or blacklist:
+
+#### Whitelist Mode
+
+When whitelist is non-empty, **ONLY** the specified tools/actions are allowed:
+
+```yaml
+server:
+  tool_filter:
+    whitelist:
+      - "get_state"                    # Allow entire tool
+      - "manage_automation:list"       # Allow specific action
+      - "manage_automation:get"
+      - "manage_script:list"
+      - "query_entities"
+```
+
+```bash
+# Environment variable (comma-separated)
+export HA_MCP_TOOL_FILTER_WHITELIST="get_state,manage_automation:list,manage_automation:get"
+```
+
+#### Blacklist Mode
+
+When whitelist is empty, use blacklist to block specific tools/actions:
+
+```yaml
+server:
+  tool_filter:
+    blacklist:
+      - "call_service"                 # Block entire tool
+      - "manage_automation:delete"     # Block specific action
+      - "manage_script:delete"
+      - "manage_scene:delete"
+```
+
+```bash
+# Environment variable (comma-separated)
+export HA_MCP_TOOL_FILTER_BLACKLIST="call_service,manage_automation:delete"
+```
+
+#### Glob Patterns
+
+Use glob patterns to match multiple tools:
+
+```yaml
+server:
+  tool_filter:
+    blacklist:
+      - "manage_*:delete"              # Block delete action across all manage_* tools
+      - "manage_*:create"              # Block create action across all manage_* tools
+      - "get_*"                        # Block all get_* tools
+```
+
+#### Category-Based Filtering
+
+Filter by action category (read/write):
+
+```yaml
+server:
+  tool_filter:
+    blacklist:
+      - "*:write"                      # Block all write operations (same as read_only: true)
+```
+
+```yaml
+server:
+  tool_filter:
+    whitelist:
+      - "*:read"                       # Allow only read operations
+```
+
+#### Sub-Action Filtering
+
+For tools with nested actions (like `query_entities` with mode=health, action=remove):
+
+```yaml
+server:
+  tool_filter:
+    blacklist:
+      - "query_entities:health:remove"   # Block health check removal
+      - "query_devices:health:remove"    # Block device health removal
+```
+
+### Filter Behavior
+
+- **Tool Removal**: Completely blocked tools disappear from `tools/list` (the AI won't see them)
+- **Schema Modification**: Partially blocked tools have their schemas updated to show only allowed actions
+- **Runtime Check**: Attempted blocked actions return an error at runtime
+- **Priority**: Whitelist takes precedence - if non-empty, blacklist is ignored
+- **Validation**: You cannot specify both whitelist and blacklist (configuration error)
+- **AI Notification**: When filter is active, clients receive a "⚠️ SERVER IN RESTRICTED MODE" message
+
+### Example Scenarios
+
+**Scenario 1: Read-only for monitoring**
+```yaml
+server:
+  read_only: true
+```
+
+**Scenario 2: Allow only safe operations**
+```yaml
+server:
+  tool_filter:
+    whitelist:
+      - "get_*"                        # All get tools
+      - "query_*"                      # All query tools
+      - "analyze_*"                    # All analysis tools
+      - "manage_automation:list"
+      - "manage_automation:get"
+```
+
+**Scenario 3: Block dangerous operations**
+```yaml
+server:
+  tool_filter:
+    blacklist:
+      - "call_service"                 # Block arbitrary service calls
+      - "manage_*:delete"              # Block all delete operations
+      - "manage_script:execute"        # Block script execution
+      - "manage_scene:activate"        # Block scene activation
+```
+
+**Scenario 4: Read-only + specific write exceptions**
+```yaml
+server:
+  read_only: false
+  tool_filter:
+    blacklist:
+      - "*:write"                      # Block all writes
+    whitelist:
+      - "*:read"                       # Allow all reads
+      - "helper_action"                # Exception: allow helper actions
+```
 
 ## Usage
 

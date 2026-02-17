@@ -504,3 +504,200 @@ func TestRegistry_ToolCount_ResourceCount(t *testing.T) {
 		t.Errorf("ToolCount() after overwrite = %d, want 3", got)
 	}
 }
+
+func TestRegistry_RemoveTool(t *testing.T) {
+	t.Parallel()
+
+	t.Run("remove existing tool", func(t *testing.T) {
+		t.Parallel()
+
+		r := NewRegistry()
+		tool := Tool{Name: "test_tool", Description: "Test"}
+		handler := func(_ context.Context, _ homeassistant.Client, _ map[string]any) (*ToolsCallResult, error) {
+			return nil, nil
+		}
+
+		r.RegisterTool(tool, handler)
+		if r.ToolCount() != 1 {
+			t.Fatalf("ToolCount() = %d, want 1", r.ToolCount())
+		}
+
+		r.RemoveTool("test_tool")
+
+		if r.ToolCount() != 0 {
+			t.Errorf("ToolCount() after removal = %d, want 0", r.ToolCount())
+		}
+
+		_, exists := r.GetTool("test_tool")
+		if exists {
+			t.Error("GetTool() returned true for removed tool")
+		}
+
+		_, exists = r.GetHandler("test_tool")
+		if exists {
+			t.Error("GetHandler() returned true for removed tool")
+		}
+	})
+
+	t.Run("remove non-existing tool", func(t *testing.T) {
+		t.Parallel()
+
+		r := NewRegistry()
+		r.RegisterTool(Tool{Name: "tool_a"}, nil)
+
+		// Should not panic
+		r.RemoveTool("nonexistent")
+
+		if r.ToolCount() != 1 {
+			t.Errorf("ToolCount() = %d, want 1", r.ToolCount())
+		}
+	})
+
+	t.Run("remove from empty registry", func(t *testing.T) {
+		t.Parallel()
+
+		r := NewRegistry()
+		// Should not panic
+		r.RemoveTool("any")
+
+		if r.ToolCount() != 0 {
+			t.Errorf("ToolCount() = %d, want 0", r.ToolCount())
+		}
+	})
+
+	t.Run("remove multiple tools", func(t *testing.T) {
+		t.Parallel()
+
+		r := NewRegistry()
+		r.RegisterTool(Tool{Name: "tool_a"}, nil)
+		r.RegisterTool(Tool{Name: "tool_b"}, nil)
+		r.RegisterTool(Tool{Name: "tool_c"}, nil)
+
+		if r.ToolCount() != 3 {
+			t.Fatalf("ToolCount() = %d, want 3", r.ToolCount())
+		}
+
+		r.RemoveTool("tool_b")
+
+		if r.ToolCount() != 2 {
+			t.Errorf("ToolCount() = %d, want 2", r.ToolCount())
+		}
+
+		// Verify tool_a and tool_c still exist
+		_, exists := r.GetTool("tool_a")
+		if !exists {
+			t.Error("tool_a was incorrectly removed")
+		}
+		_, exists = r.GetTool("tool_c")
+		if !exists {
+			t.Error("tool_c was incorrectly removed")
+		}
+		_, exists = r.GetTool("tool_b")
+		if exists {
+			t.Error("tool_b was not removed")
+		}
+	})
+}
+
+func TestRegistry_UpdateTool(t *testing.T) {
+	t.Parallel()
+
+	t.Run("update existing tool", func(t *testing.T) {
+		t.Parallel()
+
+		r := NewRegistry()
+		originalTool := Tool{
+			Name:        "test_tool",
+			Description: "Original description",
+			InputSchema: JSONSchema{Type: "object"},
+		}
+		handler := func(_ context.Context, _ homeassistant.Client, _ map[string]any) (*ToolsCallResult, error) {
+			return &ToolsCallResult{Content: []ContentBlock{NewTextContent("original")}}, nil
+		}
+
+		r.RegisterTool(originalTool, handler)
+
+		updatedTool := Tool{
+			Name:        "test_tool",
+			Description: "Updated description",
+			InputSchema: JSONSchema{Type: "string"},
+		}
+
+		r.UpdateTool("test_tool", updatedTool)
+
+		// Verify tool was updated
+		got, exists := r.GetTool("test_tool")
+		if !exists {
+			t.Fatal("GetTool() returned false after update")
+		}
+
+		if got.Description != "Updated description" {
+			t.Errorf("Description = %q, want %q", got.Description, "Updated description")
+		}
+
+		if got.InputSchema.Type != "string" {
+			t.Errorf("InputSchema.Type = %q, want %q", got.InputSchema.Type, "string")
+		}
+
+		// Verify handler was preserved
+		handlerGot, exists := r.GetHandler("test_tool")
+		if !exists {
+			t.Fatal("GetHandler() returned false after update")
+		}
+		if handlerGot == nil {
+			t.Error("Handler was not preserved after update")
+		}
+	})
+
+	t.Run("update non-existing tool", func(t *testing.T) {
+		t.Parallel()
+
+		r := NewRegistry()
+		r.RegisterTool(Tool{Name: "tool_a"}, nil)
+
+		updatedTool := Tool{
+			Name:        "nonexistent",
+			Description: "New description",
+		}
+
+		// Should not panic and should not add the tool
+		r.UpdateTool("nonexistent", updatedTool)
+
+		if r.ToolCount() != 1 {
+			t.Errorf("ToolCount() = %d, want 1", r.ToolCount())
+		}
+
+		_, exists := r.GetTool("nonexistent")
+		if exists {
+			t.Error("UpdateTool() added a new tool instead of updating")
+		}
+	})
+
+	t.Run("update preserves handler", func(t *testing.T) {
+		t.Parallel()
+
+		r := NewRegistry()
+		expectedResult := "handler executed"
+		handler := func(_ context.Context, _ homeassistant.Client, _ map[string]any) (*ToolsCallResult, error) {
+			return &ToolsCallResult{Content: []ContentBlock{NewTextContent(expectedResult)}}, nil
+		}
+
+		r.RegisterTool(Tool{Name: "test_tool", Description: "Original"}, handler)
+		r.UpdateTool("test_tool", Tool{Name: "test_tool", Description: "Updated"})
+
+		// Execute handler to verify it's preserved
+		handlerGot, exists := r.GetHandler("test_tool")
+		if !exists {
+			t.Fatal("GetHandler() returned false")
+		}
+
+		result, err := handlerGot(context.Background(), nil, nil)
+		if err != nil {
+			t.Fatalf("handler returned error: %v", err)
+		}
+
+		if len(result.Content) == 0 || result.Content[0].Text != expectedResult {
+			t.Error("Handler was not properly preserved after update")
+		}
+	})
+}

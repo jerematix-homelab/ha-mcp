@@ -24,11 +24,12 @@ import (
 
 // App holds the CLI application state and dependencies.
 type App struct {
-	cfgFile string
-	haURL   string
-	haToken string
-	port    int
-	rootCmd *cobra.Command
+	cfgFile  string
+	haURL    string
+	haToken  string
+	port     int
+	readOnly bool
+	rootCmd  *cobra.Command
 }
 
 // NewApp creates a new CLI application instance with all dependencies.
@@ -60,10 +61,12 @@ func (a *App) setupFlags() {
 	a.rootCmd.PersistentFlags().StringVar(&a.haURL, "ha-url", "", "Home Assistant URL")
 	a.rootCmd.PersistentFlags().StringVar(&a.haToken, "ha-token", "", "Home Assistant long-lived access token")
 	a.rootCmd.PersistentFlags().IntVar(&a.port, "port", 0, "MCP server port")
+	a.rootCmd.PersistentFlags().BoolVar(&a.readOnly, "read-only", false, "Enable read-only mode (blocks all write operations)")
 
 	bindPFlag("homeassistant.url", a.rootCmd.PersistentFlags().Lookup("ha-url"))
 	bindPFlag("homeassistant.token", a.rootCmd.PersistentFlags().Lookup("ha-token"))
 	bindPFlag("server.port", a.rootCmd.PersistentFlags().Lookup("port"))
+	bindPFlag("server.read_only", a.rootCmd.PersistentFlags().Lookup("read-only"))
 }
 
 // addCommands adds subcommands to the root command.
@@ -252,7 +255,7 @@ func (a *App) run(_ *cobra.Command, _ []string) error {
 		logger.Info("No default token configured - clients must provide Authorization header")
 	}
 
-	mcpServer := a.initMCPServer(clientPool, defaultClient, cfg.Server.Port, logger)
+	mcpServer := a.initMCPServer(clientPool, defaultClient, cfg, logger)
 	a.startMCPServer(mcpServer, logger, cancel)
 
 	<-ctx.Done()
@@ -330,7 +333,7 @@ func (a *App) closeHomeAssistantClient(client homeassistant.Client, logger *logg
 func (a *App) initMCPServer(
 	clientPool *homeassistant.ClientPool,
 	defaultClient homeassistant.Client,
-	port int,
+	cfg *config.Config,
 	logger *logging.Logger,
 ) *mcp.Server {
 	registry := mcp.NewRegistry()
@@ -339,7 +342,24 @@ func (a *App) initMCPServer(
 	logger.Info("Registered MCP tools", "count", registry.ToolCount())
 	registry.LogRegisteredTools(logger)
 
-	return mcp.NewServer(clientPool, defaultClient, registry, port, logger)
+	// Apply tool filter if configured
+	filter := mcp.NewToolFilterEngine(mcp.ToolFilterConfig{
+		Whitelist: cfg.Server.ToolFilter.Whitelist,
+		Blacklist: cfg.Server.ToolFilter.Blacklist,
+	}, cfg.Server.ReadOnly)
+
+	if filter.IsEnabled() {
+		removed := filter.ApplyToRegistry(registry)
+		logger.Info("Tool filter applied",
+			"removed", removed,
+			"remaining", registry.ToolCount(),
+			"read_only", cfg.Server.ReadOnly)
+	}
+
+	server := mcp.NewServer(clientPool, defaultClient, registry, cfg.Server.Port, logger)
+	server.SetToolFilter(filter)
+
+	return server
 }
 
 // startMCPServer starts the MCP server in a goroutine.

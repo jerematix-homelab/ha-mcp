@@ -98,9 +98,17 @@ type WebSocketConfig struct {
 	RetryMaxDelayMs int `mapstructure:"retry_max_delay_ms"`
 }
 
+// ToolFilterConfig holds tool filtering settings for access control.
+type ToolFilterConfig struct {
+	Whitelist []string `mapstructure:"whitelist"`
+	Blacklist []string `mapstructure:"blacklist"`
+}
+
 // ServerConfig holds MCP server settings.
 type ServerConfig struct {
-	Port int `mapstructure:"port"`
+	Port       int              `mapstructure:"port"`
+	ReadOnly   bool             `mapstructure:"read_only"`
+	ToolFilter ToolFilterConfig `mapstructure:"tool_filter"`
 }
 
 // setupViper creates and configures a new viper instance with defaults and environment bindings.
@@ -130,6 +138,9 @@ func setupViper(configFile string) (*viper.Viper, error) {
 	v.SetDefault("homeassistant.cache.device_reg_ttl_min", 10)
 	v.SetDefault("homeassistant.cache.area_reg_ttl_min", 30)
 	v.SetDefault("server.port", 8080)
+	v.SetDefault("server.read_only", false)
+	v.SetDefault("server.tool_filter.whitelist", []string{})
+	v.SetDefault("server.tool_filter.blacklist", []string{})
 	v.SetDefault("logging.level", "INFO")
 
 	// Load from config file if specified
@@ -163,6 +174,9 @@ func setupViper(configFile string) (*viper.Viper, error) {
 	mustBindEnv(v, "homeassistant.cache.device_reg_ttl_min", "HA_CACHE_DEVICE_REG_TTL_MIN")
 	mustBindEnv(v, "homeassistant.cache.area_reg_ttl_min", "HA_CACHE_AREA_REG_TTL_MIN")
 	mustBindEnv(v, "server.port", "HA_MCP_PORT")
+	mustBindEnv(v, "server.read_only", "HA_MCP_READ_ONLY")
+	mustBindEnv(v, "server.tool_filter.whitelist", "HA_MCP_TOOL_FILTER_WHITELIST")
+	mustBindEnv(v, "server.tool_filter.blacklist", "HA_MCP_TOOL_FILTER_BLACKLIST")
 	mustBindEnv(v, "logging.level", "HA_MCP_LOG_LEVEL")
 
 	return v, nil
@@ -230,6 +244,9 @@ func LoadWithViper(v *viper.Viper, configFile string) (*Config, error) {
 	v.SetDefault("homeassistant.cache.device_reg_ttl_min", 10)
 	v.SetDefault("homeassistant.cache.area_reg_ttl_min", 30)
 	v.SetDefault("server.port", 8080)
+	v.SetDefault("server.read_only", false)
+	v.SetDefault("server.tool_filter.whitelist", []string{})
+	v.SetDefault("server.tool_filter.blacklist", []string{})
 	v.SetDefault("logging.level", "INFO")
 
 	// Load from config file if specified
@@ -263,6 +280,9 @@ func LoadWithViper(v *viper.Viper, configFile string) (*Config, error) {
 	mustBindEnv(v, "homeassistant.cache.device_reg_ttl_min", "HA_CACHE_DEVICE_REG_TTL_MIN")
 	mustBindEnv(v, "homeassistant.cache.area_reg_ttl_min", "HA_CACHE_AREA_REG_TTL_MIN")
 	mustBindEnv(v, "server.port", "HA_MCP_PORT")
+	mustBindEnv(v, "server.read_only", "HA_MCP_READ_ONLY")
+	mustBindEnv(v, "server.tool_filter.whitelist", "HA_MCP_TOOL_FILTER_WHITELIST")
+	mustBindEnv(v, "server.tool_filter.blacklist", "HA_MCP_TOOL_FILTER_BLACKLIST")
 	mustBindEnv(v, "logging.level", "HA_MCP_LOG_LEVEL")
 
 	// Unmarshal into struct
@@ -323,6 +343,10 @@ func (c *Config) validate() error {
 	// When not configured, clients must provide token in each request
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		return fmt.Errorf("server.port must be between 1 and 65535")
+	}
+	// Whitelist and blacklist cannot both be non-empty
+	if len(c.Server.ToolFilter.Whitelist) > 0 && len(c.Server.ToolFilter.Blacklist) > 0 {
+		return fmt.Errorf("server.tool_filter: cannot specify both whitelist and blacklist")
 	}
 	return nil
 }

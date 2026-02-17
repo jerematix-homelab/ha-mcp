@@ -58,6 +58,7 @@ type Server struct {
 	httpServer    *http.Server
 	port          int
 	logger        *logging.Logger
+	toolFilter    *ToolFilterEngine // Optional tool filter for access control
 	mu            sync.RWMutex
 	initialized   bool
 }
@@ -256,6 +257,12 @@ func (s *Server) handleInitialize(req *Request) *Response {
 		"version", params.ClientInfo.Version,
 		"protocol", params.ProtocolVersion)
 
+	// Add read-only mode notification to instructions if filter is active
+	instructions := serverInstructions
+	if s.toolFilter != nil && s.toolFilter.IsEnabled() {
+		instructions = "⚠️ SERVER IN RESTRICTED MODE: Some tools or actions may be blocked by server policy.\n\n" + serverInstructions
+	}
+
 	result := InitializeResult{
 		ProtocolVersion: ProtocolVersion,
 		Capabilities: ServerCapabilities{
@@ -271,7 +278,7 @@ func (s *Server) handleInitialize(req *Request) *Response {
 			Name:    ServerName,
 			Version: ServerVersion,
 		},
-		Instructions: serverInstructions,
+		Instructions: instructions,
 	}
 
 	return NewSuccessResponse(req.ID, result)
@@ -347,6 +354,13 @@ func (s *Server) handleToolsCall(ctx context.Context, req *Request, r *http.Requ
 	if !exists {
 		s.logger.Warn("Tool not found", "tool", params.Name)
 		return NewErrorResponse(req.ID, ToolNotFound, fmt.Sprintf("tool not found: %s", params.Name), nil)
+	}
+
+	// Check if action is allowed by filter
+	if s.toolFilter != nil && !s.toolFilter.IsActionAllowed(params.Name, params.Arguments) {
+		s.logger.Warn("Tool action blocked by filter", "tool", params.Name)
+		return NewErrorResponse(req.ID, ToolExecutionErr,
+			fmt.Sprintf("action blocked by server filter (tool: %s)", params.Name), nil)
 	}
 
 	result, err := handler(ctx, client, params.Arguments)
@@ -507,4 +521,9 @@ func waitForClientConnection(ctx context.Context, client homeassistant.Client) e
 // Returns nil if no default client is configured.
 func (s *Server) DefaultClient() homeassistant.Client {
 	return s.defaultClient
+}
+
+// SetToolFilter sets the tool filter for access control.
+func (s *Server) SetToolFilter(filter *ToolFilterEngine) {
+	s.toolFilter = filter
 }

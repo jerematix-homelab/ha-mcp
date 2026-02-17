@@ -59,6 +59,29 @@ server:
   # Use "0.0.0.0" to listen on all interfaces
   host: "localhost"
 
+  # Read-only mode: blocks all write operations (default: false)
+  # Convenience flag equivalent to: tool_filter.blacklist: ["*:write"]
+  read_only: false
+
+  # Tool filter: control which tools and actions are allowed
+  # Whitelist and blacklist cannot both be non-empty
+  tool_filter:
+    # Whitelist: if non-empty, ONLY these tools/actions are allowed
+    # Examples:
+    #   - "get_state"                    # Allow entire tool
+    #   - "manage_automation:list"       # Allow specific action
+    #   - "manage_automation:get"        # Allow specific action
+    #   - "get_*"                        # Allow all get_* tools
+    whitelist: []
+
+    # Blacklist: block specific tools/actions (only if whitelist is empty)
+    # Examples:
+    #   - "call_service"                 # Block entire tool
+    #   - "manage_automation:delete"     # Block specific action
+    #   - "manage_*:delete"              # Block delete action across all manage_* tools
+    #   - "*:write"                      # Block all write operations (same as read_only: true)
+    blacklist: []
+
 # Logging settings (optional)
 logging:
   # Log level: trace, debug, info, warn, error
