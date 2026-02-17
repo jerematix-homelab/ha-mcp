@@ -1,7 +1,6 @@
 # GitHub Actions CI/CD Pipeline for ha-mcp
 # Home Assistant MCP Server
-# Go Version: 1.25.7
-# Migrated from GitLab CI
+# Go Version: 1.26.0
 
 name: CI
 
@@ -12,7 +11,7 @@ on:
     branches: [main]
 
 env:
-  GO_VERSION: "1.25.7"
+  GO_VERSION: "1.26.0"
   CGO_ENABLED: "0"
 
 jobs:

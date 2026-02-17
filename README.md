@@ -90,7 +90,7 @@ sudo mv ha-mcp /usr/local/bin/
 
 ### From Source
 
-Requires Go 1.25 or later.
+Requires Go 1.26 or later.
 
 ```bash
 git clone https://github.com/zorak1103/ha-mcp.git
@@ -1064,7 +1064,7 @@ Debug logs show:
 
 ### Prerequisites
 
-- Go 1.25+
+- Go 1.26+
 - golangci-lint v2
 - Docker (for container builds)
 
