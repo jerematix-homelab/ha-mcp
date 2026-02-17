@@ -98,7 +98,7 @@ func (h *cleanHandler) Handle(_ context.Context, r slog.Record) error {
 		sb.WriteString(" ")
 		sb.WriteString(a.Key)
 		sb.WriteString("=")
-		sb.WriteString(fmt.Sprintf("%v", a.Value.Any()))
+		fmt.Fprintf(&sb, "%v", a.Value.Any())
 		return true
 	})
 

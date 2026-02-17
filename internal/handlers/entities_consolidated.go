@@ -937,9 +937,9 @@ func (h *ConsolidatedEntityQueryHandlers) formatStatesNaturalByDeviceClass(
 
 	// Add pagination info if paginated
 	if paginated.Pagination.HasMore && paginated.Pagination.NextCursor != nil {
-		output.WriteString(fmt.Sprintf("\n\n[Page %d of results. Use cursor='%s' for next page]",
+		fmt.Fprintf(&output, "\n\n[Page %d of results. Use cursor='%s' for next page]",
 			(paginated.Pagination.Offset/paginated.Pagination.Limit)+1,
-			*paginated.Pagination.NextCursor))
+			*paginated.Pagination.NextCursor)
 	}
 
 	return &mcp.ToolsCallResult{
@@ -1005,9 +1005,9 @@ func (h *ConsolidatedEntityQueryHandlers) formatStatesNaturalByIntegration(
 
 	// Add pagination info if paginated
 	if paginated.Pagination.HasMore && paginated.Pagination.NextCursor != nil {
-		output.WriteString(fmt.Sprintf("\n\n[Page %d of results. Use cursor='%s' for next page]",
+		fmt.Fprintf(&output, "\n\n[Page %d of results. Use cursor='%s' for next page]",
 			(paginated.Pagination.Offset/paginated.Pagination.Limit)+1,
-			*paginated.Pagination.NextCursor))
+			*paginated.Pagination.NextCursor)
 	}
 
 	return &mcp.ToolsCallResult{

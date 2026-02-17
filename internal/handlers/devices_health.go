@@ -447,9 +447,9 @@ func formatDeviceHealthReportNatural(report DeviceHealthReport) (*mcp.ToolsCallR
 
 	// Summary
 	sb.WriteString("## Summary\n")
-	sb.WriteString(fmt.Sprintf("- Total devices: %d\n", report.Statistics.TotalDevices))
-	sb.WriteString(fmt.Sprintf("- Healthy devices: %d\n", report.Statistics.HealthyDevices))
-	sb.WriteString(fmt.Sprintf("- Problematic devices: %d\n\n", report.Statistics.ProblematicDevices))
+	fmt.Fprintf(&sb, "- Total devices: %d\n", report.Statistics.TotalDevices)
+	fmt.Fprintf(&sb, "- Healthy devices: %d\n", report.Statistics.HealthyDevices)
+	fmt.Fprintf(&sb, "- Problematic devices: %d\n\n", report.Statistics.ProblematicDevices)
 
 	if len(report.Issues) == 0 {
 		sb.WriteString("No issues detected. All devices are healthy.\n")
@@ -488,14 +488,14 @@ func formatDeviceHealthReportNatural(report DeviceHealthReport) (*mcp.ToolsCallR
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("### %s (%d)\n", categoryNames[cat], len(issues)))
+		fmt.Fprintf(&sb, "### %s (%d)\n", categoryNames[cat], len(issues))
 		for _, issue := range issues {
-			sb.WriteString(fmt.Sprintf("- **%s** (`%s`)", issue.Name, issue.DeviceID))
+			fmt.Fprintf(&sb, "- **%s** (`%s`)", issue.Name, issue.DeviceID)
 			if issue.Manufacturer != "" {
-				sb.WriteString(fmt.Sprintf(" [%s]", issue.Manufacturer))
+				fmt.Fprintf(&sb, " [%s]", issue.Manufacturer)
 			}
 			if issue.Details != "" {
-				sb.WriteString(fmt.Sprintf(": %s", issue.Details))
+				fmt.Fprintf(&sb, ": %s", issue.Details)
 			}
 			sb.WriteString("\n")
 		}
@@ -524,17 +524,17 @@ func formatDeviceRemoveResultNatural(result DeviceRemoveResult) (*mcp.ToolsCallR
 	sb.WriteString("# Device Removal Result\n\n")
 
 	if len(result.Successes) > 0 {
-		sb.WriteString(fmt.Sprintf("## Successfully Removed (%d)\n", len(result.Successes)))
+		fmt.Fprintf(&sb, "## Successfully Removed (%d)\n", len(result.Successes))
 		for _, success := range result.Successes {
-			sb.WriteString(fmt.Sprintf("- **%s** (`%s`)\n", success.Name, success.DeviceID))
+			fmt.Fprintf(&sb, "- **%s** (`%s`)\n", success.Name, success.DeviceID)
 		}
 		sb.WriteString("\n")
 	}
 
 	if len(result.Failures) > 0 {
-		sb.WriteString(fmt.Sprintf("## Failed to Remove (%d)\n", len(result.Failures)))
+		fmt.Fprintf(&sb, "## Failed to Remove (%d)\n", len(result.Failures))
 		for _, failure := range result.Failures {
-			sb.WriteString(fmt.Sprintf("- **%s** (`%s`): %s\n", failure.Name, failure.DeviceID, failure.Error))
+			fmt.Fprintf(&sb, "- **%s** (`%s`): %s\n", failure.Name, failure.DeviceID, failure.Error)
 		}
 		sb.WriteString("\n")
 	}
