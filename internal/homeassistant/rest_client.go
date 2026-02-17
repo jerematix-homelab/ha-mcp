@@ -152,7 +152,7 @@ func (c *RESTClient) doRequest(ctx context.Context, req *http.Request) (*http.Re
 
 		// Execute the request
 		var reqErr error
-		resp, reqErr = c.httpClient.Do(req) //nolint:bodyclose // Body is closed in all error paths below
+		resp, reqErr = c.httpClient.Do(req) //nolint:bodyclose,gosec // Body is closed in all error paths below; G704 SSRF false positive
 		if reqErr != nil {
 			// Close response body if it exists
 			if resp != nil && resp.Body != nil {

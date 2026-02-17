@@ -380,21 +380,21 @@ func (h *AreaHandlers) formatListNatural(areas []homeassistant.AreaRegistryEntry
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Found %d area(s):\n\n", len(areas)))
+	fmt.Fprintf(&output, "Found %d area(s):\n\n", len(areas))
 
 	for _, area := range areas {
-		output.WriteString(fmt.Sprintf("• %s (ID: %s)\n", area.Name, area.AreaID))
+		fmt.Fprintf(&output, "• %s (ID: %s)\n", area.Name, area.AreaID)
 		if area.FloorID != "" {
-			output.WriteString(fmt.Sprintf("  Floor: %s\n", area.FloorID))
+			fmt.Fprintf(&output, "  Floor: %s\n", area.FloorID)
 		}
 		if area.Icon != "" {
-			output.WriteString(fmt.Sprintf("  Icon: %s\n", area.Icon))
+			fmt.Fprintf(&output, "  Icon: %s\n", area.Icon)
 		}
 		if len(area.Aliases) > 0 {
-			output.WriteString(fmt.Sprintf("  Aliases: %s\n", strings.Join(area.Aliases, ", ")))
+			fmt.Fprintf(&output, "  Aliases: %s\n", strings.Join(area.Aliases, ", "))
 		}
 		if len(area.Labels) > 0 {
-			output.WriteString(fmt.Sprintf("  Labels: %s\n", strings.Join(area.Labels, ", ")))
+			fmt.Fprintf(&output, "  Labels: %s\n", strings.Join(area.Labels, ", "))
 		}
 	}
 
@@ -433,27 +433,27 @@ func (h *AreaHandlers) formatDetailJSON(area homeassistant.AreaRegistryEntry, de
 func (h *AreaHandlers) formatDetailNatural(area homeassistant.AreaRegistryEntry, deviceCount, entityCount int) (*mcp.ToolsCallResult, error) {
 	var output strings.Builder
 
-	output.WriteString(fmt.Sprintf("Area: %s\n", area.Name))
-	output.WriteString(fmt.Sprintf("ID: %s\n", area.AreaID))
+	fmt.Fprintf(&output, "Area: %s\n", area.Name)
+	fmt.Fprintf(&output, "ID: %s\n", area.AreaID)
 
 	if area.FloorID != "" {
-		output.WriteString(fmt.Sprintf("Floor: %s\n", area.FloorID))
+		fmt.Fprintf(&output, "Floor: %s\n", area.FloorID)
 	}
 	if area.Icon != "" {
-		output.WriteString(fmt.Sprintf("Icon: %s\n", area.Icon))
+		fmt.Fprintf(&output, "Icon: %s\n", area.Icon)
 	}
 	if area.Picture != "" {
-		output.WriteString(fmt.Sprintf("Picture: %s\n", area.Picture))
+		fmt.Fprintf(&output, "Picture: %s\n", area.Picture)
 	}
 	if len(area.Aliases) > 0 {
-		output.WriteString(fmt.Sprintf("Aliases: %s\n", strings.Join(area.Aliases, ", ")))
+		fmt.Fprintf(&output, "Aliases: %s\n", strings.Join(area.Aliases, ", "))
 	}
 	if len(area.Labels) > 0 {
-		output.WriteString(fmt.Sprintf("Labels: %s\n", strings.Join(area.Labels, ", ")))
+		fmt.Fprintf(&output, "Labels: %s\n", strings.Join(area.Labels, ", "))
 	}
 	if deviceCount > 0 || entityCount > 0 {
-		output.WriteString(fmt.Sprintf("\nDevices: %d\n", deviceCount))
-		output.WriteString(fmt.Sprintf("Entities: %d\n", entityCount))
+		fmt.Fprintf(&output, "\nDevices: %d\n", deviceCount)
+		fmt.Fprintf(&output, "Entities: %d\n", entityCount)
 	}
 
 	return successResult(output.String()), nil

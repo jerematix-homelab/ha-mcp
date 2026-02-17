@@ -12,7 +12,7 @@ type WSMessage struct {
 // WSAuthMessage is sent to authenticate with Home Assistant.
 type WSAuthMessage struct {
 	Type        string `json:"type"`
-	AccessToken string `json:"access_token"`
+	AccessToken string `json:"access_token"` //nolint:gosec // G117 false positive - not a hardcoded credential
 }
 
 // WSAuthRequired is received when connection requires authentication.
