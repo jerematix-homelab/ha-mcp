@@ -15,7 +15,31 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **HA Communication** | WebSocket + REST API (Hybrid)              | Direct Python API (internal)                                |
 | **Tool Design**      | 33 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
 | **Authentication**   | Long-Lived Access Token                    | OAuth (IndieAuth) + Long-Lived Token                        |
-| **Entity Access**    | All entities (no filtering)                | Only explicitly exposed entities (Voice Assistant Exposure) |
+| **Access Control**   | Tool-level filtering (read-only, whitelist/blacklist, action-level) | Entity-level exposure (Voice Assistant Exposure) |
+
+---
+
+## Access Control Comparison
+
+| Feature                  | ha-mcp                                                                 | Official HA MCP                                    |
+| ------------------------ | ---------------------------------------------------------------------- | -------------------------------------------------- |
+| **Control Level**        | Tool and action level                                                  | Entity level                                       |
+| **Read-Only Mode**       | ✅ Yes (blocks all write operations)                                   | ❌ No (entity exposure only)                       |
+| **Whitelist**            | ✅ Yes (specify allowed tools/actions)                                 | ✅ Yes (expose specific entities)                  |
+| **Blacklist**            | ✅ Yes (block specific tools/actions)                                  | ❌ No                                              |
+| **Glob Patterns**        | ✅ Yes (`manage_*:delete`, `get_*`)                                    | ❌ No                                              |
+| **Category Filtering**   | ✅ Yes (`*:write`, `*:read`)                                           | ❌ No                                              |
+| **Sub-Action Control**   | ✅ Yes (`query_entities:health:remove`)                                | ❌ No                                              |
+| **Granularity**          | Per tool, per action, per sub-action                                   | Per entity                                         |
+| **Use Case**             | Limit AI capabilities (e.g., read-only monitoring, block deletions)    | Limit entity visibility (e.g., hide private rooms) |
+| **Schema Modification**  | ✅ Yes (filtered tools show only allowed actions in schema)            | ❌ No                                              |
+| **Runtime Enforcement**  | ✅ Yes (blocked actions return error)                                  | ✅ Yes (unexposed entities invisible)              |
+
+**Summary:** Both provide access control at different levels:
+- **ha-mcp**: Controls *what the AI can do* (tool/action level)
+- **Official**: Controls *what the AI can see* (entity level)
+
+For maximum security, you could theoretically use both: Official integration for entity filtering + ha-mcp's tool filtering if running both in parallel (though that's not a typical setup).
 
 ---
 
@@ -166,18 +190,19 @@ This document compares the features of `ha-mcp` (this project) with the official
 - **Flexibility**: `call_service` can invoke *any* HA service
 - **Output Formats**: Natural Language (LLM-optimized) and JSON
 - **Pagination**: Comprehensive pagination for large datasets
+- **Tool-Level Access Control**: Read-only mode, whitelist/blacklist, glob patterns, category-based filtering (`*:write`, `*:read`)
 
 ### Official HA MCP Strengths:
 - **Calendar & Todos**: Dedicated tools (`CalendarGetEvents`, `TodoGetItems`) - not available in ha-mcp
 - **Simplicity**: Fewer tools, intent-based, easier for basic scenarios
-- **Security**: Entity exposure control (only whitelisted entities visible)
+- **Entity-Level Security**: Fine-grained entity exposure control (only whitelisted entities visible)
 - **No Infrastructure**: Runs inside HA itself, no external server needed
 - **OAuth Support**: Standards-compliant authentication
 
 ### Feature Gaps in ha-mcp:
 1. **Calendar Events** retrieval (`CalendarGetEvents` equivalent)
 2. **Todo Lists** management (`TodoGetItems` equivalent)
-3. **Entity Exposure Filter** (security feature)
+3. **Entity-Level Access Control** (ha-mcp provides tool-level access control instead)
 
 ### Feature Gaps in Official HA MCP:
 1. No CRUD for automations/scripts/scenes/helpers
