@@ -474,8 +474,9 @@ server:
 - **Tool Removal**: Completely blocked tools disappear from `tools/list` (the AI won't see them)
 - **Schema Modification**: Partially blocked tools have their schemas updated to show only allowed actions
 - **Runtime Check**: Attempted blocked actions return an error at runtime
-- **Priority**: Whitelist takes precedence - if non-empty, blacklist is ignored
-- **Validation**: You cannot specify both whitelist and blacklist (configuration error)
+- **Mutual Exclusion**: Whitelist and blacklist cannot be used together - configuration validation will fail if both are non-empty
+- **Whitelist Mode**: If whitelist is specified, ONLY listed items are allowed (implicit deny-all)
+- **Blacklist Mode**: If whitelist is empty, blacklist blocks specific items (implicit allow-all)
 - **AI Notification**: When filter is active, clients receive a "⚠️ SERVER IN RESTRICTED MODE" message
 
 ### Example Scenarios
@@ -509,17 +510,21 @@ server:
       - "manage_scene:activate"        # Block scene activation
 ```
 
-**Scenario 4: Read-only + specific write exceptions**
+**Scenario 4: Whitelist with specific write operations allowed**
 ```yaml
 server:
-  read_only: false
   tool_filter:
-    blacklist:
-      - "*:write"                      # Block all writes
     whitelist:
-      - "*:read"                       # Allow all reads
+      - "get_*"                        # All get tools
+      - "query_*"                      # All query tools
+      - "analyze_*"                    # All analysis tools
+      - "manage_automation:list"       # Read automation
+      - "manage_automation:get"
+      - "manage_automation:toggle"     # Exception: allow enable/disable
       - "helper_action"                # Exception: allow helper actions
 ```
+
+**Note:** You cannot combine whitelist and blacklist - the server will refuse to start with a validation error if both are specified.
 
 ## Usage
 
