@@ -43,6 +43,7 @@ const (
 	helperTypeRandomSensor         = "random_sensor"
 	helperTypeRandomBinarySensor   = "random_binary_sensor"
 	serviceSetValue                = "set_value"
+	helperActionUpdate             = "update"
 )
 
 // helperTypeMetadata defines metadata for each helper type.
@@ -614,7 +615,7 @@ func (h *ConsolidatedHelperHandlers) handleManageHelper(ctx context.Context, cli
 		return h.handleList(ctx, client, args)
 	case "create":
 		return h.handleCreate(ctx, client, args)
-	case "update":
+	case helperActionUpdate:
 		return h.handleUpdate(ctx, client, args)
 	case "delete":
 		return h.handleDelete(ctx, client, args)

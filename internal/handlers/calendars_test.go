@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -170,7 +171,19 @@ func TestManageCalendar_CreateEvent(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "calendar" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "create_event" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
+			if data["entity_id"] != "calendar.personal" {
+				return nil, fmt.Errorf("data[entity_id] = %v, want %q", data["entity_id"], "calendar.personal")
+			}
+			if data["summary"] != "Doctor Appointment" {
+				return nil, fmt.Errorf("data[summary] = %v, want %q", data["summary"], "Doctor Appointment")
+			}
 			return nil, nil
 		},
 	}
@@ -204,7 +217,19 @@ func TestManageCalendar_DeleteEvent(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "calendar" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "delete_event" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
+			if data["entity_id"] != "calendar.personal" {
+				return nil, fmt.Errorf("data[entity_id] = %v, want %q", data["entity_id"], "calendar.personal")
+			}
+			if data["uid"] != "event123" {
+				return nil, fmt.Errorf("data[uid] = %v, want %q", data["uid"], "event123")
+			}
 			return nil, nil
 		},
 	}

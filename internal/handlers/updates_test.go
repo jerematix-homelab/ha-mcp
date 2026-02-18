@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -153,7 +154,13 @@ func TestManageUpdate_ReleaseNotes(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+		SendHACSCommandFn: func(_ context.Context, cmd string, data map[string]any) (any, error) {
+			if cmd != "update/release_notes" {
+				return nil, fmt.Errorf("wrong command: %s", cmd)
+			}
+			if data["entity_id"] != "update.hass_os" {
+				return nil, fmt.Errorf("data[entity_id] = %v, want %q", data["entity_id"], "update.hass_os")
+			}
 			return map[string]any{
 				"release_notes": "### New Features\n- Feature 1\n- Feature 2",
 			}, nil
@@ -204,7 +211,13 @@ func TestManageUpdate_Install(t *testing.T) {
 
 	var capturedData map[string]any
 	client := &UniversalMockClient{
-		CallServiceFn: func(_ context.Context, _, _ string, data map[string]any) ([]homeassistant.Entity, error) {
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "update" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "install" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
 			capturedData = data
 			return nil, nil
 		},
@@ -235,7 +248,16 @@ func TestManageUpdate_Skip(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+		CallServiceFn: func(_ context.Context, domain, name string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "update" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if name != "skip" {
+				return nil, fmt.Errorf("wrong service: %s", name)
+			}
+			if data["entity_id"] != "update.core" {
+				return nil, fmt.Errorf("data[entity_id] = %v, want %q", data["entity_id"], "update.core")
+			}
 			return nil, nil
 		},
 	}

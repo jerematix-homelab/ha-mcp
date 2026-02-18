@@ -73,7 +73,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format": "natural",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/info" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return map[string]any{
 						"version":       "1.34.0",
 						"lovelace_mode": "storage",
@@ -89,7 +92,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format": "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(_ context.Context, _ string, _ map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/info" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return map[string]any{
 						"version":       "1.34.0",
 						"lovelace_mode": "storage",
@@ -109,7 +115,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format": "natural",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(_ context.Context, _ string, _ map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repositories/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return []any{
 						map[string]any{
 							"id":        "123456",
@@ -222,7 +231,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format": "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repositories/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return []any{
 						map[string]any{
 							"id":          "1",
@@ -250,7 +262,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format": "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repositories/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return []any{
 						map[string]any{
 							"id":          "1",
@@ -279,7 +294,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format":   "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repositories/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return []any{
 						map[string]any{
 							"id":          "1",
@@ -313,7 +331,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format":   "natural",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repositories/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return []any{
 						map[string]any{
 							"id":       "1",
@@ -379,7 +400,13 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format":        "natural",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(_ context.Context, _ string, _ map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, data map[string]any) (any, error) {
+					if cmd != "hacs/repository/info" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					if data["repository_id"] != "123456" {
+						return nil, fmt.Errorf("data[repository_id] = %v, want %q", data["repository_id"], "123456")
+					}
 					return map[string]any{
 						"name":     "hacs-frontend",
 						"category": "integration",
@@ -397,7 +424,13 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format":        "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, data map[string]any) (any, error) {
+					if cmd != "hacs/repository/releases" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					if data["repository_id"] != "123456" {
+						return nil, fmt.Errorf("data[repository_id] = %v, want %q", data["repository_id"], "123456")
+					}
 					return []any{
 						map[string]any{"tag": "1.0.0"},
 					}, nil
@@ -413,7 +446,13 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format":        "natural",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, data map[string]any) (any, error) {
+					if cmd != "hacs/repository/release_notes" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					if data["repository_id"] != "123456" {
+						return nil, fmt.Errorf("data[repository_id] = %v, want %q", data["repository_id"], "123456")
+					}
 					return map[string]any{
 						"tag":  "1.0.0",
 						"body": "Bug fixes",
@@ -429,7 +468,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"format": "json",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/critical/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return []any{}, nil
 				}
 			},
@@ -616,7 +658,10 @@ func TestHACSHandlers_HandleManageHACS(t *testing.T) {
 				"action": "info",
 			},
 			setupMock: func(m *UniversalMockClient) {
-				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/info" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return nil, fmt.Errorf("unknown_command")
 				}
 			},
@@ -703,7 +748,10 @@ func TestHACSHandlers_FormatOutput(t *testing.T) {
 			// Call a private formatter method through HandleManageHACS
 			ctx := context.Background()
 			mock := &UniversalMockClient{
-				SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+				SendHACSCommandFn: func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/info" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
 					return tt.data, nil
 				},
 			}

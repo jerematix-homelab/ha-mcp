@@ -163,9 +163,9 @@ func (h *TraceHandlers) handleGetTrace(ctx context.Context, client homeassistant
 
 	// Build command data
 	data := map[string]any{
-		"domain":    domain,
-		"entity_id": entityID,
-		"run_id":    runID,
+		"domain":  domain,
+		"item_id": entityID,
+		"run_id":  runID,
 	}
 
 	// Call trace/get WebSocket command

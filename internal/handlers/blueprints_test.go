@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/mcp"
@@ -161,7 +162,15 @@ func TestManageBlueprint_List(t *testing.T) {
 			t.Parallel()
 
 			client := &UniversalMockClient{
-				SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+				SendHACSCommandFn: func(_ context.Context, cmd string, data map[string]any) (any, error) {
+					if cmd != "blueprint/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					if domain, _ := tt.args["domain"].(string); domain != "" {
+						if data["domain"] != domain {
+							return nil, fmt.Errorf("data[domain] = %v, want %q", data["domain"], domain)
+						}
+					}
 					return tt.mockResponse, nil
 				},
 			}
@@ -218,7 +227,13 @@ func TestManageBlueprint_Import(t *testing.T) {
 			t.Parallel()
 
 			client := &UniversalMockClient{
-				SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+				SendHACSCommandFn: func(_ context.Context, cmd string, data map[string]any) (any, error) {
+					if cmd != "blueprint/import" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					if data["url"] == nil || data["url"] == "" {
+						return nil, fmt.Errorf("expected url in data, got: %v", data)
+					}
 					return map[string]any{"success": true}, nil
 				},
 			}
