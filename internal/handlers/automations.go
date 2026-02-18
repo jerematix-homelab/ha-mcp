@@ -201,7 +201,7 @@ func (h *AutomationHandlers) handleList(ctx context.Context, client homeassistan
 	filtersMap := buildAutomationFiltersMap(filters)
 	paginationParams, err := ParsePaginationParams(args, filtersMap)
 	if err != nil {
-		return errorResult(fmt.Sprintf("Error: %v", err)), nil
+		return errorResult(fmt.Sprintf("error parsing pagination parameters: %v", err)), nil
 	}
 
 	paginated := ApplyPagination(filterResult.automations, paginationParams)

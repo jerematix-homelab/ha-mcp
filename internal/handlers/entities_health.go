@@ -184,16 +184,16 @@ func (h *ConsolidatedEntityQueryHandlers) handleHealthRemove(
 	// Parse entity_ids parameter
 	entityIDsRaw, ok := args["entity_ids"]
 	if !ok {
-		return nil, fmt.Errorf("entity_ids parameter is required for remove action")
+		return errorResult("entity_ids parameter is required for remove action"), nil
 	}
 
 	entityIDsAny, ok := entityIDsRaw.([]any)
 	if !ok {
-		return nil, fmt.Errorf("entity_ids must be an array of strings")
+		return errorResult("entity_ids must be an array of strings"), nil
 	}
 
 	if len(entityIDsAny) == 0 {
-		return nil, fmt.Errorf("entity_ids cannot be empty")
+		return errorResult("entity_ids cannot be empty"), nil
 	}
 
 	// Convert to string slice

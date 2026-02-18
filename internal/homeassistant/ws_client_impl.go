@@ -782,7 +782,10 @@ func (c *wsClientImpl) RemoveEntityRegistryEntry(ctx context.Context, entityID s
 	_, err := c.ws.SendCommand(ctx, "config/entity_registry/remove", map[string]any{
 		"entity_id": entityID,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("remove entity registry entry failed: %w", err)
+	}
+	return nil
 }
 
 // UpdateEntityRegistryEntry updates an existing entity in the entity registry.
@@ -837,7 +840,10 @@ func (c *wsClientImpl) RemoveDeviceConfigEntry(ctx context.Context, deviceID, co
 		"device_id":       deviceID,
 		"config_entry_id": configEntryID,
 	})
-	return err
+	if err != nil {
+		return fmt.Errorf("remove device config entry failed: %w", err)
+	}
+	return nil
 }
 
 // UpdateDeviceRegistryEntry updates an existing device in the device registry.

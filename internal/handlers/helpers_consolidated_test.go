@@ -142,7 +142,7 @@ func TestManageHelper_CreateInputNumber(t *testing.T) {
 				"name":   "Test Number",
 			},
 			wantError:    true,
-			wantContains: []string{"min is required"},
+			wantContains: []string{"min must be a number"},
 		},
 		{
 			name: "create input_number with min/max",
