@@ -275,6 +275,15 @@ var allSupportedActions = []string{
 	"add_entities", "remove_entities", "calibrate",
 }
 
+// allHelperTypeNames lists all valid helper types for the manage_helper create action (sorted).
+var allHelperTypeNames = []string{
+	"counter", "derivative", "filter", "generic_hygrostat", "generic_thermostat",
+	"group", "input_boolean", "input_button", "input_datetime", "input_number",
+	"input_select", "input_text", "integral", "min_max", "random_binary_sensor",
+	"random_sensor", "schedule", "statistics", "switch_as_x", "template_binary_sensor",
+	"template_sensor", "threshold", "timer", "tod", "trend", "utility_meter",
+}
+
 // ConsolidatedHelperHandlers provides unified MCP tool handlers for all helper types.
 type ConsolidatedHelperHandlers struct{}
 
@@ -648,7 +657,7 @@ func (h *ConsolidatedHelperHandlers) handleCreate(ctx context.Context, client ho
 
 	meta, ok := helperTypes[helperType]
 	if !ok {
-		return errorResult(fmt.Sprintf("invalid helper type: %s", helperType)), nil
+		return errorResult(fmt.Sprintf("invalid helper type: %s (valid types: %s)", helperType, strings.Join(allHelperTypeNames, ", "))), nil
 	}
 
 	id, _ := args["id"].(string)
@@ -814,7 +823,7 @@ func (h *ConsolidatedHelperHandlers) handleUpdate(ctx context.Context, client ho
 	// Extract platform and helper ID from entity_id
 	platform, helperID := ParseHelperEntityID(entityID)
 	if platform == "" || helperID == "" {
-		return errorResult(fmt.Sprintf("invalid entity_id format: %s", entityID)), nil
+		return errorResult(fmt.Sprintf("invalid entity_id format: %s (expected format: 'domain.object_id')", entityID)), nil
 	}
 
 	// Determine helper type from platform
@@ -1278,13 +1287,13 @@ func (h *ConsolidatedHelperHandlers) handleHelperAction(ctx context.Context, cli
 
 	// Validate action is in supported list
 	if !isValidAction(action) {
-		return errorResult(fmt.Sprintf("invalid action: %s", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s (valid actions: %s)", action, strings.Join(allSupportedActions, ", "))), nil
 	}
 
 	// Get entity domain
 	domain, _ := ParseHelperEntityID(entityID)
 	if domain == "" {
-		return errorResult(fmt.Sprintf("invalid entity_id format: %s", entityID)), nil
+		return errorResult(fmt.Sprintf("invalid entity_id format: %s (expected format: 'domain.object_id')", entityID)), nil
 	}
 
 	// Route to appropriate handler based on action
@@ -1956,7 +1965,7 @@ func validateSingleField(field, helperType string, args map[string]any) error {
 		// Check for numeric fields (float64)
 		_, ok := args[field].(float64)
 		if !ok {
-			return fmt.Errorf("%s is required for %s", field, helperType)
+			return fmt.Errorf("%s must be a number for %s", field, helperType)
 		}
 	default:
 		val, _ := args[field].(string)

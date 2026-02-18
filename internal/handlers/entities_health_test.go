@@ -526,26 +526,16 @@ func TestQueryEntities_Health_Remove(t *testing.T) {
 			handlers := NewConsolidatedEntityQueryHandlers()
 			result, err := handlers.handleQueryEntities(context.Background(), mockClient, tt.args)
 
-			if tt.wantError {
-				if err == nil {
-					t.Error("expected error, got nil")
-				} else {
-					// Check error message contains expected string
-					for _, want := range tt.wantContains {
-						if !strings.Contains(err.Error(), want) {
-							t.Errorf("error missing %q, got: %v", want, err)
-						}
-					}
-				}
-				return
-			}
-
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if len(result.Content) == 0 {
+			if result == nil || len(result.Content) == 0 {
 				t.Fatal("expected content, got empty")
+			}
+
+			if result.IsError != tt.wantError {
+				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantError)
 			}
 
 			content := result.Content[0].Text
