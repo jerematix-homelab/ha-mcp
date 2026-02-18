@@ -985,6 +985,7 @@ type mockRESTOperations struct {
 	createScriptFunc                     func(ctx context.Context, scriptID string, config ScriptConfig) error
 	updateScriptFunc                     func(ctx context.Context, scriptID string, config ScriptConfig) error
 	deleteScriptFunc                     func(ctx context.Context, scriptID string) error
+	getSceneFunc                         func(ctx context.Context, sceneID string) (*Scene, error)
 	createSceneFunc                      func(ctx context.Context, sceneID string, config SceneConfig) error
 	updateSceneFunc                      func(ctx context.Context, sceneID string, config SceneConfig) error
 	deleteSceneFunc                      func(ctx context.Context, sceneID string) error
@@ -1044,6 +1045,13 @@ func (m *mockRESTOperations) DeleteScript(ctx context.Context, scriptID string) 
 		return m.deleteScriptFunc(ctx, scriptID)
 	}
 	return nil
+}
+
+func (m *mockRESTOperations) GetScene(ctx context.Context, sceneID string) (*Scene, error) {
+	if m.getSceneFunc != nil {
+		return m.getSceneFunc(ctx, sceneID)
+	}
+	return nil, nil
 }
 
 func (m *mockRESTOperations) CreateScene(ctx context.Context, sceneID string, config SceneConfig) error {
@@ -1744,6 +1752,34 @@ func TestHybridClient_RESTOperations_UpdateScene(t *testing.T) {
 	}
 	if !called {
 		t.Error("REST UpdateScene was not called")
+	}
+}
+
+func TestHybridClient_RESTOperations_GetScene(t *testing.T) {
+	t.Parallel()
+
+	called := false
+	mockREST := &mockRESTOperations{
+		getSceneFunc: func(_ context.Context, sceneID string) (*Scene, error) {
+			called = true
+			if sceneID != "morning_scene" {
+				t.Errorf("got sceneID %q, want morning_scene", sceneID)
+			}
+			return &Scene{EntityID: "scene.morning_scene", Config: &SceneConfig{Name: "Morning Scene"}}, nil
+		},
+	}
+
+	client := NewHybridClientWithInterfaces(&mockWSOperations{}, mockREST)
+	scene, err := client.GetScene(context.Background(), "morning_scene")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Error("REST GetScene was not called")
+	}
+	if scene == nil || scene.Config == nil || scene.Config.Name != "Morning Scene" {
+		t.Errorf("unexpected scene: %+v", scene)
 	}
 }
 

@@ -686,6 +686,11 @@ func (c *wsClientImpl) DeleteScene(ctx context.Context, sceneID string) error {
 	return nil
 }
 
+// GetScene is not supported via WebSocket; use HybridClient which routes to REST.
+func (c *wsClientImpl) GetScene(_ context.Context, sceneID string) (*Scene, error) {
+	return nil, fmt.Errorf("GetScene not supported via WebSocket for scene %q; use HybridClient", sceneID)
+}
+
 // =============================================================================
 // Schedule Config Operations (WebSocket-only)
 // =============================================================================

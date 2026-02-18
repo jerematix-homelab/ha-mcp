@@ -49,6 +49,7 @@ type UniversalMockClient struct {
 
 	// Scene operations
 	ListScenesFn  func(ctx context.Context) ([]homeassistant.Entity, error)
+	GetSceneFn    func(ctx context.Context, sceneID string) (*homeassistant.Scene, error)
 	CreateSceneFn func(ctx context.Context, sceneID string, config homeassistant.SceneConfig) error
 	UpdateSceneFn func(ctx context.Context, sceneID string, config homeassistant.SceneConfig) error
 	DeleteSceneFn func(ctx context.Context, sceneID string) error
@@ -302,6 +303,13 @@ func (m *UniversalMockClient) ListScenes(ctx context.Context) ([]homeassistant.E
 		return m.ListScenesFn(ctx)
 	}
 	return []homeassistant.Entity{}, nil
+}
+
+func (m *UniversalMockClient) GetScene(ctx context.Context, sceneID string) (*homeassistant.Scene, error) {
+	if m.GetSceneFn != nil {
+		return m.GetSceneFn(ctx, sceneID)
+	}
+	return &homeassistant.Scene{EntityID: "scene." + sceneID}, nil
 }
 
 func (m *UniversalMockClient) CreateScene(ctx context.Context, sceneID string, config homeassistant.SceneConfig) error {

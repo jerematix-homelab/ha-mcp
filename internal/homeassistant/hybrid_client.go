@@ -157,7 +157,8 @@ type RESTOperations interface {
 	UpdateScript(ctx context.Context, scriptID string, config ScriptConfig) error
 	DeleteScript(ctx context.Context, scriptID string) error
 
-	// Scene operations (REST-only for create/update/delete)
+	// Scene operations (REST-only for create/update/delete/get)
+	GetScene(ctx context.Context, sceneID string) (*Scene, error)
 	CreateScene(ctx context.Context, sceneID string, config SceneConfig) error
 	UpdateScene(ctx context.Context, sceneID string, config SceneConfig) error
 	DeleteScene(ctx context.Context, sceneID string) error
@@ -912,6 +913,11 @@ func (c *HybridClient) DeleteScript(ctx context.Context, scriptID string) error 
 // ListScenes lists all scenes.
 func (c *HybridClient) ListScenes(ctx context.Context) ([]Entity, error) {
 	return c.ws.ListScenes(ctx)
+}
+
+// GetScene retrieves the full configuration of a scene by ID using the REST API.
+func (c *HybridClient) GetScene(ctx context.Context, sceneID string) (*Scene, error) {
+	return c.rest.GetScene(ctx, sceneID)
 }
 
 // CreateScene creates a new scene using the REST API.

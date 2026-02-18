@@ -797,6 +797,11 @@ func (c *CachedClient) ListScenes(ctx context.Context) ([]Entity, error) {
 }
 
 //nolint:revive // Delegated method
+func (c *CachedClient) GetScene(ctx context.Context, sceneID string) (*Scene, error) {
+	return c.client.GetScene(ctx, sceneID)
+}
+
+//nolint:revive // Delegated method
 func (c *CachedClient) CreateScene(ctx context.Context, sceneID string, scene SceneConfig) error {
 	return c.client.CreateScene(ctx, sceneID, scene)
 }

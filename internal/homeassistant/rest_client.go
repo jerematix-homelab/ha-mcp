@@ -496,6 +496,52 @@ func buildSceneData(sceneID string, config SceneConfig) map[string]any {
 	return sceneData
 }
 
+// GetScene retrieves the full configuration of a scene by ID.
+// Endpoint: GET /api/config/scene/config/{scene_id}
+func (c *RESTClient) GetScene(ctx context.Context, sceneID string) (*Scene, error) {
+	url := fmt.Sprintf("%s/api/config/scene/config/%s", c.baseURL, sceneID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("creating get scene request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("executing get scene request: %w", err)
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading get scene response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, handleConfigError(resp.StatusCode, body, configErrorInfo{
+			typeName:   "scene",
+			entityID:   sceneID,
+			actionName: "get",
+		})
+	}
+
+	var cfg SceneConfig
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		return nil, fmt.Errorf("parsing get scene response: %w", err)
+	}
+
+	return &Scene{
+		EntityID: "scene." + sceneID,
+		Config:   &cfg,
+	}, nil
+}
+
 // CreateScene creates a new scene using the REST API.
 // The WebSocket API does not support scene creation reliably.
 // Endpoint: POST /api/config/scene/config/{scene_id}

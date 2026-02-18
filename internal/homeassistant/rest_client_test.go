@@ -1669,3 +1669,149 @@ func TestRESTClient_UpdateScene(t *testing.T) {
 		})
 	}
 }
+
+func TestRESTClient_GetScene(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		sceneID        string
+		serverResponse func(w http.ResponseWriter, r *http.Request)
+		wantErr        bool
+		wantErrMsg     string
+		wantName       string
+		wantEntityID   string
+		wantEntities   map[string]SceneState
+	}{
+		{
+			name:    "successful get with entities having state and attributes",
+			sceneID: "morning_routine",
+			serverResponse: func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					t.Errorf("method = %q, want GET", r.Method)
+				}
+				if r.URL.Path != "/api/config/scene/config/morning_routine" {
+					t.Errorf("path = %q, want /api/config/scene/config/morning_routine", r.URL.Path)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{
+					"id": "morning_routine",
+					"name": "Morning Routine",
+					"icon": "mdi:sunrise",
+					"entities": {
+						"light.bedroom": {"state": "on", "brightness": 255, "color_temp": 300},
+						"switch.fan": {"state": "off"}
+					}
+				}`))
+			},
+			wantErr:      false,
+			wantName:     "Morning Routine",
+			wantEntityID: "scene.morning_routine",
+			wantEntities: map[string]SceneState{
+				"light.bedroom": {State: "on", Attributes: map[string]any{"brightness": float64(255), "color_temp": float64(300)}},
+				"switch.fan":    {State: "off"},
+			},
+		},
+		{
+			name:    "successful get with no entities",
+			sceneID: "empty_scene",
+			serverResponse: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`{"id": "empty_scene", "name": "Empty Scene", "entities": {}}`))
+			},
+			wantErr:      false,
+			wantName:     "Empty Scene",
+			wantEntityID: "scene.empty_scene",
+			wantEntities: map[string]SceneState{},
+		},
+		{
+			name:    "scene not found",
+			sceneID: "nonexistent",
+			serverResponse: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			},
+			wantErr:    true,
+			wantErrMsg: "scene not found: nonexistent",
+		},
+		{
+			name:    "unauthorized",
+			sceneID: "test_scene",
+			serverResponse: func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusUnauthorized)
+			},
+			wantErr:    true,
+			wantErrMsg: "unauthorized: invalid or expired token",
+		},
+		{
+			name:    "invalid JSON response",
+			sceneID: "bad_scene",
+			serverResponse: func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("invalid json"))
+			},
+			wantErr:    true,
+			wantErrMsg: "parsing get scene response",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var capturedRequest *http.Request
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				capturedRequest = r
+				tt.serverResponse(w, r)
+			}))
+			defer server.Close()
+
+			client := NewRESTClient(server.URL, "test-token")
+			scene, err := client.GetScene(context.Background(), tt.sceneID)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetScene() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			// Verify auth header
+			if capturedRequest != nil {
+				if auth := capturedRequest.Header.Get("Authorization"); auth != "Bearer test-token" {
+					t.Errorf("Authorization = %q, want %q", auth, "Bearer test-token")
+				}
+			}
+
+			if tt.wantErr {
+				if err != nil && tt.wantErrMsg != "" {
+					var apiErr *APIError
+					if errors.As(err, &apiErr) {
+						if apiErr.Message != tt.wantErrMsg && !strings.Contains(apiErr.Message, tt.wantErrMsg) {
+							t.Errorf("error message = %q, want to contain %q", apiErr.Message, tt.wantErrMsg)
+						}
+					} else if !strings.Contains(err.Error(), tt.wantErrMsg) {
+						t.Errorf("error = %q, want to contain %q", err.Error(), tt.wantErrMsg)
+					}
+				}
+				return
+			}
+
+			if scene == nil {
+				t.Fatal("GetScene() returned nil scene")
+			}
+			if scene.EntityID != tt.wantEntityID {
+				t.Errorf("EntityID = %q, want %q", scene.EntityID, tt.wantEntityID)
+			}
+			if scene.Config == nil {
+				t.Fatal("GetScene() returned scene with nil Config")
+			}
+			if scene.Config.Name != tt.wantName {
+				t.Errorf("Config.Name = %q, want %q", scene.Config.Name, tt.wantName)
+			}
+			if diff := cmp.Diff(tt.wantEntities, scene.Config.Entities); diff != "" {
+				t.Errorf("Config.Entities mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}

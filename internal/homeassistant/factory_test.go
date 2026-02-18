@@ -230,6 +230,9 @@ func (m *mockNonCloserClient) DeleteScript(_ context.Context, _ string) error {
 func (m *mockNonCloserClient) ListScenes(_ context.Context) ([]Entity, error) {
 	return []Entity{}, nil
 }
+func (m *mockNonCloserClient) GetScene(_ context.Context, _ string) (*Scene, error) {
+	return nil, nil
+}
 func (m *mockNonCloserClient) CreateScene(_ context.Context, _ string, _ SceneConfig) error {
 	return nil
 }

@@ -49,6 +49,7 @@ type Client interface {
 
 	// Scene operations
 	ListScenes(ctx context.Context) ([]Entity, error)
+	GetScene(ctx context.Context, sceneID string) (*Scene, error)
 	CreateScene(ctx context.Context, sceneID string, scene SceneConfig) error
 	UpdateScene(ctx context.Context, sceneID string, scene SceneConfig) error
 	DeleteScene(ctx context.Context, sceneID string) error

@@ -236,6 +236,9 @@ func (m *mockClient) UpdateScript(ctx context.Context, scriptID string, script S
 }
 func (m *mockClient) DeleteScript(ctx context.Context, scriptID string) error { return nil }
 func (m *mockClient) ListScenes(ctx context.Context) ([]Entity, error)        { return nil, nil }
+func (m *mockClient) GetScene(ctx context.Context, sceneID string) (*Scene, error) {
+	return nil, nil
+}
 func (m *mockClient) CreateScene(ctx context.Context, sceneID string, scene SceneConfig) error {
 	return nil
 }

@@ -736,7 +736,7 @@ Universal tool for runtime helper operations:
 
 | Tool           | Description                                                                                                             |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate; format: natural/json for list/get) |
+| `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate, patch (RFC 6902 JSON Patch); format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `scene_id` parameter accepts multiple formats:
 - Entity ID: `scene.movie_time`

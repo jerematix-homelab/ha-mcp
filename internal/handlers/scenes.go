@@ -8,6 +8,7 @@ import (
 
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
+	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
@@ -19,6 +20,7 @@ const (
 	sceneActionUpdate   = "update"
 	sceneActionDelete   = "delete"
 	sceneActionActivate = "activate"
+	sceneActionPatch    = "patch"
 )
 
 // SceneHandlers provides handlers for scene-related MCP tools.
@@ -41,7 +43,7 @@ func (h *SceneHandlers) RegisterTools(registry *mcp.Registry) {
 func (h *SceneHandlers) manageSceneTool() mcp.Tool {
 	return mcp.Tool{
 		Name: "manage_scene",
-		Description: `Manage Home Assistant scenes - list, get, create, update, delete, or activate.
+		Description: `Manage Home Assistant scenes - list, get, create, update, delete, activate, or patch.
 
 Actions:
 - list: List all scenes (optional filters: name_contains, entity_contains)
@@ -49,15 +51,16 @@ Actions:
 - create: Create a new scene (requires scene_id, name, entities)
 - update: Update an existing scene (requires scene_id)
 - delete: Delete a scene (requires scene_id)
-- activate: Activate a scene (requires scene_id, optional transition)`,
+- activate: Activate a scene (requires scene_id, optional transition)
+- patch: Apply RFC 6902 JSON Patch operations to a scene config (requires scene_id, operations)`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Scene management operation",
 			Properties: map[string]mcp.JSONSchema{
 				"action": {
 					Type:        "string",
-					Description: "Operation to perform: list, get, create, update, delete, activate",
-					Enum:        []string{"list", "get", "create", "update", "delete", "activate"},
+					Description: "Operation to perform: list, get, create, update, delete, activate, patch",
+					Enum:        []string{"list", "get", "create", "update", "delete", "activate", "patch"},
 				},
 				"scene_id": {
 					Type:        "string",
@@ -87,6 +90,7 @@ Actions:
 					Type:        "number",
 					Description: "Transition time in seconds (for activate action)",
 				},
+				"operations": patchOperationsSchema(),
 				"format": {
 					Type:        "string",
 					Enum:        []string{"natural", "json"},
@@ -125,8 +129,10 @@ func (h *SceneHandlers) handleManageScene(
 		return h.handleDelete(ctx, client, args)
 	case sceneActionActivate:
 		return h.handleActivate(ctx, client, args)
+	case sceneActionPatch:
+		return h.handlePatch(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, or activate)", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, activate, or patch)", action)), nil
 	}
 }
 
@@ -491,4 +497,62 @@ func buildSceneConfigFromArgs(current *homeassistant.Entity, args map[string]any
 	}
 
 	return config
+}
+
+func (h *SceneHandlers) handlePatch(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	sceneID, ok := args["scene_id"].(string)
+	if !ok || sceneID == "" {
+		return errorResult("scene_id is required for patch action"), nil
+	}
+
+	ops, errResult := parseOperations(args)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	_, configID := normalizeSceneID(sceneID)
+
+	current, err := client.GetScene(ctx, configID)
+	if err != nil {
+		var entity *homeassistant.Entity
+		entity, err = h.findSceneByID(ctx, client, sceneID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("error getting scene: %v", err)), nil
+		}
+		_, configID = normalizeSceneID(entity.EntityID)
+		current, err = client.GetScene(ctx, configID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("error getting scene: %v", err)), nil
+		}
+	}
+
+	if current.Config == nil {
+		return errorResult(fmt.Sprintf("scene '%s' has no configuration to patch", sceneID)), nil
+	}
+
+	configMap, err := configToMap(current.Config)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error processing scene config: %v", err)), nil
+	}
+
+	patchedAny, patchErr := jsonpatch.Apply(configMap, ops)
+	if patchErr != nil {
+		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	patchedMap, ok := patchedAny.(map[string]any)
+	if !ok {
+		return errorResult("patch result must be an object"), nil
+	}
+
+	var newConfig homeassistant.SceneConfig
+	if err := mapToStruct(patchedMap, &newConfig); err != nil {
+		return errorResult(fmt.Sprintf("error parsing patched config: %v", err)), nil
+	}
+
+	if err := client.UpdateScene(ctx, configID, newConfig); err != nil {
+		return errorResult(fmt.Sprintf("error saving patched scene: %v", err)), nil
+	}
+
+	return successResult(fmt.Sprintf("Scene '%s' patched successfully (%d operations applied)", sceneID, len(ops))), nil
 }
