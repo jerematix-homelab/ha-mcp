@@ -52,16 +52,16 @@ func TestDashboardHandlers_Schema(t *testing.T) {
 		t.Errorf("InputSchema.Type = %q, want %q", tool.InputSchema.Type, testSchemaTypeObject)
 	}
 
-	// Verify action enum has 6 values: list, get, create, update, delete, save_config
+	// Verify action enum has 7 values: list, get, create, update, delete, save_config, patch
 	actionProp, ok := tool.InputSchema.Properties["action"]
 	if !ok {
 		t.Fatal("expected 'action' property in schema")
 	}
-	if len(actionProp.Enum) != 6 {
-		t.Errorf("expected 6 action enum values, got %d", len(actionProp.Enum))
+	if len(actionProp.Enum) != 7 {
+		t.Errorf("expected 7 action enum values, got %d", len(actionProp.Enum))
 	}
 
-	expectedActions := []string{"list", "get", "create", "update", "delete", "save_config"}
+	expectedActions := []string{"list", "get", "create", "update", "delete", "save_config", "patch"}
 	for _, expected := range expectedActions {
 		found := false
 		for _, enum := range actionProp.Enum {
@@ -611,6 +611,139 @@ func TestHandleManageDashboard(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandleManageDashboard_Patch(t *testing.T) {
+	t.Parallel()
+
+	baseConfig := map[string]any{
+		"title": "Home",
+		"views": []any{
+			map[string]any{
+				"title": "Overview",
+				"path":  "overview",
+				"cards": []any{},
+			},
+		},
+	}
+
+	h := NewDashboardHandlers()
+
+	tests := []handlerTestCase{
+		{
+			name: "patch - missing operations",
+			args: map[string]any{
+				"action": "patch",
+			},
+			wantError:    true,
+			wantContains: []string{"operations is required"},
+		},
+		{
+			name: "patch - success add view",
+			args: map[string]any{
+				"action": "patch",
+				"operations": []any{
+					map[string]any{
+						"op":    "add",
+						"path":  "/views/-",
+						"value": map[string]any{"title": "New View", "path": "new"},
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(_ context.Context, _ string) (map[string]any, error) {
+					return deepCopyMap(baseConfig), nil
+				}
+				m.SaveLovelaceConfigFn = func(_ context.Context, _ string, _ map[string]any) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully", "1 operations"},
+		},
+		{
+			name: "patch - success with url_path",
+			args: map[string]any{
+				"action":   "patch",
+				"url_path": "energy",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/title", "value": "Updated Energy"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(context.Context, string) (map[string]any, error) {
+					return deepCopyMap(baseConfig), nil
+				}
+				m.SaveLovelaceConfigFn = func(_ context.Context, _ string, _ map[string]any) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully", "energy"},
+		},
+		{
+			name: "patch - get error",
+			args: map[string]any{
+				"action": "patch",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/title", "value": "New"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(_ context.Context, _ string) (map[string]any, error) {
+					return nil, fmt.Errorf("connection failed")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error getting dashboard"},
+		},
+		{
+			name: "patch - save error",
+			args: map[string]any{
+				"action": "patch",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/title", "value": "New"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(_ context.Context, _ string) (map[string]any, error) {
+					return deepCopyMap(baseConfig), nil
+				}
+				m.SaveLovelaceConfigFn = func(_ context.Context, _ string, _ map[string]any) error {
+					return fmt.Errorf("save failed")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error saving patched dashboard"},
+		},
+		{
+			name: "patch - invalid patch op",
+			args: map[string]any{
+				"action": "patch",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/nonexistent/0", "value": "x"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(_ context.Context, _ string) (map[string]any, error) {
+					return deepCopyMap(baseConfig), nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error applying patch"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageDashboard)
+}
+
+// deepCopyMap creates a shallow copy of a map to avoid test interference.
+func deepCopyMap(m map[string]any) map[string]any {
+	result := make(map[string]any, len(m))
+	for k, v := range m {
+		result[k] = v
+	}
+	return result
 }
 
 // Test helper functions (keep existing tests)

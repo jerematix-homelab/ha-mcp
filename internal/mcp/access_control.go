@@ -103,14 +103,14 @@ func addCoreManagementTools(result map[string]ToolClassification) {
 		ParamName: "action",
 		Actions: map[string]ActionCategory{
 			"list": CategoryRead, "get": CategoryRead, "coverage": CategoryRead,
-			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "toggle": CategoryWrite,
+			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "toggle": CategoryWrite, "patch": CategoryWrite,
 		},
 	}
 	result["manage_script"] = ToolClassification{
 		ParamName: "action",
 		Actions: map[string]ActionCategory{
 			"list": CategoryRead, "get": CategoryRead,
-			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "execute": CategoryWrite,
+			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "execute": CategoryWrite, "patch": CategoryWrite,
 		},
 	}
 	result["manage_scene"] = ToolClassification{
@@ -163,7 +163,7 @@ func addSpecialManagementTools(result map[string]ToolClassification) {
 		ParamName: "action",
 		Actions: map[string]ActionCategory{
 			"list": CategoryRead, "get": CategoryRead,
-			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "save_config": CategoryWrite,
+			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "save_config": CategoryWrite, "patch": CategoryWrite,
 		},
 	}
 	result["manage_hacs"] = ToolClassification{

@@ -11,6 +11,7 @@ import (
 
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
+	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
@@ -23,6 +24,7 @@ const (
 	automationActionDelete   = "delete"
 	automationActionToggle   = "toggle"
 	automationActionCoverage = "coverage"
+	automationActionPatch    = "patch"
 )
 
 // manualOnlyTrigger is a placeholder trigger for manual-only automations.
@@ -73,15 +75,16 @@ Actions:
 - update: Update an existing automation (requires automation_id)
 - delete: Delete an automation (requires automation_id)
 - toggle: Enable or disable an automation (requires automation_id, enabled)
-- coverage: Analyze which areas/entities lack automation coverage`,
+- coverage: Analyze which areas/entities lack automation coverage
+- patch: Apply RFC 6902 JSON Patch operations (requires automation_id, operations)`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Automation management operation",
 			Properties: map[string]mcp.JSONSchema{
 				"action": {
 					Type:        "string",
-					Description: "Operation to perform: list, get, create, update, delete, toggle, coverage",
-					Enum:        []string{"list", "get", "create", "update", "delete", "toggle", "coverage"},
+					Description: "Operation to perform: list, get, create, update, delete, toggle, coverage, patch",
+					Enum:        []string{"list", "get", "create", "update", "delete", "toggle", "coverage", "patch"},
 				},
 				"automation_id": {
 					Type:        "string",
@@ -141,6 +144,7 @@ Actions:
 					Enum:        []string{"natural", "json"},
 					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
 				},
+				"operations": patchOperationsSchema(),
 			},
 			Required: []string{"action"},
 		},
@@ -176,8 +180,10 @@ func (h *AutomationHandlers) handleManageAutomation(
 		return h.handleToggle(ctx, client, args)
 	case automationActionCoverage:
 		return h.handleCoverage(ctx, client, args)
+	case automationActionPatch:
+		return h.handlePatch(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, toggle, or coverage)", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, toggle, coverage, or patch)", action)), nil
 	}
 }
 
@@ -433,6 +439,64 @@ func (h *AutomationHandlers) handleToggle(ctx context.Context, client homeassist
 	}
 
 	return successResult(fmt.Sprintf("Automation '%s' %s successfully", automationID, state)), nil
+}
+
+//nolint:funlen // Patch handler
+func (h *AutomationHandlers) handlePatch(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	automationID, ok := args["automation_id"].(string)
+	if !ok || automationID == "" {
+		return errorResult("automation_id is required for patch action"), nil
+	}
+
+	ops, errResult := parseOperations(args)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	_, configID := normalizeAutomationID(automationID)
+
+	current, err := client.GetAutomation(ctx, configID)
+	if err != nil {
+		current, err = h.findAutomationByID(ctx, client, automationID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("error getting automation: %v", err)), nil
+		}
+	}
+
+	if current.Config == nil {
+		current.Config = &homeassistant.AutomationConfig{ID: configID}
+	}
+
+	configMap, err := configToMap(current.Config)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error processing automation config: %v", err)), nil
+	}
+
+	patchedAny, patchErr := jsonpatch.Apply(configMap, ops)
+	if patchErr != nil {
+		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	patchedMap, ok := patchedAny.(map[string]any)
+	if !ok {
+		return errorResult("patch result must be an object"), nil
+	}
+
+	var newConfig homeassistant.AutomationConfig
+	if err := mapToStruct(patchedMap, &newConfig); err != nil {
+		return errorResult(fmt.Sprintf("error parsing patched config: %v", err)), nil
+	}
+
+	actualConfigID := configID
+	if current.Config.ID != "" && current.Config.ID != configID {
+		actualConfigID = current.Config.ID
+	}
+
+	if err := client.UpdateAutomation(ctx, actualConfigID, newConfig); err != nil {
+		return errorResult(fmt.Sprintf("error saving patched automation: %v", err)), nil
+	}
+
+	return successResult(fmt.Sprintf("Automation '%s' patched successfully (%d operations applied)", automationID, len(ops))), nil
 }
 
 // =============================================================================

@@ -256,14 +256,14 @@ func TestToolFilterEngine_ApplyToRegistry_ModifySchema(t *testing.T) {
 	registry := NewRegistry()
 	originalTool := Tool{
 		Name:        "manage_automation",
-		Description: "Manage Home Assistant automations - list, get, create, update, delete, toggle, or coverage.\n\nActions:\n- list: List all automations\n- get: Get automation details\n- create: Create new automation\n- update: Update automation\n- delete: Delete automation\n- toggle: Enable/disable automation\n- coverage: Analyze automation coverage",
+		Description: "Manage Home Assistant automations - list, get, create, update, delete, toggle, coverage, or patch.\n\nActions:\n- list: List all automations\n- get: Get automation details\n- create: Create new automation\n- update: Update automation\n- delete: Delete automation\n- toggle: Enable/disable automation\n- coverage: Analyze automation coverage\n- patch: Apply JSON Patch operations",
 		InputSchema: JSONSchema{
 			Type: "object",
 			Properties: map[string]JSONSchema{
 				"action": {
 					Type:        "string",
-					Enum:        []string{"list", "get", "create", "update", "delete", "toggle", "coverage"},
-					Description: "Operation to perform: list, get, create, update, delete, toggle, coverage",
+					Enum:        []string{"list", "get", "create", "update", "delete", "toggle", "coverage", "patch"},
+					Description: "Operation to perform: list, get, create, update, delete, toggle, coverage, patch",
 				},
 			},
 		},
@@ -287,9 +287,9 @@ func TestToolFilterEngine_ApplyToRegistry_ModifySchema(t *testing.T) {
 		t.Fatal("manage_automation should still exist in registry")
 	}
 
-	// Check enum is filtered
+	// Check enum is filtered (create, update, delete removed; patch kept as it's not blacklisted)
 	actionEnum := modifiedTool.InputSchema.Properties["action"].Enum
-	expectedEnum := []string{"list", "get", "toggle", "coverage"}
+	expectedEnum := []string{"list", "get", "toggle", "coverage", "patch"}
 
 	if len(actionEnum) != len(expectedEnum) {
 		t.Errorf("Action enum length = %d, want %d", len(actionEnum), len(expectedEnum))

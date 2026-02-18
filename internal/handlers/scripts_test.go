@@ -285,7 +285,7 @@ func TestScriptHandlers_ManageScript_Get(t *testing.T) {
 			},
 			getScriptErr: errors.New("not found"),
 			wantError:    true,
-			wantContains: "Error getting script",
+			wantContains: "error getting script",
 		},
 	}
 
@@ -817,6 +817,100 @@ func TestScriptHandlers_ManageScript_InvalidAction(t *testing.T) {
 	if !strings.Contains(result.Content[0].Text, "invalid action") {
 		t.Errorf("Expected 'invalid action' error, got: %s", result.Content[0].Text)
 	}
+}
+
+func TestManageScript_Patch(t *testing.T) {
+	t.Parallel()
+
+	baseConfig := &homeassistant.ScriptConfig{
+		Alias:    "Morning Routine",
+		Mode:     "single",
+		Sequence: []any{map[string]any{"action": "light.turn_on"}},
+	}
+
+	h := &ScriptHandlers{}
+
+	tests := []handlerTestCase{
+		{
+			name: "patch - missing script_id",
+			args: map[string]any{
+				"action":     "patch",
+				"operations": []any{map[string]any{"op": "replace", "path": "/mode", "value": "queued"}},
+			},
+			wantError:    true,
+			wantContains: []string{"script_id is required"},
+		},
+		{
+			name: "patch - missing operations",
+			args: map[string]any{
+				"action":    "patch",
+				"script_id": "morning_routine",
+			},
+			wantError:    true,
+			wantContains: []string{"operations is required"},
+		},
+		{
+			name: "patch - success replace mode",
+			args: map[string]any{
+				"action":    "patch",
+				"script_id": "morning_routine",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/mode", "value": "queued"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetScriptFn = func(_ context.Context, _ string) (*homeassistant.Script, error) {
+					cfg := *baseConfig
+					return &homeassistant.Script{EntityID: "script.morning_routine", Config: &cfg}, nil
+				}
+				m.UpdateScriptFn = func(_ context.Context, _ string, _ homeassistant.ScriptConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully", "1 operations"},
+		},
+		{
+			name: "patch - success add sequence step",
+			args: map[string]any{
+				"action":    "patch",
+				"script_id": "morning_routine",
+				"operations": []any{
+					map[string]any{"op": "add", "path": "/sequence/-", "value": map[string]any{"action": "light.turn_off"}},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetScriptFn = func(_ context.Context, _ string) (*homeassistant.Script, error) {
+					cfg := *baseConfig
+					return &homeassistant.Script{EntityID: "script.morning_routine", Config: &cfg}, nil
+				}
+				m.UpdateScriptFn = func(_ context.Context, _ string, _ homeassistant.ScriptConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "patch - nil config returns error",
+			args: map[string]any{
+				"action":    "patch",
+				"script_id": "morning_routine",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/mode", "value": "queued"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetScriptFn = func(_ context.Context, _ string) (*homeassistant.Script, error) {
+					return &homeassistant.Script{EntityID: "script.morning_routine", Config: nil}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"no configuration to patch"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageScript)
 }
 
 func TestScriptHandlers_CallService(t *testing.T) {

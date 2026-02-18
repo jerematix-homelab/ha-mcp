@@ -747,6 +747,131 @@ func TestManageAutomation_InvalidAction(t *testing.T) {
 	}
 }
 
+func TestManageAutomation_Patch(t *testing.T) {
+	t.Parallel()
+
+	baseConfig := &homeassistant.AutomationConfig{
+		ID:       "morning_routine",
+		Alias:    "Morning Routine",
+		Mode:     "single",
+		Triggers: []any{map[string]any{"trigger": "time", "at": "07:00"}},
+		Actions:  []any{map[string]any{"action": "light.turn_on"}},
+	}
+
+	h := &AutomationHandlers{}
+
+	tests := []handlerTestCase{
+		{
+			name: "patch - missing automation_id",
+			args: map[string]any{
+				"action":     "patch",
+				"operations": []any{map[string]any{"op": "replace", "path": "/mode", "value": "queued"}},
+			},
+			wantError:    true,
+			wantContains: []string{"automation_id is required"},
+		},
+		{
+			name: "patch - missing operations",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+			},
+			wantError:    true,
+			wantContains: []string{"operations is required"},
+		},
+		{
+			name: "patch - empty operations",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations":    []any{},
+			},
+			wantError:    true,
+			wantContains: []string{"must contain at least one"},
+		},
+		{
+			name: "patch - success replace mode",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/mode", "value": "queued"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+				m.UpdateAutomationFn = func(_ context.Context, _ string, _ homeassistant.AutomationConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully", "1 operations"},
+		},
+		{
+			name: "patch - success add action",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{"op": "add", "path": "/actions/-", "value": map[string]any{"action": "light.turn_off"}},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+				m.UpdateAutomationFn = func(_ context.Context, _ string, _ homeassistant.AutomationConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "patch - invalid op returns error",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{"op": "invalid_op", "path": "/mode"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"invalid operation"},
+		},
+		{
+			name: "patch - bad path returns error",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/nonexistent_field/0", "value": "x"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error applying patch"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageAutomation)
+}
+
 // Test helper functions
 
 func TestGetString(t *testing.T) {

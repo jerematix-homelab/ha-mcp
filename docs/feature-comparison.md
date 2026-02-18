@@ -74,6 +74,7 @@ For maximum security, you could theoretically use both: Official integration for
 | Delete automation         | `manage_automation` action=delete                                                              | ----------------- |
 | Enable/disable automation | `manage_automation` action=toggle                                                              | ----------------- |
 | Automation coverage       | `manage_automation` action=coverage (analyze areas/entities without automations, natural/json) | ----------------- |
+| Patch automation (RFC 6902)| `manage_automation` action=patch                                                               | N/A               |
 
 ### Scripts
 

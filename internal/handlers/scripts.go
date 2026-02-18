@@ -8,6 +8,7 @@ import (
 
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
+	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
@@ -19,6 +20,7 @@ const (
 	scriptActionUpdate  = "update"
 	scriptActionDelete  = "delete"
 	scriptActionExecute = "execute"
+	scriptActionPatch   = "patch"
 )
 
 // ScriptHandlers provides handlers for script-related MCP tools.
@@ -51,15 +53,17 @@ Actions:
 - create: Create a new script (requires script_id, alias, sequence)
 - update: Update an existing script (requires script_id)
 - delete: Delete a script (requires script_id)
-- execute: Execute a script (requires script_id, optional variables)`,
+- execute: Execute a script (requires script_id, optional variables)
+
+- patch: Apply RFC 6902 JSON Patch operations (requires script_id, operations)`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Script management operation",
 			Properties: map[string]mcp.JSONSchema{
 				"action": {
 					Type:        "string",
-					Description: "Operation to perform: list, get, create, update, delete, execute",
-					Enum:        []string{"list", "get", "create", "update", "delete", "execute"},
+					Description: "Operation to perform: list, get, create, update, delete, execute, patch",
+					Enum:        []string{"list", "get", "create", "update", "delete", "execute", "patch"},
 				},
 				"script_id": {
 					Type:        "string",
@@ -104,6 +108,7 @@ Actions:
 					Enum:        []string{"natural", "json"},
 					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
 				},
+				"operations": patchOperationsSchema(),
 			},
 			Required: []string{"action"},
 		},
@@ -167,8 +172,10 @@ func (h *ScriptHandlers) handleManageScript(
 		return h.handleDelete(ctx, client, args)
 	case scriptActionExecute:
 		return h.handleExecute(ctx, client, args)
+	case scriptActionPatch:
+		return h.handlePatch(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, or execute)", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, execute, or patch)", action)), nil
 	}
 }
 
@@ -230,7 +237,7 @@ func (h *ScriptHandlers) handleGet(ctx context.Context, client homeassistant.Cli
 		// Fallback: search by alias/friendly_name
 		script, err = h.findScriptByID(ctx, client, scriptID)
 		if err != nil {
-			return errorResult(fmt.Sprintf("Error getting script: %v", err)), nil
+			return errorResult(fmt.Sprintf("error getting script: %v", err)), nil
 		}
 	}
 
@@ -438,6 +445,59 @@ func (h *ScriptHandlers) handleExecute(ctx context.Context, client homeassistant
 	return successResult(fmt.Sprintf("Script '%s' executed successfully", scriptID)), nil
 }
 
+//nolint:funlen // Patch handler
+func (h *ScriptHandlers) handlePatch(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	scriptID, ok := args["script_id"].(string)
+	if !ok || scriptID == "" {
+		return errorResult("script_id is required for patch action"), nil
+	}
+
+	ops, errResult := parseOperations(args)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	entityID, configID := normalizeScriptID(scriptID)
+
+	current, err := client.GetScript(ctx, entityID)
+	if err != nil {
+		current, err = h.findScriptByID(ctx, client, scriptID)
+		if err != nil {
+			return errorResult(fmt.Sprintf("error getting script: %v", err)), nil
+		}
+	}
+
+	if current.Config == nil {
+		return errorResult(fmt.Sprintf("script '%s' has no configuration to patch", scriptID)), nil
+	}
+
+	configMap, err := configToMap(current.Config)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error processing script config: %v", err)), nil
+	}
+
+	patchedAny, patchErr := jsonpatch.Apply(configMap, ops)
+	if patchErr != nil {
+		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	patchedMap, ok := patchedAny.(map[string]any)
+	if !ok {
+		return errorResult("patch result must be an object"), nil
+	}
+
+	var newConfig homeassistant.ScriptConfig
+	if err := mapToStruct(patchedMap, &newConfig); err != nil {
+		return errorResult(fmt.Sprintf("error parsing patched config: %v", err)), nil
+	}
+
+	if err := client.UpdateScript(ctx, configID, newConfig); err != nil {
+		return errorResult(fmt.Sprintf("error saving patched script: %v", err)), nil
+	}
+
+	return successResult(fmt.Sprintf("Script '%s' patched successfully (%d operations applied)", scriptID, len(ops))), nil
+}
+
 // =============================================================================
 // call_service Handler (separate tool)
 // =============================================================================
@@ -521,3 +581,5 @@ func extractEntityTargets(data map[string]any) []string {
 
 	return []string{}
 }
+
+//nolint:funlen // Patch handler

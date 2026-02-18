@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
+	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
@@ -20,6 +21,7 @@ const (
 	dashboardActionUpdate     = "update"
 	dashboardActionDelete     = "delete"
 	dashboardActionSaveConfig = "save_config"
+	dashboardActionPatch      = "patch"
 )
 
 // DashboardHandlers provides handlers for dashboard-related MCP tools.
@@ -52,6 +54,7 @@ Actions:
 - update: Update an existing dashboard (requires dashboard_id)
 - delete: Delete a dashboard (requires dashboard_id)
 - save_config: Save dashboard configuration (requires config, url_path optional)
+- patch: Apply RFC 6902 JSON Patch operations to dashboard config (requires operations, url_path optional)
 
 Note: Newly created dashboards use the modern "sections" layout format instead of the legacy "badges/cards" format.`,
 		InputSchema: schema,
@@ -65,8 +68,8 @@ func (h *DashboardHandlers) buildDashboardSchema() mcp.JSONSchema {
 		Properties: map[string]mcp.JSONSchema{
 			"action": {
 				Type:        "string",
-				Description: "Operation to perform: list, get, create, update, delete, save_config",
-				Enum:        []string{"list", "get", "create", "update", "delete", "save_config"},
+				Description: "Operation to perform: list, get, create, update, delete, save_config, patch",
+				Enum:        []string{"list", "get", "create", "update", "delete", "save_config", "patch"},
 			},
 			"dashboard_id": {
 				Type:        "string",
@@ -114,6 +117,7 @@ func (h *DashboardHandlers) buildDashboardSchema() mcp.JSONSchema {
 				Description: "Output format: 'natural' (default, human-readable) or 'json' (structured data)",
 				Enum:        []string{"natural", "json"},
 			},
+			"operations": patchOperationsSchema(),
 		},
 		Required: []string{"action"},
 	}
@@ -146,8 +150,10 @@ func (h *DashboardHandlers) handleManageDashboard(
 		return h.handleDelete(ctx, client, args)
 	case dashboardActionSaveConfig:
 		return h.handleSaveConfig(ctx, client, args)
+	case dashboardActionPatch:
+		return h.handlePatch(ctx, client, args)
 	default:
-		return errorResult(fmt.Sprintf("invalid action: %s. Valid actions: list, get, create, update, delete, save_config", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s. Valid actions: list, get, create, update, delete, save_config, patch", action)), nil
 	}
 }
 
@@ -307,6 +313,42 @@ func (h *DashboardHandlers) handleSaveConfig(
 		target = fmt.Sprintf("dashboard '%s'", urlPath)
 	}
 	return successResult(fmt.Sprintf("Dashboard configuration saved successfully for %s", target)), nil
+}
+
+//nolint:funlen // Patch handler
+func (h *DashboardHandlers) handlePatch(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+	urlPath, _ := args["url_path"].(string)
+
+	ops, errResult := parseOperations(args)
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	config, err := client.GetLovelaceConfig(ctx, urlPath)
+	if err != nil {
+		return errorResult(fmt.Sprintf("error getting dashboard configuration: %v", err)), nil
+	}
+
+	patchedAny, patchErr := jsonpatch.Apply(config, ops)
+	if patchErr != nil {
+		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	patchedMap, ok := patchedAny.(map[string]any)
+	if !ok {
+		return errorResult("patch result must be an object"), nil
+	}
+
+	if err := client.SaveLovelaceConfig(ctx, urlPath, patchedMap); err != nil {
+		return errorResult(fmt.Sprintf("error saving patched dashboard: %v", err)), nil
+	}
+
+	target := "default dashboard"
+	if urlPath != "" {
+		target = fmt.Sprintf("dashboard '%s'", urlPath)
+	}
+
+	return successResult(fmt.Sprintf("Dashboard patched successfully for %s (%d operations applied)", target, len(ops))), nil
 }
 
 // =============================================================================
