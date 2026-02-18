@@ -641,14 +641,14 @@ Authorization: Bearer <your-ha-access-token>
 | Tool                  | Description                                                                                                   |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `get_registry`        | Query registries (type: entities, devices, areas, all; format: natural/json)                                  |
-| `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; format: natural/json for list/get)  |
-| `manage_label`        | Consolidated label management (actions: list, get, create, update, delete; format: natural/json for list/get) |
-| `manage_floor`        | Consolidated floor management (actions: list, get, create, update, delete; format: natural/json for list/get) |
-| `manage_zone`         | Consolidated zone management (actions: list, get, create, update, delete; format: natural/json for list/get)  |
-| `manage_person`       | Consolidated person management (actions: list, get, create, update, delete; format: natural/json for list/get)|
-| `manage_tag`          | Consolidated tag management (actions: list, get, create, update, delete; format: natural/json for list/get)   |
-| `manage_entity`       | Entity registry management (actions: get, update; update fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases; format: natural/json) |
-| `manage_device`       | Device registry management (actions: get, update; update fields: name_by_user, area_id, disabled_by, labels; format: natural/json) |
+| `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; update supports label_mode/alias_mode: add/remove/replace; format: natural/json for list/get) |
+| `manage_label`        | Consolidated label management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                           |
+| `manage_floor`        | Consolidated floor management (actions: list, get, create, update, delete; update supports alias_mode: add/remove/replace; format: natural/json for list/get)           |
+| `manage_zone`         | Consolidated zone management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                            |
+| `manage_person`       | Consolidated person management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                          |
+| `manage_tag`          | Consolidated tag management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                             |
+| `manage_entity`       | Entity registry management (actions: get, update; update fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases, new_entity_id; update supports label_mode/alias_mode: add/remove/replace; format: natural/json) |
+| `manage_device`       | Device registry management (actions: get, update; update fields: name_by_user, area_id, disabled_by, labels; update supports label_mode: add/remove/replace; format: natural/json)                                              |
 | `manage_config_entry` | Consolidated config entry management (actions: list, get; list: optional domain filter; get: requires entry_id; format: natural/json) |
 
 #### Automation Tools

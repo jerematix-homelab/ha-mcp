@@ -51,8 +51,10 @@ Safe fields that can be updated:
 - area_id: Area assignment (empty string removes)
 - disabled_by: 'user' to disable, 'none' to enable
 - hidden_by: 'user' to hide, 'none' to show
-- labels: Array of label strings (empty array clears)
-- aliases: Array of alternative name strings (empty array clears)
+- labels: Array of label strings; use label_mode to control merge behavior
+- aliases: Array of alternative name strings; use alias_mode to control merge behavior
+- label_mode: 'add' (default, append), 'remove' (subtract), 'replace' (full replacement)
+- alias_mode: 'add' (default, append), 'remove' (subtract), 'replace' (full replacement)
 - new_entity_id: Rename entity ID (must be valid format 'domain.object_id')`,
 		InputSchema: h.buildEntityManageSchema(),
 	}
@@ -96,14 +98,16 @@ func (h *EntityManageHandlers) buildEntityManageSchema() mcp.JSONSchema {
 			},
 			"labels": {
 				Type:        "array",
-				Description: "Labels array (update only, empty array clears)",
+				Description: "Labels array (update only); use label_mode to control merge behavior",
 				Items:       &mcp.JSONSchema{Type: "string"},
 			},
 			"aliases": {
 				Type:        "array",
-				Description: "Aliases array (update only, empty array clears)",
+				Description: "Aliases array (update only); use alias_mode to control merge behavior",
 				Items:       &mcp.JSONSchema{Type: "string"},
 			},
+			"label_mode": arrayModeSchema("labels"),
+			"alias_mode": arrayModeSchema("aliases"),
 			"new_entity_id": {
 				Type:        "string",
 				Description: "New entity ID for renaming (update only, must be in format 'domain.object_id')",
@@ -181,9 +185,33 @@ func (h *EntityManageHandlers) handleUpdateEntity(ctx context.Context, client ho
 		}
 	}
 
-	// Build update config
 	oldEntityID := entityID
 	config, hasFields := h.buildEntityUpdateConfig(args)
+
+	labelMode := getArrayMode(args, "label_mode")
+	aliasMode := getArrayMode(args, "alias_mode")
+	labels, hasLabels := getStringSlice(args, "labels")
+	aliases, hasAliases := getStringSlice(args, "aliases")
+
+	var currentEntry homeassistant.EntityRegistryEntry
+	if hasLabels || hasAliases {
+		entry, fetchErr := h.fetchEntityForMerge(ctx, client, entityID, labelMode, aliasMode, hasLabels, hasAliases)
+		if fetchErr != nil {
+			return errorResult(fetchErr.Error()), nil
+		}
+		currentEntry = *entry
+	}
+
+	if hasLabels {
+		hasFields = true
+		config.Labels = applyArrayMode(currentEntry.Labels, labels, labelMode)
+	}
+
+	if hasAliases {
+		hasFields = true
+		config.Aliases = applyArrayMode(currentEntry.Aliases, aliases, aliasMode)
+	}
+
 	if !hasFields {
 		return errorResult("at least one field must be provided for update (name, icon, area_id, disabled_by, hidden_by, labels, aliases, new_entity_id)"), nil
 	}
@@ -198,6 +226,34 @@ func (h *EntityManageHandlers) handleUpdateEntity(ctx context.Context, client ho
 		return h.formatEntityJSON(updated)
 	}
 	return h.formatEntityNaturalWithSuccess(updated, oldEntityID), nil
+}
+
+// fetchEntityForMerge fetches the entity registry entry for label/alias merge.
+// Skips the registry call when both label and alias modes are replace (no current
+// values needed). Returns a not-found error for add/remove mode when the entity
+// is absent from the registry. Never returns a nil pointer when err is nil.
+func (h *EntityManageHandlers) fetchEntityForMerge(
+	ctx context.Context,
+	client homeassistant.Client,
+	entityID string,
+	labelMode, aliasMode string,
+	hasLabels, hasAliases bool,
+) (*homeassistant.EntityRegistryEntry, error) {
+	needsFetch := (hasLabels && labelMode != arrayModeReplace) ||
+		(hasAliases && aliasMode != arrayModeReplace)
+	if !needsFetch {
+		return &homeassistant.EntityRegistryEntry{}, nil
+	}
+	registry, err := client.GetEntityRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get entity registry: %w", err)
+	}
+	for i := range registry {
+		if registry[i].EntityID == entityID {
+			return &registry[i], nil
+		}
+	}
+	return nil, fmt.Errorf("entity '%s' not found in registry", entityID)
 }
 
 // =============================================================================
@@ -238,16 +294,6 @@ func (h *EntityManageHandlers) buildEntityUpdateConfig(args map[string]any) (hom
 			hiddenBy = ""
 		}
 		config.HiddenBy = &hiddenBy
-		hasFields = true
-	}
-
-	if labels, ok := args["labels"].([]any); ok {
-		config.Labels = toStringArray(labels)
-		hasFields = true
-	}
-
-	if aliases, ok := args["aliases"].([]any); ok {
-		config.Aliases = toStringArray(aliases)
 		hasFields = true
 	}
 

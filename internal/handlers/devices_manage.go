@@ -46,7 +46,8 @@ Safe fields that can be updated:
 - name_by_user: Custom display name (empty string removes override)
 - area_id: Area assignment (empty string removes)
 - disabled_by: 'user' to disable, 'none' to enable
-- labels: Array of label strings (empty array clears)`,
+- labels: Array of label strings; use label_mode to control merge behavior
+- label_mode: 'add' (default, append), 'remove' (subtract), 'replace' (full replacement)`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Device registry management operation",
@@ -75,9 +76,10 @@ Safe fields that can be updated:
 				},
 				"labels": {
 					Type:        "array",
-					Description: "Labels array (update only, empty array clears)",
+					Description: "Labels array (update only); use label_mode to control merge behavior",
 					Items:       &mcp.JSONSchema{Type: "string"},
 				},
+				"label_mode": arrayModeSchema("labels"),
 				"format": {
 					Type:        "string",
 					Description: "Output format: 'natural' (human-readable, default) or 'json' (structured)",
@@ -99,7 +101,7 @@ func (h *DeviceManageHandlers) handleManageDevice(ctx context.Context, client ho
 		return errorResult("action is required and must be a string (get or update)"), nil
 	}
 
-	format := "natural"
+	format := formatNatural
 	if f, ok := args["format"].(string); ok && f != "" {
 		format = f
 	}
@@ -145,8 +147,20 @@ func (h *DeviceManageHandlers) handleUpdateDevice(ctx context.Context, client ho
 		return errorResult("device_id is required for update action"), nil
 	}
 
-	// Build update config
 	config, hasFields := h.buildDeviceUpdateConfig(args)
+
+	labelMode := getArrayMode(args, "label_mode")
+	labels, hasLabels := getStringSlice(args, "labels")
+
+	if hasLabels {
+		entry, fetchErr := h.fetchDeviceForMerge(ctx, client, deviceID, labelMode)
+		if fetchErr != nil {
+			return errorResult(fetchErr.Error()), nil
+		}
+		config.Labels = applyArrayMode(entry.Labels, labels, labelMode)
+		hasFields = true
+	}
+
 	if !hasFields {
 		return errorResult("at least one field must be provided for update (name_by_user, area_id, disabled_by, labels)"), nil
 	}
@@ -161,6 +175,31 @@ func (h *DeviceManageHandlers) handleUpdateDevice(ctx context.Context, client ho
 		return h.formatDeviceJSON(updated)
 	}
 	return h.formatDeviceNaturalWithSuccess(updated), nil
+}
+
+// fetchDeviceForMerge fetches the device registry entry for label merge.
+// Skips the registry call when label mode is replace. Returns a not-found error
+// for add/remove mode when the device is absent. Never returns a nil pointer when
+// err is nil.
+func (h *DeviceManageHandlers) fetchDeviceForMerge(
+	ctx context.Context,
+	client homeassistant.Client,
+	deviceID string,
+	labelMode string,
+) (*homeassistant.DeviceRegistryEntry, error) {
+	if labelMode == arrayModeReplace {
+		return &homeassistant.DeviceRegistryEntry{}, nil
+	}
+	registry, err := client.GetDeviceRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get device registry: %w", err)
+	}
+	for i := range registry {
+		if registry[i].ID == deviceID {
+			return &registry[i], nil
+		}
+	}
+	return nil, fmt.Errorf("device '%s' not found in registry", deviceID)
 }
 
 // =============================================================================
@@ -187,11 +226,6 @@ func (h *DeviceManageHandlers) buildDeviceUpdateConfig(args map[string]any) (hom
 			disabledBy = ""
 		}
 		config.DisabledBy = &disabledBy
-		hasFields = true
-	}
-
-	if labels, ok := args["labels"].([]any); ok {
-		config.Labels = toStringArray(labels)
 		hasFields = true
 	}
 

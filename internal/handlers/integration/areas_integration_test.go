@@ -173,6 +173,63 @@ func (s *AreaIntegrationTestSuite) TestAreaUpdatePartial() {
 	_ = s.Client().DeleteArea(s.Context(), areaID)
 }
 
+func (s *AreaIntegrationTestSuite) TestAreaLabelAndAliasUpdate() {
+	areaName := GenerateTestID("area_lblalias")
+
+	s.RegisterCleanup(func() {
+		areas, _ := s.Client().GetAreaRegistry(s.Context())
+		for _, area := range areas {
+			if area.Name == areaName {
+				_ = s.Client().DeleteArea(s.Context(), area.AreaID)
+			}
+		}
+	})
+
+	// Create area without labels or aliases
+	created, err := s.Client().CreateArea(s.Context(), homeassistant.AreaConfig{
+		Name: areaName,
+		Icon: "mdi:home",
+	})
+	s.Require().NoError(err, "failed to create area")
+	areaID := created.AreaID
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Update: set labels and aliases
+	initialLabels := []string{"area_label_a", "area_label_b"}
+	initialAliases := []string{"first alias", "second alias"}
+	_, err = s.Client().UpdateArea(s.Context(), areaID, homeassistant.AreaConfig{
+		Labels:  initialLabels,
+		Aliases: initialAliases,
+	})
+	s.Require().NoError(err, "failed to set labels and aliases")
+
+	time.Sleep(500 * time.Millisecond)
+	area, err := s.FindAreaByID(areaID)
+	s.Require().NoError(err)
+	s.ElementsMatch(initialLabels, area.Labels, "initial labels should be set")
+	s.ElementsMatch(initialAliases, area.Aliases, "initial aliases should be set")
+
+	// Update: replace labels and aliases with new values
+	newLabels := []string{"area_label_c"}
+	newAliases := []string{"only alias"}
+	_, err = s.Client().UpdateArea(s.Context(), areaID, homeassistant.AreaConfig{
+		Labels:  newLabels,
+		Aliases: newAliases,
+	})
+	s.Require().NoError(err, "failed to replace labels and aliases")
+
+	time.Sleep(500 * time.Millisecond)
+	area, err = s.FindAreaByID(areaID)
+	s.Require().NoError(err)
+	s.ElementsMatch(newLabels, area.Labels, "labels should be replaced")
+	s.ElementsMatch(newAliases, area.Aliases, "aliases should be replaced")
+	s.Equal("mdi:home", area.Icon, "icon should remain unchanged")
+
+	// Cleanup
+	_ = s.Client().DeleteArea(s.Context(), areaID)
+}
+
 func (s *AreaIntegrationTestSuite) TestMultipleAreas() {
 	area1Name := GenerateTestID("area_1")
 	area2Name := GenerateTestID("area_2")
