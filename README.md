@@ -655,7 +655,7 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool                | Description                                                                                                                                   |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle, coverage; format: natural/json for list/get/coverage) |
+| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle, coverage, patch (RFC 6902 JSON Patch); format: natural/json for list/get/coverage) |
 
 **Flexible ID Lookup**: The `automation_id` parameter accepts multiple formats:
 - Entity ID: `automation.morning_lights`
@@ -726,7 +726,7 @@ Universal tool for runtime helper operations:
 
 | Tool            | Description                                                                                                             |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute; format: natural/json for list/get) |
+| `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute, patch; format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `script_id` parameter accepts multiple formats:
 - Entity ID: `script.morning_routine`
@@ -754,7 +754,7 @@ Universal tool for runtime helper operations:
 
 | Tool               | Description                                                                        |
 | ------------------ | ---------------------------------------------------------------------------------- |
-| `manage_dashboard` | Manage Lovelace dashboards - list, get, create, update, delete, save configuration |
+| `manage_dashboard` | Manage Lovelace dashboards - list, get, create, update, delete, save configuration, patch (JSON Patch) |
 
 #### Template Tools
 
