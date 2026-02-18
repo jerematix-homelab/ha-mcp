@@ -19,11 +19,22 @@ const (
 	domainLock         = "lock"
 	domainInputNumber  = "input_number"
 	domainNumber       = "number"
+	domainClimate      = "climate"
+	domainHumidifier   = "humidifier"
+	domainSelect       = "select"
+	domainSiren        = "siren"
+	domainValve        = "valve"
 
-	platformTemplate = "template"
-	platformGroup    = "group"
+	platformTemplate   = "template"
+	platformGroup      = "group"
+	platformRandom     = "random"
+	platformSwitchAsX  = "switch_as_x"
+	platformStatistics = "statistics"
+	platformTrend      = "trend"
+	platformFilter     = "filter"
 
 	flowTypeMenu        = "menu"
+	flowTypeForm        = "form"
 	flowTypeCreateEntry = "create_entry"
 )
 
@@ -473,21 +484,42 @@ func (c *HybridClient) predictEntityIDForConfigEntry(_ context.Context, config H
 	return fmt.Sprintf("%s.%s", domain, slug), nil
 }
 
+// staticPlatformDomains maps Config Entry platforms to their static entity domains.
+var staticPlatformDomains = map[string]string{
+	"threshold":          domainBinarySensor,
+	"derivative":         domainSensor,
+	"integration":        domainSensor,
+	"utility_meter":      domainSensor,
+	"min_max":            domainSensor,
+	"statistics":         domainSensor,
+	"trend":              domainBinarySensor,
+	"filter":             domainSensor,
+	"tod":                domainBinarySensor,
+	"generic_thermostat": domainClimate,
+	"generic_hygrostat":  domainHumidifier,
+}
+
 // determineEntityDomainForConfigEntry determines the entity domain for a Config Entry helper.
 func (c *HybridClient) determineEntityDomainForConfigEntry(config HelperConfig) string {
+	// Check static domain mapping first
+	if domain, ok := staticPlatformDomains[config.Platform]; ok {
+		return domain
+	}
+
+	// Handle dynamic domain determination
 	switch config.Platform {
 	case platformTemplate:
 		// Template can be sensor or binary_sensor
-		subtype := c.determineTemplateSubtype(config)
-		return subtype
-	case "threshold":
-		return domainBinarySensor
-	case "derivative", "integration":
-		return domainSensor
+		return c.determineTemplateSubtype(config)
 	case platformGroup:
 		// Group type depends on member entities
-		subtype := c.determineGroupSubtype(config)
-		return subtype
+		return c.determineGroupSubtype(config)
+	case platformRandom:
+		// Random can be sensor or binary_sensor
+		return c.determineRandomSubtype(config)
+	case platformSwitchAsX:
+		// Switch_as_x creates entities based on target_domain
+		return c.determineSwitchAsXSubtype(config)
 	default:
 		return ""
 	}
@@ -514,7 +546,7 @@ func slugifyEntityName(name string) string {
 }
 
 // createHelperViaConfigFlow creates a helper using the HTTP Config Entry Flow.
-// This handles the multi-step flow: init -> (menu selection) -> submit data -> verify creation.
+// This handles multi-step flows: init -> (menu) -> form(s) -> verify creation.
 func (c *HybridClient) createHelperViaConfigFlow(ctx context.Context, config HelperConfig) error {
 	// Step 1: Initialize the config entry flow
 	flowResult, err := c.rest.InitConfigEntryFlow(ctx, config.Platform)
@@ -522,8 +554,7 @@ func (c *HybridClient) createHelperViaConfigFlow(ctx context.Context, config Hel
 		return fmt.Errorf("init config entry flow: %w", err)
 	}
 
-	// Step 2: Handle menu step if present (for group and platformTemplate helpers)
-	// These require selecting a subtype first (e.g., "binary_sensor", "sensor")
+	// Step 2: Handle menu step if present (for helpers requiring subtype selection)
 	if flowResult.Type == "menu" {
 		subtype := c.determineHelperSubtype(config)
 		if subtype == "" {
@@ -537,36 +568,106 @@ func (c *HybridClient) createHelperViaConfigFlow(ctx context.Context, config Hel
 		}
 	}
 
-	// Step 3: Submit the helper configuration
-	// Transform config to match Config Entry Flow schema
-	flowConfig := c.transformConfigForFlow(config)
-	flowResult, err = c.rest.SubmitConfigEntryFlowStep(ctx, flowResult.FlowID, flowConfig)
-	if err != nil {
-		return fmt.Errorf("submit config entry flow step: %w", err)
-	}
+	// Step 3: Handle intermediate form steps
+	// Some platforms (statistics, trend, filter) require multiple form submissions
+	maxSteps := 5 // Safety limit to prevent infinite loops
+	for i := 0; i < maxSteps && flowResult.Type == flowTypeForm; i++ {
+		// Save step ID before submission (in case of error, flowResult might be nil)
+		currentStepID := flowResult.StepID
 
-	// Step 4: Verify the result
-	if flowResult.Type == "abort" {
-		return fmt.Errorf("config entry flow aborted: %s", flowResult.Description)
-	}
+		// Transform config for the current step
+		stepConfig := c.buildConfigForFlowStep(config, currentStepID)
 
-	if flowResult.Type == "create_entry" {
-		// Success - entity was created
-		return nil
-	}
+		flowResult, err = c.rest.SubmitConfigEntryFlowStep(ctx, flowResult.FlowID, stepConfig)
+		if err != nil {
+			return fmt.Errorf("submit config entry flow step %s: %w", currentStepID, err)
+		}
 
-	// If we get another form step, there may be validation errors
-	if flowResult.Type == "form" {
-		if len(flowResult.Errors) > 0 {
+		// Check if we're done
+		if flowResult.Type == "create_entry" {
+			return nil // Success
+		}
+
+		if flowResult.Type == "abort" {
+			return fmt.Errorf("config entry flow aborted: %s", flowResult.Description)
+		}
+
+		// Check for validation errors
+		if flowResult.Type == flowTypeForm && len(flowResult.Errors) > 0 {
 			return fmt.Errorf("config entry flow validation errors: %v", flowResult.Errors)
 		}
-		return fmt.Errorf("config entry flow requires additional steps (step_id: %s)", flowResult.StepID)
+	}
+
+	// Still in form state after max steps
+	if flowResult.Type == flowTypeForm {
+		return fmt.Errorf("config entry flow exceeded max steps (last step_id: %s)", flowResult.StepID)
 	}
 
 	return fmt.Errorf("unexpected config entry flow result type: %s", flowResult.Type)
 }
 
-// determineHelperSubtype extracts the subtype for multi-step flows (group, platformTemplate).
+// buildConfigForFlowStep builds configuration data for a specific flow step.
+// Different platforms have different step IDs that require specific subsets of config.
+func (c *HybridClient) buildConfigForFlowStep(config HelperConfig, stepID string) map[string]any {
+	// Platform-specific step handling
+	switch config.Platform {
+	case platformStatistics:
+		// Statistics "state_characteristic" step needs ONLY state_characteristic field
+		if stepID == "state_characteristic" {
+			result := make(map[string]any)
+			if characteristic, ok := config.Config["state_characteristic"].(string); ok {
+				result["state_characteristic"] = characteristic
+			} else {
+				result["state_characteristic"] = "mean" // Default
+			}
+			return result
+		}
+		// Statistics "options" step wants entity_id and sampling_size/max_age (NO name)
+		if stepID == "options" {
+			result := c.transformConfigForFlow(config)
+			delete(result, "name")                 // name goes in next step
+			delete(result, "state_characteristic") // Already set in previous step
+			return result
+		}
+		// Statistics "user" step wants entity_id (and possibly name)
+		if stepID == "user" {
+			result := c.transformConfigForFlow(config)
+			delete(result, "sampling_size")        // Already set in options step
+			delete(result, "max_age")              // Already set in options step
+			delete(result, "state_characteristic") // Already set in first step
+			return result
+		}
+		// Other steps get full config
+		return c.transformConfigForFlow(config)
+
+	case platformTrend:
+		// Trend "settings" step does NOT want "name" field
+		if stepID == "settings" {
+			result := c.transformConfigForFlow(config)
+			delete(result, "name") // Remove name from settings step
+			return result
+		}
+		// Other steps get full config
+		return c.transformConfigForFlow(config)
+
+	case platformFilter:
+		// Filter "user" step wants entity_id, name, and filter (all together)
+		if stepID == "user" {
+			return c.transformConfigForFlow(config)
+		}
+		// Second step (filter-specific like "outlier", "lowpass", etc.) wants entity_id only (NO name, NO filter)
+		result := c.transformConfigForFlow(config)
+		delete(result, "name")   // name already set in user step
+		delete(result, "filter") // filter already set in user step
+		return result
+
+	default:
+		// Default: return full transformed config
+		return c.transformConfigForFlow(config)
+	}
+}
+
+// determineHelperSubtype extracts the subtype for multi-step flows.
 func (c *HybridClient) determineHelperSubtype(config HelperConfig) string {
 	// Check for explicit "group_type" field for menu selection
 	if gt, ok := config.Config["group_type"].(string); ok {
@@ -578,6 +679,16 @@ func (c *HybridClient) determineHelperSubtype(config HelperConfig) string {
 		return c.determineTemplateSubtype(config)
 	case platformGroup:
 		return c.determineGroupSubtype(config)
+	case platformRandom:
+		return c.determineRandomSubtype(config)
+	case platformSwitchAsX:
+		return c.determineSwitchAsXSubtype(config)
+	case platformStatistics:
+		// Statistics requires menu step for state_characteristic
+		if characteristic, ok := config.Config["state_characteristic"].(string); ok {
+			return characteristic
+		}
+		return "mean" // Default to mean if not specified
 	}
 	return ""
 }
@@ -597,6 +708,26 @@ func (c *HybridClient) determineTemplateSubtype(config HelperConfig) string {
 		return domainBinarySensor
 	}
 	return domainSensor
+}
+
+// determineRandomSubtype determines whether a random helper is a sensor or binary_sensor.
+func (c *HybridClient) determineRandomSubtype(config HelperConfig) string {
+	// Check explicit type field (routing field)
+	if t, ok := config.Config["type"].(string); ok {
+		return t
+	}
+	// Default to sensor
+	return domainSensor
+}
+
+// determineSwitchAsXSubtype determines the target domain for switch_as_x helper.
+func (c *HybridClient) determineSwitchAsXSubtype(config HelperConfig) string {
+	// Check explicit target_domain field (routing field)
+	if td, ok := config.Config["target_domain"].(string); ok {
+		return td
+	}
+	// Default to light
+	return domainLight
 }
 
 // firstEntityDomainFromConfig extracts the domain from the first entity in the config.
@@ -648,6 +779,16 @@ func (c *HybridClient) transformConfigForFlow(config HelperConfig) map[string]an
 	return result
 }
 
+// platformSkipFields maps platforms to fields that should be skipped during transformation.
+var platformSkipFields = map[string]map[string]bool{
+	platformTemplate:     {"type": true, "template_type": true},
+	platformRandom:       {"type": true},
+	platformSwitchAsX:    {"target_domain": true},
+	platformStatistics:   {"state_characteristic": true},
+	"generic_thermostat": {"heater_entity_id": true, "target_sensor_entity_id": true},
+	"generic_hygrostat":  {"humidifier_entity_id": true, "target_sensor_entity_id": true},
+}
+
 // shouldSkipConfigField checks if a config field should be skipped during transformation.
 func (c *HybridClient) shouldSkipConfigField(key, platform string) bool {
 	// Always skip group_type (internal routing field)
@@ -655,9 +796,9 @@ func (c *HybridClient) shouldSkipConfigField(key, platform string) bool {
 		return true
 	}
 
-	// Skip template-specific internal fields
-	if platform == platformTemplate {
-		if key == "type" || key == "template_type" {
+	// Check platform-specific skip fields
+	if skipFields, ok := platformSkipFields[platform]; ok {
+		if skipFields[key] {
 			return true
 		}
 	}

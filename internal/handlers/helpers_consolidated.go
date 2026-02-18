@@ -30,6 +30,18 @@ const (
 	platformTemplate               = "template"
 	helperTypeTemplateSensor       = "template_sensor"
 	helperTypeTemplateBinarySensor = "template_binary_sensor"
+	platformUtilityMeter           = "utility_meter"
+	platformMinMax                 = "min_max"
+	platformStatistics             = "statistics"
+	platformTrend                  = "trend"
+	platformRandom                 = "random"
+	platformFilter                 = "filter"
+	platformTod                    = "tod"
+	platformGenericThermostat      = "generic_thermostat"
+	platformSwitchAsX              = "switch_as_x"
+	platformGenericHygrostat       = "generic_hygrostat"
+	helperTypeRandomSensor         = "random_sensor"
+	helperTypeRandomBinarySensor   = "random_binary_sensor"
 	serviceSetValue                = "set_value"
 )
 
@@ -165,6 +177,94 @@ var helperTypes = map[string]helperTypeMetadata{
 		optionalFields:     []string{"icon", "method", "round", "unit_time", "unit_prefix"},
 		validEntityDomains: []string{"sensor"},
 	},
+	"utility_meter": {
+		platform:           platformUtilityMeter,
+		entityPrefix:       "sensor",
+		supportedActions:   []string{"calibrate"},
+		requiredFields:     []string{"source"},
+		optionalFields:     []string{"icon", "cycle", "offset", "delta_values", "net_consumption", "periodically_resetting", "tariffs"},
+		validEntityDomains: []string{"sensor", "select"},
+	},
+	"min_max": {
+		platform:           platformMinMax,
+		entityPrefix:       "sensor",
+		supportedActions:   []string{},
+		requiredFields:     []string{"entity_ids"},
+		optionalFields:     []string{"icon", "round_digits", "type"},
+		validEntityDomains: []string{"sensor"},
+	},
+	"statistics": {
+		platform:           platformStatistics,
+		entityPrefix:       "sensor",
+		supportedActions:   []string{},
+		requiredFields:     []string{"entity_id"},
+		optionalFields:     []string{"icon", "state_characteristic", "sampling_size", "max_age", "percentile", "precision"},
+		validEntityDomains: []string{"sensor"},
+	},
+	"trend": {
+		platform:           platformTrend,
+		entityPrefix:       "binary_sensor",
+		supportedActions:   []string{},
+		requiredFields:     []string{"entity_id"},
+		optionalFields:     []string{"icon", "min_gradient", "min_samples", "sample_duration", "max_samples", "invert"},
+		validEntityDomains: []string{"binary_sensor"},
+	},
+	"random_sensor": {
+		platform:           platformRandom,
+		entityPrefix:       "sensor",
+		supportedActions:   []string{},
+		requiredFields:     []string{},
+		optionalFields:     []string{"icon", "minimum", "maximum"},
+		validEntityDomains: []string{"sensor"},
+	},
+	"random_binary_sensor": {
+		platform:           platformRandom,
+		entityPrefix:       "binary_sensor",
+		supportedActions:   []string{},
+		requiredFields:     []string{},
+		optionalFields:     []string{"icon"},
+		validEntityDomains: []string{"binary_sensor"},
+	},
+	"filter": {
+		platform:           platformFilter,
+		entityPrefix:       "sensor",
+		supportedActions:   []string{},
+		requiredFields:     []string{"entity_id", "filter"},
+		optionalFields:     []string{"icon", "filters"},
+		validEntityDomains: []string{"sensor"},
+	},
+	"tod": {
+		platform:           platformTod,
+		entityPrefix:       "binary_sensor",
+		supportedActions:   []string{},
+		requiredFields:     []string{"after_time", "before_time"},
+		optionalFields:     []string{"icon", "after_offset", "before_offset"},
+		validEntityDomains: []string{"binary_sensor"},
+	},
+	"generic_thermostat": {
+		platform:           platformGenericThermostat,
+		entityPrefix:       "climate",
+		supportedActions:   []string{},
+		requiredFields:     []string{"heater_entity_id", "target_sensor_entity_id"},
+		optionalFields:     []string{"icon", "ac_mode", "min_temp", "max_temp", "target_temp", "cold_tolerance", "hot_tolerance"},
+		validEntityDomains: []string{"climate"},
+	},
+	"switch_as_x": {
+		platform:           platformSwitchAsX,
+		entityPrefix:       "light",
+		supportedActions:   []string{},
+		requiredFields:     []string{"entity_id", "target_domain"},
+		optionalFields:     []string{"icon", "invert"},
+		validEntityDomains: []string{"cover", "fan", "light", "lock", "siren", "valve"},
+	},
+	"generic_hygrostat": {
+		platform:           platformGenericHygrostat,
+		entityPrefix:       "humidifier",
+		supportedActions:   []string{},
+		requiredFields:     []string{"humidifier_entity_id", "target_sensor_entity_id"},
+		optionalFields:     []string{"icon", "min_humidity", "max_humidity", "target_humidity", "dry_tolerance", "wet_tolerance"},
+		validEntityDomains: []string{"humidifier"},
+	},
 }
 
 // allSupportedActions lists all valid actions for the helper_action tool.
@@ -172,7 +272,7 @@ var allSupportedActions = []string{
 	"toggle", "set", "increment", "decrement", "reset",
 	"start", "pause", "cancel", "finish", "change",
 	"press", "select", "set_options", "reload",
-	"add_entities", "remove_entities",
+	"add_entities", "remove_entities", "calibrate",
 }
 
 // ConsolidatedHelperHandlers provides unified MCP tool handlers for all helper types.
@@ -200,6 +300,205 @@ func (h *ConsolidatedHelperHandlers) manageHelperTool() mcp.Tool {
 		typeNames = append(typeNames, name)
 	}
 
+	// Build base properties
+	props := map[string]mcp.JSONSchema{
+		"action": {
+			Type:        "string",
+			Description: "Operation to perform: list, create, update, delete, or get_details",
+			Enum:        []string{"list", "create", "update", "delete", "get_details"},
+		},
+		"format": {
+			Type:        "string",
+			Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
+			Enum:        []string{"natural", "json"},
+		},
+		"verbose": {
+			Type:        "boolean",
+			Description: "Include additional details in list output (default: false)",
+		},
+		"type": {
+			Type:        "string",
+			Description: "Helper type (required for create): input_boolean, input_number, input_text, input_select, input_datetime, input_button, counter, timer, schedule, group, template_sensor, template_binary_sensor, threshold, derivative, integral, utility_meter, min_max, statistics, trend, random_sensor, random_binary_sensor, filter, tod, generic_thermostat, switch_as_x, generic_hygrostat",
+			Enum:        typeNames,
+		},
+		"entity_id": {
+			Type:        "string",
+			Description: "Full entity ID (required for delete/get_details). Also required as source entity for threshold create.",
+		},
+		"id": {
+			Type:        "string",
+			Description: "Unique identifier without platform prefix (required for create)",
+		},
+		"name": {
+			Type:        "string",
+			Description: "Human-readable name (required for create)",
+		},
+		"icon": {
+			Type:        "string",
+			Description: "Icon for the helper (e.g., mdi:counter)",
+		},
+		"initial": {
+			Type:        "string",
+			Description: "Initial value (type depends on helper type)",
+		},
+		"min": {
+			Type:        "number",
+			Description: "Minimum value (required for input_number, optional for input_text)",
+		},
+		"max": {
+			Type:        "number",
+			Description: "Maximum value (required for input_number, optional for input_text)",
+		},
+		"step": {
+			Type:        "number",
+			Description: "Step value (input_number, counter)",
+		},
+		"mode": {
+			Type:        "string",
+			Description: "Display mode (input_number: box/slider, input_text: text/password)",
+		},
+		"unit_of_measurement": {
+			Type:        "string",
+			Description: "Unit of measurement (input_number, template_sensor)",
+		},
+		"pattern": {
+			Type:        "string",
+			Description: "Regex pattern for validation (input_text)",
+		},
+		"options": {
+			Type:        "array",
+			Description: "List of options (input_select, required)",
+			Items:       &mcp.JSONSchema{Type: "string"},
+		},
+		"has_date": {
+			Type:        "boolean",
+			Description: "Include date component. At least one of has_date or has_time must be true for input_datetime.",
+		},
+		"has_time": {
+			Type:        "boolean",
+			Description: "Include time component. At least one of has_date or has_time must be true for input_datetime.",
+		},
+		"minimum": {
+			Type:        "number",
+			Description: "Minimum allowed value (counter)",
+		},
+		"maximum": {
+			Type:        "number",
+			Description: "Maximum allowed value (counter)",
+		},
+		"duration": {
+			Type:        "string",
+			Description: "Default duration in HH:MM:SS format (timer)",
+		},
+		"restore": {
+			Type:        "boolean",
+			Description: "Restore state after restart (timer)",
+		},
+		"monday": {
+			Type:        "array",
+			Description: "Time blocks for Monday [{from, to}] (schedule)",
+		},
+		"tuesday": {
+			Type:        "array",
+			Description: "Time blocks for Tuesday [{from, to}] (schedule)",
+		},
+		"wednesday": {
+			Type:        "array",
+			Description: "Time blocks for Wednesday [{from, to}] (schedule)",
+		},
+		"thursday": {
+			Type:        "array",
+			Description: "Time blocks for Thursday [{from, to}] (schedule)",
+		},
+		"friday": {
+			Type:        "array",
+			Description: "Time blocks for Friday [{from, to}] (schedule)",
+		},
+		"saturday": {
+			Type:        "array",
+			Description: "Time blocks for Saturday [{from, to}] (schedule)",
+		},
+		"sunday": {
+			Type:        "array",
+			Description: "Time blocks for Sunday [{from, to}] (schedule)",
+		},
+		"entities": {
+			Type:        "array",
+			Description: "Entity IDs to include (group, required)",
+			Items:       &mcp.JSONSchema{Type: "string"},
+		},
+		"all": {
+			Type:        "boolean",
+			Description: "Require all entities to be on for group to be on (group)",
+		},
+		"group_type": {
+			Type:        "string",
+			Description: "Explicit group type override (group, optional): sensor, binary_sensor, light, cover, switch, fan, lock. If not provided, automatically inferred from member entity domains.",
+			Enum:        []string{"sensor", "binary_sensor", "light", "cover", "switch", "fan", "lock"},
+		},
+		"state": {
+			Type:        "string",
+			Description: "Jinja2 template for state (template_sensor, template_binary_sensor, required)",
+		},
+		"device_class": {
+			Type:        "string",
+			Description: "Device class (template_sensor, template_binary_sensor, threshold)",
+		},
+		"state_class": {
+			Type:        "string",
+			Description: "State class (template_sensor: measurement, total, total_increasing)",
+		},
+		"delay_on": {
+			Type:        "string",
+			Description: "Delay before turning on (template_binary_sensor)",
+		},
+		"delay_off": {
+			Type:        "string",
+			Description: "Delay before turning off (template_binary_sensor)",
+		},
+		"lower": {
+			Type:        "number",
+			Description: "Lower threshold value (threshold)",
+		},
+		"upper": {
+			Type:        "number",
+			Description: "Upper threshold value (threshold)",
+		},
+		"hysteresis": {
+			Type:        "number",
+			Description: "Hysteresis value (threshold)",
+		},
+		"source": {
+			Type:        "string",
+			Description: "Source sensor entity ID (derivative, integral, required)",
+		},
+		"round": {
+			Type:        "number",
+			Description: "Decimal places to round (derivative, integral)",
+		},
+		"time_window": {
+			Type:        "string",
+			Description: "Time window for derivative calculation (derivative)",
+		},
+		"unit_time": {
+			Type:        "string",
+			Description: "Time unit: s, min, h, d (derivative, integral)",
+		},
+		"unit_prefix": {
+			Type:        "string",
+			Description: "Unit prefix: none, k, M, G, T (derivative, integral)",
+		},
+		"method": {
+			Type:        "string",
+			Description: "Integration method: trapezoidal, left, right (integral)",
+		},
+	}
+
+	// Merge extended properties for new helper types
+	for k, v := range buildExtendedHelperProperties() {
+		props[k] = v
+	}
+
 	return mcp.Tool{
 		Name: "manage_helper",
 		Description: `Manage Home Assistant helpers - list, create, delete, or get details.
@@ -209,6 +508,11 @@ Helper Types:
 - Stateful helpers: counter, timer, schedule
 - Entity grouping: group
 - Advanced helpers: template_sensor, template_binary_sensor, threshold, derivative, integral
+- Utility helpers: utility_meter, min_max, statistics, trend, filter
+- Random generators: random_sensor, random_binary_sensor
+- Time-based: tod (Time of Day)
+- Climate/Environment: generic_thermostat, generic_hygrostat
+- Entity converters: switch_as_x
 
 Actions:
 - list: List all helpers (optional: format=natural|json, verbose=true|false)
@@ -219,199 +523,8 @@ Actions:
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Helper management operation",
-			Properties: map[string]mcp.JSONSchema{
-				"action": {
-					Type:        "string",
-					Description: "Operation to perform: list, create, update, delete, or get_details",
-					Enum:        []string{"list", "create", "update", "delete", "get_details"},
-				},
-				"format": {
-					Type:        "string",
-					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
-					Enum:        []string{"natural", "json"},
-				},
-				"verbose": {
-					Type:        "boolean",
-					Description: "Include additional details in list output (default: false)",
-				},
-				"type": {
-					Type:        "string",
-					Description: "Helper type (required for create): input_boolean, input_number, input_text, input_select, input_datetime, input_button, counter, timer, schedule, group, template_sensor, template_binary_sensor, threshold, derivative, integral",
-					Enum:        typeNames,
-				},
-				"entity_id": {
-					Type:        "string",
-					Description: "Full entity ID (required for delete/get_details). Also required as source entity for threshold create.",
-				},
-				"id": {
-					Type:        "string",
-					Description: "Unique identifier without platform prefix (required for create)",
-				},
-				"name": {
-					Type:        "string",
-					Description: "Human-readable name (required for create)",
-				},
-				"icon": {
-					Type:        "string",
-					Description: "Icon for the helper (e.g., mdi:counter)",
-				},
-				"initial": {
-					Type:        "string",
-					Description: "Initial value (type depends on helper type)",
-				},
-				"min": {
-					Type:        "number",
-					Description: "Minimum value (required for input_number, optional for input_text)",
-				},
-				"max": {
-					Type:        "number",
-					Description: "Maximum value (required for input_number, optional for input_text)",
-				},
-				"step": {
-					Type:        "number",
-					Description: "Step value (input_number, counter)",
-				},
-				"mode": {
-					Type:        "string",
-					Description: "Display mode (input_number: box/slider, input_text: text/password)",
-				},
-				"unit_of_measurement": {
-					Type:        "string",
-					Description: "Unit of measurement (input_number, template_sensor)",
-				},
-				"pattern": {
-					Type:        "string",
-					Description: "Regex pattern for validation (input_text)",
-				},
-				"options": {
-					Type:        "array",
-					Description: "List of options (input_select, required)",
-					Items:       &mcp.JSONSchema{Type: "string"},
-				},
-				"has_date": {
-					Type:        "boolean",
-					Description: "Include date component. At least one of has_date or has_time must be true for input_datetime.",
-				},
-				"has_time": {
-					Type:        "boolean",
-					Description: "Include time component. At least one of has_date or has_time must be true for input_datetime.",
-				},
-				"minimum": {
-					Type:        "number",
-					Description: "Minimum allowed value (counter)",
-				},
-				"maximum": {
-					Type:        "number",
-					Description: "Maximum allowed value (counter)",
-				},
-				"duration": {
-					Type:        "string",
-					Description: "Default duration in HH:MM:SS format (timer)",
-				},
-				"restore": {
-					Type:        "boolean",
-					Description: "Restore state after restart (timer)",
-				},
-				"monday": {
-					Type:        "array",
-					Description: "Time blocks for Monday [{from, to}] (schedule)",
-				},
-				"tuesday": {
-					Type:        "array",
-					Description: "Time blocks for Tuesday [{from, to}] (schedule)",
-				},
-				"wednesday": {
-					Type:        "array",
-					Description: "Time blocks for Wednesday [{from, to}] (schedule)",
-				},
-				"thursday": {
-					Type:        "array",
-					Description: "Time blocks for Thursday [{from, to}] (schedule)",
-				},
-				"friday": {
-					Type:        "array",
-					Description: "Time blocks for Friday [{from, to}] (schedule)",
-				},
-				"saturday": {
-					Type:        "array",
-					Description: "Time blocks for Saturday [{from, to}] (schedule)",
-				},
-				"sunday": {
-					Type:        "array",
-					Description: "Time blocks for Sunday [{from, to}] (schedule)",
-				},
-				"entities": {
-					Type:        "array",
-					Description: "Entity IDs to include (group, required)",
-					Items:       &mcp.JSONSchema{Type: "string"},
-				},
-				"all": {
-					Type:        "boolean",
-					Description: "Require all entities to be on for group to be on (group)",
-				},
-				"group_type": {
-					Type:        "string",
-					Description: "Explicit group type override (group, optional): sensor, binary_sensor, light, cover, switch, fan, lock. If not provided, automatically inferred from member entity domains.",
-					Enum:        []string{"sensor", "binary_sensor", "light", "cover", "switch", "fan", "lock"},
-				},
-				"state": {
-					Type:        "string",
-					Description: "Jinja2 template for state (template_sensor, template_binary_sensor, required)",
-				},
-				"device_class": {
-					Type:        "string",
-					Description: "Device class (template_sensor, template_binary_sensor, threshold)",
-				},
-				"state_class": {
-					Type:        "string",
-					Description: "State class (template_sensor: measurement, total, total_increasing)",
-				},
-				"delay_on": {
-					Type:        "string",
-					Description: "Delay before turning on (template_binary_sensor)",
-				},
-				"delay_off": {
-					Type:        "string",
-					Description: "Delay before turning off (template_binary_sensor)",
-				},
-				"lower": {
-					Type:        "number",
-					Description: "Lower threshold value (threshold)",
-				},
-				"upper": {
-					Type:        "number",
-					Description: "Upper threshold value (threshold)",
-				},
-				"hysteresis": {
-					Type:        "number",
-					Description: "Hysteresis value (threshold)",
-				},
-				"source": {
-					Type:        "string",
-					Description: "Source sensor entity ID (derivative, integral, required)",
-				},
-				"round": {
-					Type:        "number",
-					Description: "Decimal places to round (derivative, integral)",
-				},
-				"time_window": {
-					Type:        "string",
-					Description: "Time window for derivative calculation (derivative)",
-				},
-				"unit_time": {
-					Type:        "string",
-					Description: "Time unit: s, min, h, d (derivative, integral)",
-				},
-				"unit_prefix": {
-					Type:        "string",
-					Description: "Unit prefix: none, k, M, G, T (derivative, integral)",
-				},
-				"method": {
-					Type:        "string",
-					Description: "Integration method: trapezoidal, left, right (integral)",
-				},
-			},
-			Required: []string{"action"},
+			Properties:  props,
+			Required:    []string{"action"},
 		},
 	}
 }
@@ -650,9 +763,23 @@ func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
 
 	predictedSlug := slugifyName(name)
 	prefix := meta.entityPrefix
-	if meta.platform == platformGroup {
+
+	// Determine dynamic entity prefix for menu-based helpers
+	switch meta.platform {
+	case platformGroup:
 		prefix = groupEntityPrefix(config)
+	case platformRandom:
+		// random helper creates sensor or binary_sensor based on type field
+		if typeVal, ok := config["type"].(string); ok {
+			prefix = typeVal
+		}
+	case platformSwitchAsX:
+		// switch_as_x creates entity in target_domain
+		if targetDomain, ok := config["target_domain"].(string); ok {
+			prefix = targetDomain
+		}
 	}
+
 	entityID := fmt.Sprintf("%s.%s", prefix, predictedSlug)
 
 	// Set icon via Entity Registry if provided
@@ -763,7 +890,8 @@ func (h *ConsolidatedHelperHandlers) handleGetDetails(ctx context.Context, clien
 	case platformTimer:
 		return h.handleGetDetailsTimer(ctx, client, args)
 	case platformInputBoolean, platformInputNumber, platformInputText, platformInputSelect,
-		platformInputDatetime, platformInputButton, platformGroup, platformSensorEntity, platformBinarySensorEntity:
+		platformInputDatetime, platformInputButton, platformGroup, platformSensorEntity, platformBinarySensorEntity,
+		"climate", "humidifier", "select":
 		return h.handleGetDetailsGeneric(ctx, client, args, platform)
 	default:
 		return errorResult(fmt.Sprintf("get_details is not supported for helper type: %s", platform)), nil
@@ -1548,6 +1676,9 @@ func buildConfigEntryUpdateConfig(_ string, args map[string]any) map[string]any 
 		config["delay_off"] = int(delayOff)
 	}
 
+	// Add fields for extended helper types
+	addExtendedConfigEntryFields(config, args)
+
 	return config
 }
 
@@ -1571,6 +1702,17 @@ var helperConfigBuilders = map[string]configBuilderFunc{
 	"threshold":                    buildThresholdConfigWrapper,
 	"derivative":                   buildDerivativeConfigWrapper,
 	"integral":                     buildIntegralConfigWrapper,
+	platformUtilityMeter:           buildUtilityMeterConfig,
+	platformMinMax:                 buildMinMaxConfig,
+	platformStatistics:             buildStatisticsConfig,
+	platformTrend:                  buildTrendConfig,
+	helperTypeRandomSensor:         buildRandomSensorConfig,
+	helperTypeRandomBinarySensor:   buildRandomBinarySensorConfig,
+	platformFilter:                 buildFilterConfig,
+	platformTod:                    buildTodConfig,
+	platformGenericThermostat:      buildGenericThermostatConfig,
+	platformSwitchAsX:              buildSwitchAsXConfig,
+	platformGenericHygrostat:       buildGenericHygrostatConfig,
 }
 
 func buildHelperConfig(helperType, name string, args map[string]any) (map[string]any, error) {
@@ -1801,6 +1943,14 @@ func validateSingleField(field, helperType string, args map[string]any) error {
 		source, _ := args["source"].(string)
 		if source == "" {
 			return fmt.Errorf("source (source sensor entity ID) is required for %s", helperType)
+		}
+	case "entity_ids":
+		entityIDs, ok := args["entity_ids"].([]any)
+		if !ok {
+			return fmt.Errorf("entity_ids is required for %s and must be an array", helperType)
+		}
+		if len(entityIDs) == 0 {
+			return fmt.Errorf("entity_ids must be a non-empty array for %s", helperType)
 		}
 	case "min", "max":
 		// Check for numeric fields (float64)

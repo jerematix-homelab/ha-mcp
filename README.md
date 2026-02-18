@@ -684,11 +684,20 @@ Universal tool for helper lifecycle management:
 | `delete`      | Delete an existing helper (requires `entity_id`)                                                     |
 | `get_details` | Get detailed configuration for any helper type (requires `entity_id`; format: natural/json) |
 
-**Supported helper types:** `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`, `counter`, `timer`, `schedule`, `group`, `template_sensor`, `template_binary_sensor`, `threshold`, `derivative`, `integral`
+**Supported helper types (26 total):**
+- **Input helpers:** `input_boolean`, `input_number`, `input_text`, `input_select`, `input_datetime`, `input_button`
+- **Stateful helpers:** `counter`, `timer`, `schedule`
+- **Entity grouping:** `group`
+- **Advanced helpers:** `template_sensor`, `template_binary_sensor`, `threshold`, `derivative`, `integral`
+- **Utility helpers:** `utility_meter`, `min_max`, `statistics`, `trend`, `filter`
+- **Random generators:** `random_sensor`, `random_binary_sensor`
+- **Time-based:** `tod` (Time of Day)
+- **Climate/Environment:** `generic_thermostat`, `generic_hygrostat`
+- **Entity converters:** `switch_as_x`
 
 **ID Parameter Behavior:**
 - For WebSocket helpers (`input_*`, `counter`, `timer`, `schedule`): The `id` parameter controls the entity ID (e.g., `id="test_bool"` creates `input_boolean.test_bool`), while `name` sets the display name
-- For Config Entry Flow helpers (`threshold`, `derivative`, `integral`, `group`, `template_*`): Entity ID is derived from `name` (Home Assistant limitation)
+- For Config Entry Flow helpers (`threshold`, `derivative`, `integral`, `group`, `template_*`, `utility_meter`, `min_max`, `statistics`, `trend`, `random_*`, `filter`, `tod`, `generic_thermostat`, `generic_hygrostat`, `switch_as_x`): Entity ID is derived from `name` (Home Assistant limitation)
 
 ##### helper_action
 
@@ -701,6 +710,7 @@ Universal tool for runtime helper operations:
 | `increment`       | counter                                           | Increment by step               |
 | `decrement`       | counter                                           | Decrement by step               |
 | `reset`           | counter, integral                                 | Reset to initial/zero           |
+| `calibrate`       | utility_meter                                     | Calibrate utility meter         |
 | `start`           | timer                                             | Start timer (optional duration) |
 | `pause`           | timer                                             | Pause running timer             |
 | `cancel`          | timer                                             | Cancel timer                    |

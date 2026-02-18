@@ -28,6 +28,10 @@ var HelperPlatforms = []string{
 	// Entity platforms created by derivative/integral/threshold helpers
 	"sensor",
 	"binary_sensor",
+	// Entity platforms created by new Config Entry helpers
+	"climate",
+	"humidifier",
+	"select",
 }
 
 // ParseHelperEntityID extracts platform and ID from an entity_id like "input_boolean.my_switch".
