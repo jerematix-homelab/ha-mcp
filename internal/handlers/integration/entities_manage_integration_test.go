@@ -296,6 +296,82 @@ func (s *EntityManageIntegrationTestSuite) TestEntityRename() {
 	s.False(stillExists, "Entity should be removed from registry")
 }
 
+func (s *EntityManageIntegrationTestSuite) TestEntityUpdateLabels() {
+	testName := GenerateTestID("entity_labels")
+	entityID := BuildEntityID("input_boolean", testName)
+
+	// Create a test label first (entity labels must exist in label registry)
+	labelName := GenerateTestID("entity_lbl")
+	createdLabel, err := s.Client().CreateLabel(s.Context(), homeassistant.LabelConfig{Name: labelName})
+	s.Require().NoError(err, "failed to create test label")
+	labelID := createdLabel.LabelID
+
+	s.RegisterCleanup(func() {
+		_ = s.Client().DeleteHelper(s.Context(), entityID)
+		_ = s.Client().DeleteLabel(s.Context(), labelID)
+	})
+
+	// Create helper entity
+	err = s.Client().CreateHelper(s.Context(), homeassistant.HelperConfig{
+		Platform: "input_boolean",
+		Config:   map[string]any{"name": testName},
+	})
+	s.Require().NoError(err, "failed to create helper")
+
+	_, err = s.WaitForEntity(entityID, 5*time.Second)
+	s.Require().NoError(err, "helper did not appear")
+	time.Sleep(500 * time.Millisecond)
+
+	// Set label on entity
+	_, err = s.Client().UpdateEntityRegistryEntry(s.Context(), entityID, homeassistant.EntityRegistryUpdateConfig{
+		Labels: []string{labelID},
+	})
+	s.Require().NoError(err, "failed to set labels")
+
+	// Verify label in registry
+	time.Sleep(500 * time.Millisecond)
+	registry, err := s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err)
+
+	var found bool
+	for _, entry := range registry {
+		if entry.EntityID == entityID {
+			found = true
+			s.Contains(entry.Labels, labelID, "label should be set on entity")
+			break
+		}
+	}
+	s.Require().True(found, "entity should exist in registry")
+
+	// Clear labels (replace with empty — note: omitempty may prevent full clear;
+	// this verifies the API round-trip for the label field)
+	secondLabel, err := s.Client().CreateLabel(s.Context(), homeassistant.LabelConfig{Name: GenerateTestID("entity_lbl2")})
+	s.Require().NoError(err)
+	s.RegisterCleanup(func() { _ = s.Client().DeleteLabel(s.Context(), secondLabel.LabelID) })
+
+	_, err = s.Client().UpdateEntityRegistryEntry(s.Context(), entityID, homeassistant.EntityRegistryUpdateConfig{
+		Labels: []string{secondLabel.LabelID},
+	})
+	s.Require().NoError(err, "failed to replace labels")
+
+	time.Sleep(500 * time.Millisecond)
+	registry, err = s.Client().GetEntityRegistry(s.Context())
+	s.Require().NoError(err)
+	for _, entry := range registry {
+		if entry.EntityID == entityID {
+			s.Contains(entry.Labels, secondLabel.LabelID, "new label should replace old label")
+			s.NotContains(entry.Labels, labelID, "old label should be replaced")
+			break
+		}
+	}
+
+	// Cleanup
+	err = s.Client().DeleteHelper(s.Context(), entityID)
+	s.Require().NoError(err)
+	_ = s.Client().DeleteLabel(s.Context(), labelID)
+	_ = s.Client().DeleteLabel(s.Context(), secondLabel.LabelID)
+}
+
 // Helper function to create string pointers
 func stringPtr(s string) *string {
 	return &s

@@ -448,6 +448,59 @@ func TestHandleManageArea(t *testing.T) {
 		},
 
 		// =========================
+		// Label/Alias Mode Tests (update)
+		// =========================
+		{
+			name: "update - labels with add mode merges with existing",
+			args: map[string]any{
+				"action":     "update",
+				"area_id":    "living_room",
+				"labels":     []any{"new_label"},
+				"label_mode": arrayModeAdd,
+				"format":     "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room", Labels: []string{"existing_label"}},
+					}, nil
+				}
+				m.UpdateAreaFn = func(_ context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
+					if len(config.Labels) != 2 {
+						t.Errorf("expected 2 labels after add, got %v", config.Labels)
+					}
+					return &homeassistant.AreaRegistryEntry{AreaID: areaID, Name: "Living Room", Labels: config.Labels}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: `"area_id":"living_room"`,
+		},
+		{
+			name: "update - aliases with remove mode removes specified",
+			args: map[string]any{
+				"action":     "update",
+				"area_id":    "living_room",
+				"aliases":    []any{"old name"},
+				"alias_mode": arrayModeRemove,
+				"format":     "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room", Aliases: []string{"old name", "keep this"}},
+					}, nil
+				}
+				m.UpdateAreaFn = func(_ context.Context, areaID string, config homeassistant.AreaConfig) (*homeassistant.AreaRegistryEntry, error) {
+					if len(config.Aliases) != 1 || config.Aliases[0] != "keep this" {
+						t.Errorf("expected [keep this] after remove, got %v", config.Aliases)
+					}
+					return &homeassistant.AreaRegistryEntry{AreaID: areaID, Name: "Living Room", Aliases: config.Aliases}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: `"area_id":"living_room"`,
+		},
+		// =========================
 		// Invalid Action Test
 		// =========================
 		{

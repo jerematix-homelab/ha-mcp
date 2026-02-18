@@ -481,6 +481,68 @@ func TestManageFloor_Delete(t *testing.T) {
 }
 
 // =============================================================================
+// Alias Mode Tests (update)
+// =============================================================================
+
+func TestManageFloor_UpdateAliasMode(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "update - aliases with add mode merges with existing",
+			args: map[string]any{
+				"action":     "update",
+				"floor_id":   "floor_1",
+				"aliases":    []any{"new alias"},
+				"alias_mode": arrayModeAdd,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetFloorRegistryFn = func(context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+					return []homeassistant.FloorRegistryEntry{
+						{FloorID: "floor_1", Name: "Test Floor", Aliases: []string{"existing alias"}},
+					}, nil
+				}
+				m.UpdateFloorFn = func(_ context.Context, floorID string, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
+					if len(config.Aliases) != 2 {
+						t.Errorf("expected 2 aliases after add, got %v", config.Aliases)
+					}
+					return &homeassistant.FloorRegistryEntry{FloorID: floorID, Name: "Test Floor", Aliases: config.Aliases}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated successfully"},
+		},
+		{
+			name: "update - aliases with remove mode removes specified",
+			args: map[string]any{
+				"action":     "update",
+				"floor_id":   "floor_1",
+				"aliases":    []any{"remove me"},
+				"alias_mode": arrayModeRemove,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetFloorRegistryFn = func(context.Context) ([]homeassistant.FloorRegistryEntry, error) {
+					return []homeassistant.FloorRegistryEntry{
+						{FloorID: "floor_1", Name: "Test Floor", Aliases: []string{"keep me", "remove me"}},
+					}, nil
+				}
+				m.UpdateFloorFn = func(_ context.Context, floorID string, config homeassistant.FloorConfig) (*homeassistant.FloorRegistryEntry, error) {
+					if len(config.Aliases) != 1 || config.Aliases[0] != "keep me" {
+						t.Errorf("expected [keep me] after remove, got %v", config.Aliases)
+					}
+					return &homeassistant.FloorRegistryEntry{FloorID: floorID, Name: "Test Floor", Aliases: config.Aliases}, nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"updated successfully"},
+		},
+	}
+
+	h := NewFloorHandlers()
+	runHandlerTestCases(t, tests, h.handleManageFloor)
+}
+
+// =============================================================================
 // Validation Tests
 // =============================================================================
 

@@ -48,7 +48,7 @@ Actions:
 - list: List all floors with area counts (optional filters: name_contains)
 - get: Get details of a specific floor with area list (requires floor_id)
 - create: Create a new floor (requires name)
-- update: Update an existing floor (requires floor_id)
+- update: Update an existing floor (requires floor_id); aliases use alias_mode ('add' default)
 - delete: Delete a floor (requires floor_id)`,
 		InputSchema: schema,
 	}
@@ -82,11 +82,12 @@ func (h *FloorHandlers) buildFloorSchema() mcp.JSONSchema {
 			},
 			"aliases": {
 				Type:        "array",
-				Description: "Alternative names for the floor",
+				Description: "Alternative names for the floor; use alias_mode to control merge behavior",
 				Items: &mcp.JSONSchema{
 					Type: "string",
 				},
 			},
+			"alias_mode": arrayModeSchema("aliases"),
 			"name_contains": {
 				Type:        "string",
 				Description: "Filter by floor name containing this string (for list action, case-insensitive)",
@@ -192,6 +193,9 @@ func (h *FloorHandlers) handleCreate(ctx context.Context, client homeassistant.C
 
 	config := h.buildFloorConfig(args)
 	config.Name = name
+	if aliases, ok := args["aliases"].([]any); ok {
+		config.Aliases = convertToStringSlice(aliases)
+	}
 
 	floor, err := client.CreateFloor(ctx, config)
 	if err != nil {
@@ -207,14 +211,20 @@ func (h *FloorHandlers) handleUpdate(ctx context.Context, client homeassistant.C
 		return errorResult("floor_id is required for update action"), nil
 	}
 
-	resolvedID, err := h.resolveFloorID(ctx, client, floorID)
+	currentFloor, err := h.resolveFloorEntry(ctx, client, floorID)
 	if err != nil {
 		return errorResult(err.Error()), nil
 	}
 
 	config := h.buildFloorConfig(args)
 
-	floor, err := client.UpdateFloor(ctx, resolvedID, config)
+	// Apply alias mode, merging with current values as needed.
+	aliasMode := getArrayMode(args, "alias_mode")
+	if aliases, hasAliases := getStringSlice(args, "aliases"); hasAliases {
+		config.Aliases = applyArrayMode(currentFloor.Aliases, aliases, aliasMode)
+	}
+
+	floor, err := client.UpdateFloor(ctx, currentFloor.FloorID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating floor: %v", err)), nil
 	}
@@ -277,6 +287,21 @@ func (h *FloorHandlers) resolveFloorID(ctx context.Context, client homeassistant
 	}
 
 	return floor.FloorID, nil
+}
+
+// resolveFloorEntry resolves a floor input (ID or name) to the full FloorRegistryEntry.
+func (h *FloorHandlers) resolveFloorEntry(ctx context.Context, client homeassistant.Client, input string) (*homeassistant.FloorRegistryEntry, error) {
+	floors, err := client.GetFloorRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching floors: %w", err)
+	}
+
+	floor, err := h.findFloorByInput(floors, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return floor, nil
 }
 
 func (h *FloorHandlers) buildFloorConfig(args map[string]any) homeassistant.FloorConfig {

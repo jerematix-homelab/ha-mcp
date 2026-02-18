@@ -48,7 +48,7 @@ Actions:
 - list: List all areas (optional filters: name_contains)
 - get: Get details of a specific area with device/entity counts (requires area_id)
 - create: Create a new area (requires name)
-- update: Update an existing area (requires area_id)
+- update: Update an existing area (requires area_id); labels/aliases use label_mode/alias_mode ('add' default)
 - delete: Delete an area (requires area_id)`,
 		InputSchema: schema,
 	}
@@ -87,11 +87,13 @@ func (h *AreaHandlers) buildAreaSchema() mcp.JSONSchema {
 			},
 			"labels": {
 				Type:        "array",
-				Description: "Labels for categorizing the area",
+				Description: "Labels for categorizing the area; use label_mode to control merge behavior",
 				Items: &mcp.JSONSchema{
 					Type: "string",
 				},
 			},
+			"label_mode": arrayModeSchema("labels"),
+			"alias_mode": arrayModeSchema("aliases"),
 			"name_contains": {
 				Type:        "string",
 				Description: "Filter by area name containing this string (for list action, case-insensitive)",
@@ -202,6 +204,8 @@ func (h *AreaHandlers) handleCreate(ctx context.Context, client homeassistant.Cl
 
 	config := h.buildAreaConfig(args)
 	config.Name = name
+	config.Aliases = toStringArray(args["aliases"])
+	config.Labels = toStringArray(args["labels"])
 
 	entry, err := client.CreateArea(ctx, config)
 	if err != nil {
@@ -221,14 +225,25 @@ func (h *AreaHandlers) handleUpdate(ctx context.Context, client homeassistant.Cl
 		return errorResult("area_id is required for update action"), nil
 	}
 
-	resolvedID, err := h.resolveAreaID(ctx, client, areaID)
+	currentArea, err := h.resolveAreaEntry(ctx, client, areaID)
 	if err != nil {
 		return errorResult(err.Error()), nil
 	}
 
 	config := h.buildAreaConfig(args)
 
-	entry, err := client.UpdateArea(ctx, resolvedID, config)
+	// Apply label/alias modes, merging with current values as needed.
+	labelMode := getArrayMode(args, "label_mode")
+	if labels, hasLabels := getStringSlice(args, "labels"); hasLabels {
+		config.Labels = applyArrayMode(currentArea.Labels, labels, labelMode)
+	}
+
+	aliasMode := getArrayMode(args, "alias_mode")
+	if aliases, hasAliases := getStringSlice(args, "aliases"); hasAliases {
+		config.Aliases = applyArrayMode(currentArea.Aliases, aliases, aliasMode)
+	}
+
+	entry, err := client.UpdateArea(ctx, currentArea.AreaID, config)
 	if err != nil {
 		return errorResult(fmt.Sprintf("error updating area: %v", err)), nil
 	}
@@ -298,6 +313,21 @@ func (h *AreaHandlers) resolveAreaID(ctx context.Context, client homeassistant.C
 	return area.AreaID, nil
 }
 
+// resolveAreaEntry resolves an area input (ID or name) to the full AreaRegistryEntry.
+func (h *AreaHandlers) resolveAreaEntry(ctx context.Context, client homeassistant.Client, input string) (*homeassistant.AreaRegistryEntry, error) {
+	areas, err := client.GetAreaRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching areas: %w", err)
+	}
+
+	area, err := h.findAreaByInput(areas, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return area, nil
+}
+
 func (h *AreaHandlers) buildAreaConfig(args map[string]any) homeassistant.AreaConfig {
 	cfg := homeassistant.AreaConfig{}
 
@@ -313,10 +343,6 @@ func (h *AreaHandlers) buildAreaConfig(args map[string]any) homeassistant.AreaCo
 	if floorID, ok := args["floor_id"].(string); ok && floorID != "" {
 		cfg.FloorID = floorID
 	}
-
-	// Handle array fields
-	cfg.Aliases = toStringArray(args["aliases"])
-	cfg.Labels = toStringArray(args["labels"])
 
 	return cfg
 }

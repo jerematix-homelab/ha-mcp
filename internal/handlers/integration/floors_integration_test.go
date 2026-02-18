@@ -188,6 +188,59 @@ func (s *FloorIntegrationTestSuite) TestFloorUpdatePartial() {
 	_ = s.Client().DeleteFloor(s.Context(), floorID)
 }
 
+func (s *FloorIntegrationTestSuite) TestFloorAliasUpdate() {
+	floorName := GenerateTestID("floor_alias")
+	level0 := 0
+
+	s.RegisterCleanup(func() {
+		floors, _ := s.Client().GetFloorRegistry(s.Context())
+		for _, floor := range floors {
+			if floor.Name == floorName {
+				_ = s.Client().DeleteFloor(s.Context(), floor.FloorID)
+			}
+		}
+	})
+
+	// Create floor without aliases
+	created, err := s.Client().CreateFloor(s.Context(), homeassistant.FloorConfig{
+		Name:  floorName,
+		Level: &level0,
+	})
+	s.Require().NoError(err, "failed to create floor")
+	floorID := created.FloorID
+
+	time.Sleep(500 * time.Millisecond)
+
+	// Add initial aliases
+	_, err = s.Client().UpdateFloor(s.Context(), floorID, homeassistant.FloorConfig{
+		Aliases: []string{"ground level", "entry floor"},
+	})
+	s.Require().NoError(err, "failed to set aliases")
+
+	time.Sleep(500 * time.Millisecond)
+	floor, err := s.FindFloorByID(floorID)
+	s.Require().NoError(err)
+	s.ElementsMatch([]string{"ground level", "entry floor"}, floor.Aliases, "aliases should be set")
+	s.Require().NotNil(floor.Level, "level should remain set")
+	s.Equal(0, *floor.Level, "level should remain unchanged")
+
+	// Replace aliases with a single new one
+	_, err = s.Client().UpdateFloor(s.Context(), floorID, homeassistant.FloorConfig{
+		Aliases: []string{"lobby"},
+	})
+	s.Require().NoError(err, "failed to replace aliases")
+
+	time.Sleep(500 * time.Millisecond)
+	floor, err = s.FindFloorByID(floorID)
+	s.Require().NoError(err)
+	s.ElementsMatch([]string{"lobby"}, floor.Aliases, "aliases should be replaced")
+	s.Require().NotNil(floor.Level, "level should remain set")
+	s.Equal(0, *floor.Level, "level should remain unchanged after alias update")
+
+	// Cleanup
+	_ = s.Client().DeleteFloor(s.Context(), floorID)
+}
+
 func (s *FloorIntegrationTestSuite) TestMultipleFloors() {
 	floor1Name := GenerateTestID("floor_1")
 	floor2Name := GenerateTestID("floor_2")

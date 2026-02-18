@@ -349,11 +349,12 @@ func TestHandleManageEntity(t *testing.T) {
 			wantContain: "updated successfully",
 		},
 		{
-			name: "update - labels",
+			name: "update - labels with replace mode",
 			args: map[string]any{
-				"action":    "update",
-				"entity_id": "light.living_room",
-				"labels":    []any{"bright", "smart"},
+				"action":     "update",
+				"entity_id":  "light.living_room",
+				"labels":     []any{"bright", "smart"},
+				"label_mode": arrayModeReplace,
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.UpdateEntityRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
@@ -369,11 +370,12 @@ func TestHandleManageEntity(t *testing.T) {
 			wantContain: "bright",
 		},
 		{
-			name: "update - aliases",
+			name: "update - aliases with replace mode",
 			args: map[string]any{
-				"action":    "update",
-				"entity_id": "light.living_room",
-				"aliases":   []any{"main light", "big light"},
+				"action":     "update",
+				"entity_id":  "light.living_room",
+				"aliases":    []any{"main light", "big light"},
+				"alias_mode": arrayModeReplace,
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.UpdateEntityRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
@@ -437,6 +439,78 @@ func TestHandleManageEntity(t *testing.T) {
 			wantContain: `"entity_id":"light.living_room"`,
 		},
 
+		// =========================
+		// Label/Alias Mode Tests
+		// =========================
+		{
+			name: "update - labels with add mode merges with existing",
+			args: map[string]any{
+				"action":     "update",
+				"entity_id":  "light.living_room",
+				"labels":     []any{"new_label"},
+				"label_mode": arrayModeAdd,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", Labels: []string{"existing_label"}},
+					}, nil
+				}
+				m.UpdateEntityRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+					if len(config.Labels) != 2 {
+						t.Errorf("expected 2 labels after add, got %v", config.Labels)
+					}
+					return &homeassistant.EntityRegistryEntry{EntityID: "light.living_room", Labels: config.Labels}, nil
+				}
+			},
+			wantContain: "existing_label",
+		},
+		{
+			name: "update - labels with remove mode removes specified",
+			args: map[string]any{
+				"action":     "update",
+				"entity_id":  "light.living_room",
+				"labels":     []any{"remove_me"},
+				"label_mode": arrayModeRemove,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", Labels: []string{"keep_me", "remove_me"}},
+					}, nil
+				}
+				m.UpdateEntityRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+					if len(config.Labels) != 1 || config.Labels[0] != "keep_me" {
+						t.Errorf("expected ['keep_me'] after remove, got %v", config.Labels)
+					}
+					return &homeassistant.EntityRegistryEntry{EntityID: "light.living_room", Labels: config.Labels}, nil
+				}
+			},
+			wantContain: "keep_me",
+		},
+		{
+			name: "update - aliases with add mode merges with existing",
+			args: map[string]any{
+				"action":     "update",
+				"entity_id":  "light.living_room",
+				"aliases":    []any{"new alias"},
+				"alias_mode": arrayModeAdd,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", Aliases: []string{"old alias"}},
+					}, nil
+				}
+				m.UpdateEntityRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.EntityRegistryUpdateConfig) (*homeassistant.EntityRegistryEntry, error) {
+					if len(config.Aliases) != 2 {
+						t.Errorf("expected 2 aliases after add, got %v", config.Aliases)
+					}
+					return &homeassistant.EntityRegistryEntry{EntityID: "light.living_room", Aliases: config.Aliases}, nil
+				}
+			},
+			wantContain: "old alias",
+		},
 		// =========================
 		// Entity ID Rename Tests
 		// =========================

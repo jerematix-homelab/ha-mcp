@@ -278,11 +278,12 @@ func TestHandleManageDevice(t *testing.T) {
 			wantContain: "updated successfully",
 		},
 		{
-			name: "update - labels",
+			name: "update - labels with replace mode",
 			args: map[string]any{
-				"action":    "update",
-				"device_id": "abc123",
-				"labels":    []any{"smart", "hub"},
+				"action":     "update",
+				"device_id":  "abc123",
+				"labels":     []any{"smart", "hub"},
+				"label_mode": arrayModeReplace,
 			},
 			setupMock: func(m *UniversalMockClient) {
 				m.UpdateDeviceRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.DeviceRegistryUpdateConfig) (*homeassistant.DeviceRegistryEntry, error) {
@@ -346,6 +347,55 @@ func TestHandleManageDevice(t *testing.T) {
 			wantContain: `"id":"abc123"`,
 		},
 
+		// =========================
+		// Label Mode Tests
+		// =========================
+		{
+			name: "update - labels with add mode merges with existing",
+			args: map[string]any{
+				"action":     "update",
+				"device_id":  "abc123",
+				"labels":     []any{"new_label"},
+				"label_mode": arrayModeAdd,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{
+						{ID: "abc123", Labels: []string{"existing_label"}},
+					}, nil
+				}
+				m.UpdateDeviceRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.DeviceRegistryUpdateConfig) (*homeassistant.DeviceRegistryEntry, error) {
+					if len(config.Labels) != 2 {
+						t.Errorf("expected 2 labels after add, got %v", config.Labels)
+					}
+					return &homeassistant.DeviceRegistryEntry{ID: "abc123", Labels: config.Labels}, nil
+				}
+			},
+			wantContain: "existing_label",
+		},
+		{
+			name: "update - labels with remove mode removes specified",
+			args: map[string]any{
+				"action":     "update",
+				"device_id":  "abc123",
+				"labels":     []any{"remove_me"},
+				"label_mode": arrayModeRemove,
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{
+						{ID: "abc123", Labels: []string{"keep_me", "remove_me"}},
+					}, nil
+				}
+				m.UpdateDeviceRegistryEntryFn = func(_ context.Context, _ string, config homeassistant.DeviceRegistryUpdateConfig) (*homeassistant.DeviceRegistryEntry, error) {
+					if len(config.Labels) != 1 || config.Labels[0] != "keep_me" {
+						t.Errorf("expected [keep_me] after remove, got %v", config.Labels)
+					}
+					return &homeassistant.DeviceRegistryEntry{ID: "abc123", Labels: config.Labels}, nil
+				}
+			},
+			wantContain: "keep_me",
+		},
 		// =========================
 		// Invalid Action Tests
 		// =========================
