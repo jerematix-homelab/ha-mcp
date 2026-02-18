@@ -175,6 +175,9 @@ func (m *mockClientForPool) UpdateScript(_ context.Context, _ string, _ ScriptCo
 }
 func (m *mockClientForPool) DeleteScript(_ context.Context, _ string) error { return nil }
 func (m *mockClientForPool) ListScenes(_ context.Context) ([]Entity, error) { return nil, nil }
+func (m *mockClientForPool) GetScene(_ context.Context, _ string) (*Scene, error) {
+	return nil, nil
+}
 func (m *mockClientForPool) CreateScene(_ context.Context, _ string, _ SceneConfig) error {
 	return nil
 }

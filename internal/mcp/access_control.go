@@ -117,7 +117,7 @@ func addCoreManagementTools(result map[string]ToolClassification) {
 		ParamName: "action",
 		Actions: map[string]ActionCategory{
 			"list": CategoryRead, "get": CategoryRead,
-			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "activate": CategoryWrite,
+			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "activate": CategoryWrite, "patch": CategoryWrite,
 		},
 	}
 }

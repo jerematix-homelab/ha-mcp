@@ -115,6 +115,10 @@ func (m *mockHAClient) ListScenes(_ context.Context) ([]homeassistant.Entity, er
 	return nil, nil
 }
 
+func (m *mockHAClient) GetScene(_ context.Context, _ string) (*homeassistant.Scene, error) {
+	return nil, nil
+}
+
 func (m *mockHAClient) CreateScene(_ context.Context, _ string, _ homeassistant.SceneConfig) error {
 	return nil
 }

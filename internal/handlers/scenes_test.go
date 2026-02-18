@@ -1139,3 +1139,98 @@ func TestSceneHandlers_IDNormalization(t *testing.T) {
 		})
 	}
 }
+
+func TestManageScene_Patch(t *testing.T) {
+	t.Parallel()
+
+	baseConfig := &homeassistant.SceneConfig{
+		Name: "Movie Night",
+		Entities: map[string]homeassistant.SceneState{
+			"light.living_room": {State: "on", Attributes: map[string]any{"brightness": float64(200)}},
+		},
+	}
+
+	h := &SceneHandlers{}
+
+	tests := []handlerTestCase{
+		{
+			name: "patch - missing scene_id",
+			args: map[string]any{
+				"action":     "patch",
+				"operations": []any{map[string]any{"op": "replace", "path": "/name", "value": "Updated Movie Night"}},
+			},
+			wantError:    true,
+			wantContains: []string{"scene_id is required"},
+		},
+		{
+			name: "patch - missing operations",
+			args: map[string]any{
+				"action":   "patch",
+				"scene_id": "movie_night",
+			},
+			wantError:    true,
+			wantContains: []string{"operations is required"},
+		},
+		{
+			name: "patch - success replace name",
+			args: map[string]any{
+				"action":   "patch",
+				"scene_id": "movie_night",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/name", "value": "Updated Movie Night"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetSceneFn = func(_ context.Context, _ string) (*homeassistant.Scene, error) {
+					cfg := *baseConfig
+					return &homeassistant.Scene{EntityID: "scene.movie_night", Config: &cfg}, nil
+				}
+				m.UpdateSceneFn = func(_ context.Context, _ string, _ homeassistant.SceneConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully", "1 operations"},
+		},
+		{
+			name: "patch - success add entity",
+			args: map[string]any{
+				"action":   "patch",
+				"scene_id": "movie_night",
+				"operations": []any{
+					map[string]any{"op": "add", "path": "/entities/light.bedroom", "value": map[string]any{"state": "on"}},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetSceneFn = func(_ context.Context, _ string) (*homeassistant.Scene, error) {
+					cfg := *baseConfig
+					return &homeassistant.Scene{EntityID: "scene.movie_night", Config: &cfg}, nil
+				}
+				m.UpdateSceneFn = func(_ context.Context, _ string, _ homeassistant.SceneConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "patch - nil config returns error",
+			args: map[string]any{
+				"action":   "patch",
+				"scene_id": "movie_night",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/name", "value": "Updated"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetSceneFn = func(_ context.Context, _ string) (*homeassistant.Scene, error) {
+					return &homeassistant.Scene{EntityID: "scene.movie_night", Config: nil}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"no configuration to patch"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageScene)
+}

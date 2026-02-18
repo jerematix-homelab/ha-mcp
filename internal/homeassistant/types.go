@@ -185,9 +185,50 @@ type SceneConfig struct {
 }
 
 // SceneState represents the desired state of an entity in a scene.
+// The HA REST API uses a flat format: {"state": "on", "brightness": 255}
+// instead of a nested format: {"state": "on", "attributes": {"brightness": 255}}.
 type SceneState struct {
 	State      string         `json:"state,omitempty"`
 	Attributes map[string]any `json:"attributes,omitempty"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler for SceneState.
+// The HA REST API returns scene entity states in flat format where all
+// attributes are at the top level alongside the state key.
+func (s *SceneState) UnmarshalJSON(data []byte) error {
+	var flat map[string]any
+	if err := json.Unmarshal(data, &flat); err != nil {
+		return err
+	}
+	if st, ok := flat["state"].(string); ok {
+		s.State = st
+	}
+	delete(flat, "state")
+	if len(flat) > 0 {
+		s.Attributes = flat
+	}
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler for SceneState.
+// Flattens State and Attributes back to the format expected by the HA REST API.
+func (s SceneState) MarshalJSON() ([]byte, error) {
+	flat := make(map[string]any, len(s.Attributes)+1)
+	for k, v := range s.Attributes {
+		flat[k] = v
+	}
+	if s.State != "" {
+		flat["state"] = s.State
+	}
+	return json.Marshal(flat)
+}
+
+// Scene represents a Home Assistant scene with state and configuration.
+type Scene struct {
+	EntityID     string       `json:"entity_id"`
+	State        string       `json:"state"`
+	FriendlyName string       `json:"friendly_name,omitempty"`
+	Config       *SceneConfig `json:"config,omitempty"`
 }
 
 // EntityRegistryEntry represents an entry in the Home Assistant entity registry.

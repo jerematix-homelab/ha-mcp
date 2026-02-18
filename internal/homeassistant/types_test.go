@@ -2,6 +2,7 @@ package homeassistant
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -1145,6 +1146,112 @@ func TestContext_JSONRoundtrip(t *testing.T) {
 
 			if diff := cmp.Diff(tt.ctx, got); diff != "" {
 				t.Errorf("Roundtrip mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSceneState_UnmarshalJSON_FlatFormat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		input     string
+		wantState string
+		wantAttrs map[string]any
+		wantErr   bool
+	}{
+		{
+			name:      "flat format with state and attributes",
+			input:     `{"state": "on", "brightness": 255, "color_temp": 300}`,
+			wantState: "on",
+			wantAttrs: map[string]any{"brightness": float64(255), "color_temp": float64(300)},
+		},
+		{
+			name:      "flat format state only",
+			input:     `{"state": "off"}`,
+			wantState: "off",
+			wantAttrs: nil,
+		},
+		{
+			name:      "empty object",
+			input:     `{}`,
+			wantState: "",
+			wantAttrs: nil,
+		},
+		{
+			name:      "only attributes no state",
+			input:     `{"brightness": 128}`,
+			wantState: "",
+			wantAttrs: map[string]any{"brightness": float64(128)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got SceneState
+			err := json.Unmarshal([]byte(tt.input), &got)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("UnmarshalJSON() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got.State != tt.wantState {
+				t.Errorf("State = %q, want %q", got.State, tt.wantState)
+			}
+			if diff := cmp.Diff(tt.wantAttrs, got.Attributes); diff != "" {
+				t.Errorf("Attributes mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestSceneState_MarshalJSON_FlatFormat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		state     SceneState
+		wantKeys  []string
+		wantNoKey string
+	}{
+		{
+			name:  "state and attributes produce flat output",
+			state: SceneState{State: "on", Attributes: map[string]any{"brightness": float64(200)}},
+			// Should NOT contain an "attributes" key - all keys at top level
+			wantNoKey: `"attributes"`,
+			wantKeys:  []string{`"state"`, `"brightness"`},
+		},
+		{
+			name:     "state only",
+			state:    SceneState{State: "off"},
+			wantKeys: []string{`"state"`},
+		},
+		{
+			name:  "empty state",
+			state: SceneState{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := json.Marshal(tt.state)
+			if err != nil {
+				t.Fatalf("MarshalJSON() error = %v", err)
+			}
+			output := string(data)
+
+			if tt.wantNoKey != "" && strings.Contains(output, tt.wantNoKey) {
+				t.Errorf("output contains nested %q key, want flat format: %s", tt.wantNoKey, output)
+			}
+			for _, key := range tt.wantKeys {
+				if !strings.Contains(output, key) {
+					t.Errorf("output missing key %q in: %s", key, output)
+				}
 			}
 		})
 	}
