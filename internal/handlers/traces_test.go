@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/mcp"
@@ -164,7 +165,15 @@ func TestManageTrace_List(t *testing.T) {
 			t.Parallel()
 
 			client := &UniversalMockClient{
-				SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+				SendHACSCommandFn: func(_ context.Context, cmd string, data map[string]any) (any, error) {
+					if cmd != "trace/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					if domain, _ := tt.args["domain"].(string); domain != "" {
+						if data["domain"] != domain {
+							return nil, fmt.Errorf("data[domain] = %v, want %q", data["domain"], domain)
+						}
+					}
 					return tt.mockResponse, nil
 				},
 			}
@@ -192,7 +201,19 @@ func TestManageTrace_Get(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+		SendHACSCommandFn: func(_ context.Context, cmd string, data map[string]any) (any, error) {
+			if cmd != "trace/get" {
+				t.Errorf("cmd = %q, want %q", cmd, "trace/get")
+			}
+			if data["item_id"] != "automation.test" {
+				t.Errorf("data[item_id] = %v, want %q", data["item_id"], "automation.test")
+			}
+			if _, exists := data["entity_id"]; exists {
+				t.Errorf("data should not contain entity_id (found: %v)", data["entity_id"])
+			}
+			if data["run_id"] != "abc123" {
+				t.Errorf("data[run_id] = %v, want %q", data["run_id"], "abc123")
+			}
 			return map[string]any{
 				"trace": map[string]any{
 					"trigger":    "manual",

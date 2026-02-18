@@ -750,7 +750,13 @@ func TestScriptHandlers_ManageScript_Execute(t *testing.T) {
 			t.Parallel()
 
 			client := &mockScriptClient{
-				callServiceFn: func(_ context.Context, _, _ string, _ map[string]any) ([]homeassistant.Entity, error) {
+				callServiceFn: func(_ context.Context, domain, service string, _ map[string]any) ([]homeassistant.Entity, error) {
+					if domain != "script" {
+						t.Errorf("wrong domain: %s", domain)
+					}
+					if service != "turn_on" {
+						t.Errorf("wrong service: %s", service)
+					}
 					return nil, tt.callServiceErr
 				},
 			}
@@ -959,7 +965,13 @@ func TestScriptHandlers_CallService(t *testing.T) {
 			t.Parallel()
 
 			client := &mockScriptClient{
-				callServiceFn: func(_ context.Context, _, _ string, _ map[string]any) ([]homeassistant.Entity, error) {
+				callServiceFn: func(_ context.Context, domain, service string, _ map[string]any) ([]homeassistant.Entity, error) {
+					if wantDomain, _ := tt.args["domain"].(string); domain != wantDomain {
+						t.Errorf("domain = %q, want %q", domain, wantDomain)
+					}
+					if wantService, _ := tt.args["service"].(string); service != wantService {
+						t.Errorf("service = %q, want %q", service, wantService)
+					}
 					if tt.callServiceErr != nil {
 						return nil, tt.callServiceErr
 					}

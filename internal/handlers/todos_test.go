@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -96,7 +97,13 @@ func TestManageTodo_GetItems(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		CallServiceWithResponseFn: func(context.Context, string, string, map[string]any) (map[string]any, error) {
+		CallServiceWithResponseFn: func(_ context.Context, domain, service string, _ map[string]any) (map[string]any, error) {
+			if domain != "todo" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "get_items" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
 			return map[string]any{
 				"todo.shopping_list": map[string]any{
 					"items": []any{
@@ -141,7 +148,13 @@ func TestManageTodo_GetItemsStatusFilter(t *testing.T) {
 
 	var capturedData map[string]any
 	client := &UniversalMockClient{
-		CallServiceWithResponseFn: func(_ context.Context, _ string, _ string, data map[string]any) (map[string]any, error) {
+		CallServiceWithResponseFn: func(_ context.Context, domain, service string, data map[string]any) (map[string]any, error) {
+			if domain != "todo" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "get_items" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
 			capturedData = data
 			return map[string]any{
 				"todo.tasks": map[string]any{
@@ -173,7 +186,19 @@ func TestManageTodo_AddItem(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "todo" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "add_item" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
+			if data["entity_id"] != "todo.shopping_list" {
+				return nil, fmt.Errorf("data[entity_id] = %v, want %q", data["entity_id"], "todo.shopping_list")
+			}
+			if data["item"] != "Buy bread" {
+				return nil, fmt.Errorf("data[item] = %v, want %q", data["item"], "Buy bread")
+			}
 			return nil, nil
 		},
 	}
@@ -198,7 +223,19 @@ func TestManageTodo_UpdateItem(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "todo" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "update_item" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
+			if data["entity_id"] != "todo.shopping_list" {
+				return nil, fmt.Errorf("data[entity_id] = %v, want %q", data["entity_id"], "todo.shopping_list")
+			}
+			if data["item"] != "item1" {
+				return nil, fmt.Errorf("data[item] = %v, want %q", data["item"], "item1")
+			}
 			return nil, nil
 		},
 	}
@@ -224,7 +261,19 @@ func TestManageTodo_RemoveItem(t *testing.T) {
 	t.Parallel()
 
 	client := &UniversalMockClient{
-		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "todo" {
+				return nil, fmt.Errorf("wrong domain: %s", domain)
+			}
+			if service != "remove_item" {
+				return nil, fmt.Errorf("wrong service: %s", service)
+			}
+			if data["entity_id"] != "todo.shopping_list" {
+				return nil, fmt.Errorf("data[entity_id] = %v, want %q", data["entity_id"], "todo.shopping_list")
+			}
+			if data["item"] != "item1" {
+				return nil, fmt.Errorf("data[item] = %v, want %q", data["item"], "item1")
+			}
 			return nil, nil
 		},
 	}

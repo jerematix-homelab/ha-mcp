@@ -785,7 +785,13 @@ func TestSceneHandlers_ManageScene_Activate(t *testing.T) {
 			t.Parallel()
 
 			client := &mockSceneClient{
-				callServiceFn: func(_ context.Context, _, _ string, _ map[string]any) ([]homeassistant.Entity, error) {
+				callServiceFn: func(_ context.Context, domain, service string, _ map[string]any) ([]homeassistant.Entity, error) {
+					if domain != "scene" {
+						t.Errorf("wrong domain: %s", domain)
+					}
+					if service != "turn_on" {
+						t.Errorf("wrong service: %s", service)
+					}
 					return nil, tt.callServiceErr
 				},
 			}
