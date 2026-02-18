@@ -515,13 +515,15 @@ type ConfigCheckResult struct {
 // Config Entry Flow is Home Assistant's HTTP-based mechanism for creating
 // certain helper types (threshold, derivative, integration, group, template).
 type ConfigEntryFlowResult struct {
-	FlowID      string            `json:"flow_id"`
-	Type        string            `json:"type"` // "form", "create_entry", "abort"
-	StepID      string            `json:"step_id,omitempty"`
-	Handler     string            `json:"handler"`
-	Errors      map[string]string `json:"errors,omitempty"`
-	Result      *ConfigEntry      `json:"result,omitempty"`
-	Description string            `json:"description,omitempty"`
+	FlowID      string             `json:"flow_id"`
+	Type        string             `json:"type"` // "form", "menu", "create_entry", "abort"
+	StepID      string             `json:"step_id,omitempty"`
+	Handler     string             `json:"handler"`
+	DataSchema  []OptionsFlowField `json:"data_schema,omitempty"`  // Schema for form fields
+	MenuOptions []string           `json:"menu_options,omitempty"` // Available menu options
+	Errors      map[string]string  `json:"errors,omitempty"`
+	Result      *ConfigEntry       `json:"result,omitempty"`
+	Description string             `json:"description,omitempty"`
 }
 
 // ConfigEntry represents a created config entry from the Config Entry Flow.

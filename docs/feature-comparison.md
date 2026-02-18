@@ -102,9 +102,9 @@ For maximum security, you could theoretically use both: Official integration for
 | Function         | ha-mcp                                                                      | Official HA MCP                      |
 | ---------------- | --------------------------------------------------------------------------- | ------------------------------------ |
 | List helpers     | `manage_helper` action=list                                                 | ------------------------------------ |
-| Create helper    | `manage_helper` action=create (15 types)                                    | ------------------------------------ |
+| Create helper    | `manage_helper` action=create (26 types)                                    | ------------------------------------ |
 | Delete helper    | `manage_helper` action=delete                                               | ------------------------------------ |
-| Helper details   | `manage_helper` action=get_details (all 14 helper types; natural/json)      | ------------------------------------ |
+| Helper details   | `manage_helper` action=get_details (all 26 helper types; natural/json)      | ------------------------------------ |
 | Helper actions   | `helper_action` (toggle, set, increment, etc.)                              | via `call_service` Intents (limited) |
 | Timer management | `helper_action` (start/pause/cancel/finish)                                 | Timer Intents (HassStartTimer, etc.) |
 
