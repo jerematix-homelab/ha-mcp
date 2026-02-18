@@ -35,7 +35,7 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 
 ### ha-mcp Advantages
 
-- **Power User Focus**: 33 specialized tools for advanced automation, scripts, scenes, helpers, devices, areas, labels, floors, zones, persons, and tags
+- **Power User Focus**: 39 specialized tools for advanced automation, scripts, scenes, helpers, devices, areas, labels, floors, zones, persons, tags, traces, blueprints, updates, todos, calendars, and cameras
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers (not available in official integration)
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
 - **Flexible Output**: Natural language (LLM-optimized) and JSON formats
@@ -46,7 +46,6 @@ Home Assistant provides an [official MCP integration](https://www.home-assistant
 - **Simplicity**: Intent-based approach, fewer tools, easier for basic scenarios
 - **Built-in**: No external server needed, runs inside Home Assistant
 - **Entity-Level Security**: Fine-grained entity exposure control (only whitelisted entities visible)
-- **Calendar & Todos**: Dedicated calendar and todo list tools
 
 **Note:** ha-mcp now provides tool-level access control (read-only mode, whitelist/blacklist), complementing the official integration's entity-level controls
 
@@ -810,6 +809,37 @@ Universal tool for runtime helper operations:
 - **Release Information**: Get release notes and available versions
 - **Filters**: Filter by category (integration, plugin, theme, python_script, appdaemon, netdaemon), installed status, or pending updates
 
+#### Trace and Blueprint Tools
+
+| Tool               | Description                                                                                          |
+| ------------------ | ---------------------------------------------------------------------------------------------------- |
+| `manage_trace`     | View automation and script execution traces (actions: list, get; format: natural/json)              |
+| `manage_blueprint` | Manage blueprints for automations and scripts (actions: list, import; format: natural/json)         |
+
+#### Update Tools
+
+| Tool             | Description                                                                                                                        |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `manage_update`  | Manage system and add-on updates (actions: list, release_notes, install, skip; pending_only filter; format: natural/json)          |
+
+#### Todo Tools
+
+| Tool          | Description                                                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `manage_todo` | Manage todo and shopping lists (actions: list, get_items, add_item, update_item, remove_item; status_filter; format: natural/json)      |
+
+#### Calendar Tools
+
+| Tool               | Description                                                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `manage_calendar`  | Manage calendars and events (actions: list, get_events, create_event, delete_event; supports date and datetime formats)              |
+
+#### Camera Tools
+
+| Tool             | Description                                                                                      |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| `manage_camera`  | Access camera snapshots and streams (actions: snapshot returns image, stream returns URL)        |
+
 ### Output Formats
 
 Most tools support two output formats via the `format` parameter:
@@ -820,7 +850,7 @@ Most tools support two output formats via the `format` parameter:
 - **`json`**: Structured JSON output for backward compatibility and programmatic access
   - Example: `{"entity_id": "light.living_room", "state": "on", "attributes": {"brightness": 204, ...}}`
 
-**Tools with format support**: `query_entities`, `query_devices`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_label`, `manage_floor`, `manage_zone`, `manage_person`, `manage_tag`, `manage_helper`, `helper_action`, `manage_hacs`
+**Tools with format support**: `query_entities`, `query_devices`, `get_state`, `analyze_entity`, `get_entity_dependencies`, `call_service`, `get_registry`, `analyze_target`, `manage_automation`, `manage_script`, `manage_scene`, `manage_area`, `manage_label`, `manage_floor`, `manage_zone`, `manage_person`, `manage_tag`, `manage_helper`, `helper_action`, `manage_hacs`, `manage_trace`, `manage_blueprint`, `manage_update`, `manage_todo`, `manage_calendar`, `manage_camera`
 
 ### Example Requests
 
@@ -1197,6 +1227,12 @@ ha-mcp/
 │   │   ├── logbook_correlation.go # Logbook correlation analysis
 │   │   ├── config.go            # Configuration validation handler
 │   │   ├── hacs.go              # HACS (Community Store) management handler
+│   │   ├── traces.go            # Trace viewing handler (automation/script execution traces)
+│   │   ├── blueprints.go        # Blueprint management handler (list/import)
+│   │   ├── updates.go           # Update management handler (list/install/skip)
+│   │   ├── todos.go             # Todo list management handler (list/get_items/add/update/remove)
+│   │   ├── calendars.go         # Calendar management handler (list/get_events/create_event/delete_event)
+│   │   ├── cameras.go           # Camera handler (snapshot/stream)
 │   │   └── register.go          # Handler registration
 │   └── logging/
 │       └── logger.go            # Structured logging

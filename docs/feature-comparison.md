@@ -13,7 +13,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type**             | Standalone Go binary (external server)     | HA integration (built-in)                                   |
 | **Transport**        | HTTP JSON-RPC                              | Streamable HTTP                                             |
 | **HA Communication** | WebSocket + REST API (Hybrid)              | Direct Python API (internal)                                |
-| **Tool Design**      | 33 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
+| **Tool Design**      | 39 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
 | **Authentication**   | Long-Lived Access Token                    | OAuth (IndieAuth) + Long-Lived Token                        |
 | **Access Control**   | Tool-level filtering (read-only, whitelist/blacklist, action-level) | Entity-level exposure (Voice Assistant Exposure) |
 
@@ -169,10 +169,42 @@ For maximum security, you could theoretically use both: Official integration for
 
 ### Calendar & Todo
 
-| Function        | ha-mcp   | Official HA MCP     |
-| --------------- | -------- | ------------------- |
-| Calendar events | -------- | `CalendarGetEvents` |
-| Todo lists      | -------- | `TodoGetItems`      |
+| Function           | ha-mcp                                                                                    | Official HA MCP     |
+| ------------------ | ----------------------------------------------------------------------------------------- | ------------------- |
+| List calendars     | `manage_calendar` action=list                                                             | ------------------- |
+| Calendar events    | `manage_calendar` action=get_events                                                       | `CalendarGetEvents` |
+| Create event       | `manage_calendar` action=create_event (supports date/datetime, location, description)    | ------------------- |
+| Delete event       | `manage_calendar` action=delete_event (supports recurrence)                               | ------------------- |
+| List todo lists    | `manage_todo` action=list                                                                 | ------------------- |
+| Get todo items     | `manage_todo` action=get_items (status_filter: needs_action, completed)                  | `TodoGetItems`      |
+| Add todo item      | `manage_todo` action=add_item (supports due_date, due_datetime, description)             | ------------------- |
+| Update todo item   | `manage_todo` action=update_item (rename, status, description, due dates)                | ------------------- |
+| Remove todo item   | `manage_todo` action=remove_item                                                          | ------------------- |
+
+### Traces & Blueprints
+
+| Function                | ha-mcp                                                        | Official HA MCP |
+| ----------------------- | ------------------------------------------------------------- | --------------- |
+| List execution traces   | `manage_trace` action=list (domain: automation, script)       | --------------- |
+| Get trace details       | `manage_trace` action=get (execution path, trigger, actions)  | --------------- |
+| List blueprints         | `manage_blueprint` action=list (domain: automation, script)   | --------------- |
+| Import blueprint        | `manage_blueprint` action=import (from URL)                   | --------------- |
+
+### Updates
+
+| Function        | ha-mcp                                                              | Official HA MCP |
+| --------------- | ------------------------------------------------------------------- | --------------- |
+| List updates    | `manage_update` action=list (pending_only filter)                   | --------------- |
+| Release notes   | `manage_update` action=release_notes                                | --------------- |
+| Install update  | `manage_update` action=install (optional version, backup support)   | --------------- |
+| Skip update     | `manage_update` action=skip                                         | --------------- |
+
+### Camera
+
+| Function        | ha-mcp                                                    | Official HA MCP |
+| --------------- | --------------------------------------------------------- | --------------- |
+| Camera snapshot | `manage_camera` action=snapshot (returns image data)      | --------------- |
+| Camera stream   | `manage_camera` action=stream (returns HLS stream URL)    | --------------- |
 
 ---
 
@@ -193,16 +225,13 @@ For maximum security, you could theoretically use both: Official integration for
 - **Tool-Level Access Control**: Read-only mode, whitelist/blacklist, glob patterns, category-based filtering (`*:write`, `*:read`)
 
 ### Official HA MCP Strengths:
-- **Calendar & Todos**: Dedicated tools (`CalendarGetEvents`, `TodoGetItems`) - not available in ha-mcp
 - **Simplicity**: Fewer tools, intent-based, easier for basic scenarios
 - **Entity-Level Security**: Fine-grained entity exposure control (only whitelisted entities visible)
 - **No Infrastructure**: Runs inside HA itself, no external server needed
 - **OAuth Support**: Standards-compliant authentication
 
 ### Feature Gaps in ha-mcp:
-1. **Calendar Events** retrieval (`CalendarGetEvents` equivalent)
-2. **Todo Lists** management (`TodoGetItems` equivalent)
-3. **Entity-Level Access Control** (ha-mcp provides tool-level access control instead)
+1. **Entity-Level Access Control** (ha-mcp provides tool-level access control instead)
 
 ### Feature Gaps in Official HA MCP:
 1. No CRUD for automations/scripts/scenes/helpers

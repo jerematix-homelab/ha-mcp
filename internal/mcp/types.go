@@ -170,6 +170,15 @@ type ContentBlock struct {
 	URI      string `json:"uri,omitempty"`  // for embedded resources
 }
 
+// NewImageContent creates a ContentBlock with image type.
+func NewImageContent(data, mimeType string) ContentBlock {
+	return ContentBlock{
+		Type:     "image",
+		MimeType: mimeType,
+		Data:     data,
+	}
+}
+
 // Resource represents an MCP resource.
 type Resource struct {
 	URI         string `json:"uri"`

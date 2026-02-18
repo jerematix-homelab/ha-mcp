@@ -76,6 +76,7 @@ type WSOperations interface {
 	SetState(ctx context.Context, entityID string, state StateUpdate) (*Entity, error)
 	GetHistory(ctx context.Context, entityID string, start, end time.Time) ([][]HistoryEntry, error)
 	CallService(ctx context.Context, domain, service string, data map[string]any) ([]Entity, error)
+	CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error)
 	ListAutomations(ctx context.Context) ([]Automation, error)
 	GetAutomation(ctx context.Context, automationID string) (*Automation, error)
 	CreateAutomation(ctx context.Context, config AutomationConfig) error
@@ -185,6 +186,13 @@ type RESTOperations interface {
 
 	// Configuration validation
 	CheckConfig(ctx context.Context) (*ConfigCheckResult, error)
+
+	// Calendar operations
+	GetCalendars(ctx context.Context) ([]CalendarEntry, error)
+	GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error)
+
+	// Camera operations
+	GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error)
 }
 
 // HybridClient combines WebSocket and REST API clients for Home Assistant.
@@ -242,6 +250,11 @@ func (c *HybridClient) GetHistory(ctx context.Context, entityID string, start, e
 // CallService calls a Home Assistant service.
 func (c *HybridClient) CallService(ctx context.Context, domain, service string, data map[string]any) ([]Entity, error) {
 	return c.ws.CallService(ctx, domain, service, data)
+}
+
+// CallServiceWithResponse calls a service and returns the response data.
+func (c *HybridClient) CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error) {
+	return c.ws.CallServiceWithResponse(ctx, domain, service, data)
 }
 
 // =============================================================================
@@ -1334,6 +1347,29 @@ func (c *HybridClient) GetLogbook(ctx context.Context, startTime, endTime, entit
 // CheckConfig validates the Home Assistant configuration.
 func (c *HybridClient) CheckConfig(ctx context.Context) (*ConfigCheckResult, error) {
 	return c.rest.CheckConfig(ctx)
+}
+
+// =============================================================================
+// Calendar Operations (delegated to REST)
+// =============================================================================
+
+// GetCalendars retrieves all calendars.
+func (c *HybridClient) GetCalendars(ctx context.Context) ([]CalendarEntry, error) {
+	return c.rest.GetCalendars(ctx)
+}
+
+// GetCalendarEvents retrieves calendar events for a specific calendar.
+func (c *HybridClient) GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error) {
+	return c.rest.GetCalendarEvents(ctx, entityID, start, end)
+}
+
+// =============================================================================
+// Camera Operations (delegated to REST for snapshot, WebSocket for stream)
+// =============================================================================
+
+// GetCameraSnapshot retrieves a camera snapshot as binary image data.
+func (c *HybridClient) GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error) {
+	return c.rest.GetCameraSnapshot(ctx, entityID)
 }
 
 // =============================================================================

@@ -1153,3 +1153,139 @@ func (c *RESTClient) AbortConfigEntryOptionsFlow(ctx context.Context, flowID str
 		Message:    fmt.Sprintf("failed to abort options flow: %s", string(body)),
 	}
 }
+
+// =============================================================================
+// Calendar Operations
+// =============================================================================
+
+// GetCalendars retrieves all calendars.
+// Endpoint: GET /api/calendars
+func (c *RESTClient) GetCalendars(ctx context.Context) ([]CalendarEntry, error) {
+	url := fmt.Sprintf("%s/api/calendars", c.baseURL)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("creating get calendars request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("executing get calendars request: %w", err)
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("failed to get calendars: %s", string(body)),
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading calendars response: %w", err)
+	}
+
+	var calendars []CalendarEntry
+	if err := json.Unmarshal(body, &calendars); err != nil {
+		return nil, fmt.Errorf("parsing calendars response: %w", err)
+	}
+
+	return calendars, nil
+}
+
+// GetCalendarEvents retrieves events for a specific calendar within a date range.
+// Endpoint: GET /api/calendars/{entity_id}?start={start}&end={end}
+func (c *RESTClient) GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error) {
+	url := fmt.Sprintf("%s/api/calendars/%s?start=%s&end=%s", c.baseURL, entityID, start, end)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, fmt.Errorf("creating get calendar events request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("executing get calendar events request: %w", err)
+	}
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("failed to get calendar events: %s", string(body)),
+		}
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading calendar events response: %w", err)
+	}
+
+	var events []CalendarEvent
+	if err := json.Unmarshal(body, &events); err != nil {
+		return nil, fmt.Errorf("parsing calendar events response: %w", err)
+	}
+
+	return events, nil
+}
+
+// =============================================================================
+// Camera Operations
+// =============================================================================
+
+// GetCameraSnapshot retrieves a camera snapshot as binary image data.
+// Endpoint: GET /api/camera_proxy/{entity_id}
+// Returns the image bytes, content type, and any error.
+func (c *RESTClient) GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error) {
+	url := fmt.Sprintf("%s/api/camera_proxy/%s", c.baseURL, entityID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
+	if err != nil {
+		return nil, "", fmt.Errorf("creating get camera snapshot request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.token)
+
+	resp, err := c.doRequest(ctx, req)
+	if err != nil {
+		return nil, "", fmt.Errorf("executing get camera snapshot request: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, "", &APIError{
+			StatusCode: resp.StatusCode,
+			Message:    fmt.Sprintf("failed to get camera snapshot: %s", string(body)),
+		}
+	}
+
+	imageData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading camera snapshot response: %w", err)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "image/jpeg" // default
+	}
+
+	return imageData, contentType, nil
+}

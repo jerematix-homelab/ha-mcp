@@ -18,7 +18,7 @@ Integration tests verify that the MCP server correctly interacts with Home Assis
 
 1. A running Home Assistant instance (version 2023.1+)
 2. A long-lived access token with full API access
-3. Go 1.25+ installed
+3. Go 1.26+ installed
 
 ## Configuration
 
@@ -76,6 +76,8 @@ go test -tags=integration -v ./internal/handlers/integration/... 2>&1 | tee test
 
 ## Test Categories
 
+### Helper Tests (WebSocket-based helpers)
+
 | Test Suite | Operations Tested |
 |------------|-------------------|
 | `TestCounterIntegration` | create, increment, decrement, set_value, reset, delete |
@@ -95,6 +97,18 @@ go test -tags=integration -v ./internal/handlers/integration/... 2>&1 | tee test
 | `TestAutomationIntegration` | create, update, toggle, trigger, delete |
 | `TestScriptIntegration` | create, update, execute, delete |
 | `TestSceneIntegration` | create, update, activate, delete |
+
+### Advanced Feature Tests
+
+| Test Suite | Operations Tested |
+|------------|-------------------|
+| `TestTodoIntegration` | list, get_items, add_item, update_item (status), remove_item (full CRUD with status filtering) |
+| `TestCalendarIntegration` | list, get_events, create_event (datetime + all-day), delete_event (with writable calendar detection) |
+| `TestTraceIntegration` | list automation traces, list script traces (execution history) |
+| `TestUpdateBlueprintIntegration` | list updates (pending filter), release_notes, list blueprints (automation/script) |
+| `TestCameraIntegration` | list cameras, get_stream (HLS URL), get_snapshot (binary image data) |
+
+**Note:** Read-only tests (traces, updates, blueprints, cameras) verify API integration and response parsing. They skip gracefully if no entities exist or features are unavailable.
 
 ## Test Entity Naming Convention
 
@@ -172,7 +186,7 @@ integration-tests:
     - uses: actions/checkout@v4
     - uses: actions/setup-go@v5
       with:
-        go-version: '1.25'
+        go-version: '1.26'
     - name: Run Integration Tests
       env:
         HA_INTEGRATION_TEST_URL: ${{ secrets.HA_TEST_URL }}

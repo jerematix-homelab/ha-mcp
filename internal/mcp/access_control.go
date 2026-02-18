@@ -175,6 +175,39 @@ func addSpecialManagementTools(result map[string]ToolClassification) {
 			"remove_repository": CategoryWrite, "refresh": CategoryWrite, "toggle_beta": CategoryWrite,
 		},
 	}
+	result["manage_trace"] = ToolClassification{
+		ParamName: "action",
+		Actions:   map[string]ActionCategory{"list": CategoryRead, "get": CategoryRead},
+	}
+	result["manage_blueprint"] = ToolClassification{
+		ParamName: "action",
+		Actions:   map[string]ActionCategory{"list": CategoryRead, "import": CategoryWrite},
+	}
+	result["manage_update"] = ToolClassification{
+		ParamName: "action",
+		Actions: map[string]ActionCategory{
+			"list": CategoryRead, "release_notes": CategoryRead,
+			"install": CategoryWrite, "skip": CategoryWrite,
+		},
+	}
+	result["manage_todo"] = ToolClassification{
+		ParamName: "action",
+		Actions: map[string]ActionCategory{
+			"list": CategoryRead, "get_items": CategoryRead,
+			"add_item": CategoryWrite, "update_item": CategoryWrite, "remove_item": CategoryWrite,
+		},
+	}
+	result["manage_calendar"] = ToolClassification{
+		ParamName: "action",
+		Actions: map[string]ActionCategory{
+			"list": CategoryRead, "get_events": CategoryRead,
+			"create_event": CategoryWrite, "delete_event": CategoryWrite,
+		},
+	}
+	result["manage_camera"] = ToolClassification{
+		ParamName: "action",
+		Actions:   map[string]ActionCategory{"snapshot": CategoryRead, "stream": CategoryRead},
+	}
 }
 
 // buildQueryTools returns query and analysis tools with mode/type/info parameters.

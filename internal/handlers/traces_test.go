@@ -1,0 +1,278 @@
+package handlers
+
+import (
+	"context"
+	"testing"
+
+	"github.com/zorak1103/ha-mcp/internal/mcp"
+)
+
+// TestManageTraceSchema verifies the schema for manage_trace tool.
+func TestManageTraceSchema(t *testing.T) {
+	t.Parallel()
+
+	registry := mcp.NewRegistry()
+	RegisterTraceTools(registry)
+
+	tool, exists := registry.GetTool("manage_trace")
+	if !exists {
+		t.Fatal("manage_trace tool not registered")
+	}
+
+	// Verify basic properties
+	if tool.Name != "manage_trace" {
+		t.Errorf("tool.Name = %q, want %q", tool.Name, "manage_trace")
+	}
+	if tool.Description == "" {
+		t.Error("tool.Description is empty")
+	}
+
+	// Verify schema properties
+	schema := tool.InputSchema
+	props := schema.Properties
+
+	// Check action field
+	actionSchema, ok := props["action"]
+	if !ok {
+		t.Fatal("action property missing from schema")
+	}
+	if actionSchema.Type != "string" {
+		t.Errorf("action type = %q, want %q", actionSchema.Type, "string")
+	}
+	if len(actionSchema.Enum) != 2 {
+		t.Errorf("action enum count = %d, want 2", len(actionSchema.Enum))
+	}
+
+	// Check domain field
+	domainSchema, ok := props["domain"]
+	if !ok {
+		t.Fatal("domain property missing from schema")
+	}
+	if len(domainSchema.Enum) != 2 {
+		t.Errorf("domain enum count = %d, want 2 (automation, script)", len(domainSchema.Enum))
+	}
+
+	// Check format field
+	formatSchema, ok := props["format"]
+	if !ok {
+		t.Fatal("format property missing from schema")
+	}
+	if len(formatSchema.Enum) != 2 {
+		t.Errorf("format enum count = %d, want 2", len(formatSchema.Enum))
+	}
+
+	// Check required fields
+	if len(schema.Required) != 1 {
+		t.Errorf("required count = %d, want 1 (action)", len(schema.Required))
+	}
+	if schema.Required[0] != "action" {
+		t.Errorf("required[0] = %q, want %q", schema.Required[0], "action")
+	}
+}
+
+// TestManageTrace_MissingAction verifies validation when action is missing.
+func TestManageTrace_MissingAction(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{}
+	handler := NewTraceHandlers()
+
+	result, err := handler.HandleManageTrace(context.Background(), client, map[string]any{})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result with error message")
+	}
+	if !result.IsError {
+		t.Error("expected IsError to be true")
+	}
+}
+
+// TestManageTrace_InvalidAction verifies validation for invalid action.
+func TestManageTrace_InvalidAction(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{}
+	handler := NewTraceHandlers()
+
+	result, err := handler.HandleManageTrace(context.Background(), client, map[string]any{
+		"action": "invalid_action",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result with error message")
+	}
+	if !result.IsError {
+		t.Error("expected IsError to be true")
+	}
+}
+
+// TestManageTrace_List verifies list action.
+func TestManageTrace_List(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		args         map[string]any
+		mockResponse any
+		wantFormat   string
+		wantContain  string
+	}{
+		{
+			name: "list automations natural format",
+			args: map[string]any{
+				"action": "list",
+				"domain": "automation",
+			},
+			mockResponse: []map[string]any{
+				{
+					"run_id":    "abc123",
+					"state":     "stopped",
+					"timestamp": "2024-01-15T10:30:00Z",
+					"duration":  1.5,
+				},
+			},
+			wantFormat:  "natural",
+			wantContain: "abc123",
+		},
+		{
+			name: "list scripts json format",
+			args: map[string]any{
+				"action": "list",
+				"domain": "script",
+				"format": "json",
+			},
+			mockResponse: []map[string]any{
+				{
+					"run_id":    "xyz789",
+					"state":     "running",
+					"timestamp": "2024-01-15T11:00:00Z",
+				},
+			},
+			wantFormat:  "json",
+			wantContain: "xyz789",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &UniversalMockClient{
+				SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+					return tt.mockResponse, nil
+				},
+			}
+
+			handler := NewTraceHandlers()
+			result, err := handler.HandleManageTrace(context.Background(), client, tt.args)
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if result == nil || len(result.Content) == 0 {
+				t.Fatal("expected result content")
+			}
+
+			text := result.Content[0].Text
+			if tt.wantContain != "" && !contains(text, tt.wantContain) {
+				t.Errorf("result text does not contain %q: %s", tt.wantContain, text)
+			}
+		})
+	}
+}
+
+// TestManageTrace_Get verifies get action.
+func TestManageTrace_Get(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+			return map[string]any{
+				"trace": map[string]any{
+					"trigger":    "manual",
+					"conditions": []any{},
+					"actions": []any{
+						map[string]any{"service": "light.turn_on"},
+					},
+				},
+			}, nil
+		},
+	}
+
+	handler := NewTraceHandlers()
+	result, err := handler.HandleManageTrace(context.Background(), client, map[string]any{
+		"action":    "get",
+		"domain":    "automation",
+		"entity_id": "automation.test",
+		"run_id":    "abc123",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result content")
+	}
+}
+
+// TestManageTrace_GetMissingParams verifies validation for get action.
+func TestManageTrace_GetMissingParams(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args map[string]any
+	}{
+		{
+			name: "missing domain",
+			args: map[string]any{
+				"action":    "get",
+				"entity_id": "automation.test",
+				"run_id":    "abc123",
+			},
+		},
+		{
+			name: "missing entity_id",
+			args: map[string]any{
+				"action": "get",
+				"domain": "automation",
+				"run_id": "abc123",
+			},
+		},
+		{
+			name: "missing run_id",
+			args: map[string]any{
+				"action":    "get",
+				"domain":    "automation",
+				"entity_id": "automation.test",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &UniversalMockClient{}
+			handler := NewTraceHandlers()
+
+			result, err := handler.HandleManageTrace(context.Background(), client, tt.args)
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if result == nil || len(result.Content) == 0 {
+				t.Fatal("expected result with error message")
+			}
+			if !result.IsError {
+				t.Error("expected IsError to be true")
+			}
+		})
+	}
+}

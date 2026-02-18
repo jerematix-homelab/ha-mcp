@@ -130,6 +130,16 @@ func (m *mockClientForPool) GetHistory(_ context.Context, _ string, _, _ time.Ti
 func (m *mockClientForPool) CallService(_ context.Context, _, _ string, _ map[string]any) ([]Entity, error) {
 	return nil, nil
 }
+func (m *mockClientForPool) CallServiceWithResponse(context.Context, string, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+func (m *mockClientForPool) GetCalendars(context.Context) ([]CalendarEntry, error) { return nil, nil }
+func (m *mockClientForPool) GetCalendarEvents(context.Context, string, string, string) ([]CalendarEvent, error) {
+	return nil, nil
+}
+func (m *mockClientForPool) GetCameraSnapshot(context.Context, string) ([]byte, string, error) {
+	return nil, "", nil
+}
 func (m *mockClientForPool) ListAutomations(_ context.Context) ([]Automation, error) { return nil, nil }
 func (m *mockClientForPool) GetAutomation(_ context.Context, _ string) (*Automation, error) {
 	return nil, nil

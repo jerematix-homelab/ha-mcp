@@ -817,6 +817,11 @@ func (c *CachedClient) CallService(ctx context.Context, domain, service string, 
 }
 
 //nolint:revive // Delegated method
+func (c *CachedClient) CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error) {
+	return c.client.CallServiceWithResponse(ctx, domain, service, data)
+}
+
+//nolint:revive // Delegated method
 func (c *CachedClient) SignPath(ctx context.Context, path string, expires int) (string, error) {
 	return c.client.SignPath(ctx, path, expires)
 }
@@ -904,6 +909,21 @@ func (c *CachedClient) GetLogbook(ctx context.Context, startTime, endTime, entit
 //nolint:revive // Delegated method
 func (c *CachedClient) CheckConfig(ctx context.Context) (*ConfigCheckResult, error) {
 	return c.client.CheckConfig(ctx)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) GetCalendars(ctx context.Context) ([]CalendarEntry, error) {
+	return c.client.GetCalendars(ctx)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error) {
+	return c.client.GetCalendarEvents(ctx, entityID, start, end)
+}
+
+//nolint:revive // Delegated method
+func (c *CachedClient) GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error) {
+	return c.client.GetCameraSnapshot(ctx, entityID)
 }
 
 //nolint:revive // Delegated method
