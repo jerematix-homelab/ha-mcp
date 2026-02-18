@@ -142,6 +142,34 @@ func (c *wsClientImpl) CallService(ctx context.Context, domain, service string, 
 	return response.Response, nil
 }
 
+// CallServiceWithResponse calls a Home Assistant service with return_response and returns the response data.
+func (c *wsClientImpl) CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error) {
+	params := map[string]any{
+		"domain":          domain,
+		"service":         service,
+		"return_response": true,
+	}
+	if data != nil {
+		params["service_data"] = data
+	}
+
+	result, err := c.ws.SendCommand(ctx, "call_service", params)
+	if err != nil {
+		return nil, fmt.Errorf("call_service with response failed: %w", err)
+	}
+
+	// Response structure: {"context": {...}, "response": {...}}
+	var response struct {
+		Context  Context        `json:"context"`
+		Response map[string]any `json:"response,omitempty"`
+	}
+	if err := json.Unmarshal(result.Result, &response); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal service response: %w", err)
+	}
+
+	return response.Response, nil
+}
+
 // =============================================================================
 // Automation Operations
 // =============================================================================
@@ -1796,4 +1824,30 @@ func (c *wsClientImpl) SendHACSCommand(ctx context.Context, command string, data
 	}
 
 	return response, nil
+}
+
+// =============================================================================
+// Calendar Operations (REST API only - stubs for interface compliance)
+// =============================================================================
+
+// GetCalendars retrieves all calendars.
+// Note: This operation is only available via REST API. Use HybridClient for full functionality.
+func (c *wsClientImpl) GetCalendars(_ context.Context) ([]CalendarEntry, error) {
+	return nil, fmt.Errorf("GetCalendars not supported via WebSocket API, use REST API or HybridClient")
+}
+
+// GetCalendarEvents retrieves calendar events.
+// Note: This operation is only available via REST API. Use HybridClient for full functionality.
+func (c *wsClientImpl) GetCalendarEvents(_ context.Context, _, _, _ string) ([]CalendarEvent, error) {
+	return nil, fmt.Errorf("GetCalendarEvents not supported via WebSocket API, use REST API or HybridClient")
+}
+
+// =============================================================================
+// Camera Operations (REST API only - stubs for interface compliance)
+// =============================================================================
+
+// GetCameraSnapshot retrieves a camera snapshot as binary data.
+// Note: This operation is only available via REST API. Use HybridClient for full functionality.
+func (c *wsClientImpl) GetCameraSnapshot(_ context.Context, _ string) ([]byte, string, error) {
+	return nil, "", fmt.Errorf("GetCameraSnapshot not supported via WebSocket API, use REST API or HybridClient")
 }

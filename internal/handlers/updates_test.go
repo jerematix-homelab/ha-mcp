@@ -1,0 +1,260 @@
+package handlers
+
+import (
+	"context"
+	"testing"
+
+	"github.com/zorak1103/ha-mcp/internal/homeassistant"
+	"github.com/zorak1103/ha-mcp/internal/mcp"
+)
+
+// TestManageUpdateSchema verifies the schema for manage_update tool.
+func TestManageUpdateSchema(t *testing.T) {
+	t.Parallel()
+
+	registry := mcp.NewRegistry()
+	RegisterUpdateTools(registry)
+
+	tool, exists := registry.GetTool("manage_update")
+	if !exists {
+		t.Fatal("manage_update tool not registered")
+	}
+
+	// Verify basic properties
+	if tool.Name != "manage_update" {
+		t.Errorf("tool.Name = %q, want %q", tool.Name, "manage_update")
+	}
+
+	// Verify schema
+	schema := tool.InputSchema
+	props := schema.Properties
+
+	// Check action field
+	actionSchema, ok := props["action"]
+	if !ok {
+		t.Fatal("action property missing from schema")
+	}
+	if len(actionSchema.Enum) != 4 {
+		t.Errorf("action enum count = %d, want 4 (list, release_notes, install, skip)", len(actionSchema.Enum))
+	}
+
+	// Check required fields
+	if len(schema.Required) != 1 {
+		t.Errorf("required count = %d, want 1 (action)", len(schema.Required))
+	}
+}
+
+// TestManageUpdate_MissingAction verifies validation when action is missing.
+func TestManageUpdate_MissingAction(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{}
+	handler := NewUpdateHandlers()
+
+	result, err := handler.HandleManageUpdate(context.Background(), client, map[string]any{})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageUpdate_List verifies list action.
+func TestManageUpdate_List(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		args        map[string]any
+		mockStates  []homeassistant.Entity
+		wantContain string
+	}{
+		{
+			name: "list all updates",
+			args: map[string]any{
+				"action": "list",
+			},
+			mockStates: []homeassistant.Entity{
+				{
+					EntityID: "update.hass_os",
+					State:    "on",
+					Attributes: map[string]any{
+						"friendly_name":     "Home Assistant OS Update",
+						"installed_version": "10.0",
+						"latest_version":    "10.1",
+						"release_summary":   "Bug fixes",
+					},
+				},
+				{
+					EntityID: "update.core",
+					State:    "off",
+					Attributes: map[string]any{
+						"friendly_name":     "Core Update",
+						"installed_version": "2024.1.0",
+						"latest_version":    "2024.1.0",
+					},
+				},
+			},
+			wantContain: "Home Assistant OS Update",
+		},
+		{
+			name: "list pending only",
+			args: map[string]any{
+				"action":       "list",
+				"pending_only": true,
+			},
+			mockStates: []homeassistant.Entity{
+				{
+					EntityID: "update.hass_os",
+					State:    "on",
+					Attributes: map[string]any{
+						"friendly_name":     "Home Assistant OS Update",
+						"installed_version": "10.0",
+						"latest_version":    "10.1",
+					},
+				},
+			},
+			wantContain: "Home Assistant OS Update",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &UniversalMockClient{
+				GetStatesFn: func(context.Context) ([]homeassistant.Entity, error) {
+					return tt.mockStates, nil
+				},
+			}
+
+			handler := NewUpdateHandlers()
+			result, err := handler.HandleManageUpdate(context.Background(), client, tt.args)
+
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if result == nil || len(result.Content) == 0 {
+				t.Fatal("expected result content")
+			}
+
+			text := result.Content[0].Text
+			if !contains(text, tt.wantContain) {
+				t.Errorf("result text does not contain %q: %s", tt.wantContain, text)
+			}
+		})
+	}
+}
+
+// TestManageUpdate_ReleaseNotes verifies release_notes action.
+func TestManageUpdate_ReleaseNotes(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		SendHACSCommandFn: func(context.Context, string, map[string]any) (any, error) {
+			return map[string]any{
+				"release_notes": "### New Features\n- Feature 1\n- Feature 2",
+			}, nil
+		},
+	}
+
+	handler := NewUpdateHandlers()
+	result, err := handler.HandleManageUpdate(context.Background(), client, map[string]any{
+		"action":    "release_notes",
+		"entity_id": "update.hass_os",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result content")
+	}
+
+	text := result.Content[0].Text
+	if !contains(text, "Feature 1") {
+		t.Errorf("result text does not contain release notes: %s", text)
+	}
+}
+
+// TestManageUpdate_ReleaseNotesMissingEntityID verifies validation.
+func TestManageUpdate_ReleaseNotesMissingEntityID(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{}
+	handler := NewUpdateHandlers()
+
+	result, err := handler.HandleManageUpdate(context.Background(), client, map[string]any{
+		"action": "release_notes",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageUpdate_Install verifies install action.
+func TestManageUpdate_Install(t *testing.T) {
+	t.Parallel()
+
+	var capturedData map[string]any
+	client := &UniversalMockClient{
+		CallServiceFn: func(_ context.Context, _, _ string, data map[string]any) ([]homeassistant.Entity, error) {
+			capturedData = data
+			return nil, nil
+		},
+	}
+
+	handler := NewUpdateHandlers()
+	result, err := handler.HandleManageUpdate(context.Background(), client, map[string]any{
+		"action":    "install",
+		"entity_id": "update.hass_os",
+		"backup":    false,
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Error("expected success result")
+	}
+
+	// Verify backup parameter was passed
+	if capturedData["backup"] != false {
+		t.Errorf("backup = %v, want false", capturedData["backup"])
+	}
+}
+
+// TestManageUpdate_Skip verifies skip action.
+func TestManageUpdate_Skip(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+			return nil, nil
+		},
+	}
+
+	handler := NewUpdateHandlers()
+	result, err := handler.HandleManageUpdate(context.Background(), client, map[string]any{
+		"action":    "skip",
+		"entity_id": "update.core",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Error("expected success result")
+	}
+
+	text := result.Content[0].Text
+	if !contains(text, "skipped") {
+		t.Errorf("result does not indicate skip: %s", text)
+	}
+}

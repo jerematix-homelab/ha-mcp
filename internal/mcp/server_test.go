@@ -131,6 +131,22 @@ func (m *mockHAClient) CallService(_ context.Context, _, _ string, _ map[string]
 	return nil, nil
 }
 
+func (m *mockHAClient) CallServiceWithResponse(context.Context, string, string, map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) GetCalendars(context.Context) ([]homeassistant.CalendarEntry, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) GetCalendarEvents(context.Context, string, string, string) ([]homeassistant.CalendarEvent, error) {
+	return nil, nil
+}
+
+func (m *mockHAClient) GetCameraSnapshot(context.Context, string) ([]byte, string, error) {
+	return nil, "", nil
+}
+
 func (m *mockHAClient) GetEntityRegistry(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
 	return nil, nil
 }

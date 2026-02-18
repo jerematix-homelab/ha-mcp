@@ -151,6 +151,16 @@ type Client interface {
 
 	// HACS operations
 	SendHACSCommand(ctx context.Context, command string, data map[string]any) (any, error)
+
+	// Service call with response
+	CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error)
+
+	// Calendar operations
+	GetCalendars(ctx context.Context) ([]CalendarEntry, error)
+	GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error)
+
+	// Camera operations
+	GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error)
 }
 
 // APIError represents an error response from the Home Assistant API.

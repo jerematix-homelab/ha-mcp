@@ -563,6 +563,30 @@ type OptionsFlowResult struct {
 	MenuOptions []string           `json:"menu_options,omitempty"` // For "menu" type
 }
 
+// CalendarEntry represents a Home Assistant calendar entity.
+type CalendarEntry struct {
+	EntityID string `json:"entity_id"`
+	Name     string `json:"name"`
+}
+
+// CalendarEvent represents an event in a Home Assistant calendar.
+type CalendarEvent struct {
+	Start        CalendarDateTime `json:"start"`
+	End          CalendarDateTime `json:"end"`
+	Summary      string           `json:"summary"`
+	Description  string           `json:"description,omitempty"`
+	Location     string           `json:"location,omitempty"`
+	UID          string           `json:"uid,omitempty"`
+	RecurrenceID string           `json:"recurrence_id,omitempty"`
+}
+
+// CalendarDateTime represents a calendar date/time value.
+// Home Assistant supports both date-only (all-day events) and datetime formats.
+type CalendarDateTime struct {
+	Date     string `json:"date,omitempty"`
+	DateTime string `json:"dateTime,omitempty"`
+}
+
 // OptionsFlowField represents a field in an options flow data schema.
 type OptionsFlowField struct {
 	Name        string         `json:"name"`

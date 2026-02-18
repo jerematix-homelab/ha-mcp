@@ -423,72 +423,73 @@ func TestHybridClientCloser_WaitForConnection(t *testing.T) {
 
 // mockWSOperations implements WSOperations for testing.
 type mockWSOperations struct {
-	getStatesFunc              func(ctx context.Context) ([]Entity, error)
-	getStateFunc               func(ctx context.Context, entityID string) (*Entity, error)
-	setStateFunc               func(ctx context.Context, entityID string, state StateUpdate) (*Entity, error)
-	getHistoryFunc             func(ctx context.Context, entityID string, start, end time.Time) ([][]HistoryEntry, error)
-	callServiceFunc            func(ctx context.Context, domain, service string, data map[string]any) ([]Entity, error)
-	listAutomationsFunc        func(ctx context.Context) ([]Automation, error)
-	getAutomationFunc          func(ctx context.Context, automationID string) (*Automation, error)
-	createAutomationFunc       func(ctx context.Context, config AutomationConfig) error
-	updateAutomationFunc       func(ctx context.Context, automationID string, config AutomationConfig) error
-	toggleAutomationFunc       func(ctx context.Context, entityID string, enabled bool) error
-	listHelpersFunc            func(ctx context.Context) ([]Entity, error)
-	createHelperFunc           func(ctx context.Context, config HelperConfig) error
-	updateHelperFunc           func(ctx context.Context, helperID string, config HelperConfig) error
-	deleteHelperFunc           func(ctx context.Context, helperID string) error
-	setHelperValueFunc         func(ctx context.Context, entityID string, value any) error
-	listScriptsFunc            func(ctx context.Context) ([]Entity, error)
-	getScriptFunc              func(ctx context.Context, scriptID string) (*Script, error)
-	createScriptFunc           func(ctx context.Context, scriptID string, config ScriptConfig) error
-	updateScriptFunc           func(ctx context.Context, scriptID string, config ScriptConfig) error
-	listScenesFunc             func(ctx context.Context) ([]Entity, error)
-	createSceneFunc            func(ctx context.Context, sceneID string, config SceneConfig) error
-	updateSceneFunc            func(ctx context.Context, sceneID string, config SceneConfig) error
-	getEntityRegistryFunc      func(ctx context.Context) ([]EntityRegistryEntry, error)
-	getDeviceRegistryFunc      func(ctx context.Context) ([]DeviceRegistryEntry, error)
-	getAreaRegistryFunc        func(ctx context.Context) ([]AreaRegistryEntry, error)
-	createAreaFunc             func(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error)
-	updateAreaFunc             func(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
-	deleteAreaFunc             func(ctx context.Context, areaID string) error
-	getLabelRegistryFunc       func(ctx context.Context) ([]LabelRegistryEntry, error)
-	createLabelFunc            func(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error)
-	updateLabelFunc            func(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
-	deleteLabelFunc            func(ctx context.Context, labelID string) error
-	getFloorRegistryFunc       func(ctx context.Context) ([]FloorRegistryEntry, error)
-	createFloorFunc            func(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error)
-	updateFloorFunc            func(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error)
-	deleteFloorFunc            func(ctx context.Context, floorID string) error
-	getZonesFunc               func(ctx context.Context) ([]ZoneRegistryEntry, error)
-	createZoneFunc             func(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error)
-	updateZoneFunc             func(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error)
-	deleteZoneFunc             func(ctx context.Context, zoneID string) error
-	getPersonsFunc             func(ctx context.Context) ([]PersonRegistryEntry, error)
-	createPersonFunc           func(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error)
-	updatePersonFunc           func(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error)
-	deletePersonFunc           func(ctx context.Context, personID string) error
-	getTagsFunc                func(ctx context.Context) ([]TagRegistryEntry, error)
-	createTagFunc              func(ctx context.Context, config TagConfig) (*TagRegistryEntry, error)
-	updateTagFunc              func(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error)
-	deleteTagFunc              func(ctx context.Context, tagID string) error
-	signPathFunc               func(ctx context.Context, path string, expires int) (string, error)
-	getCameraStreamFunc        func(ctx context.Context, entityID string) (*StreamInfo, error)
-	browseMediaFunc            func(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
-	getLovelaceConfigFunc      func(ctx context.Context, urlPath string) (map[string]any, error)
-	saveLovelaceConfigFunc     func(ctx context.Context, urlPath string, config map[string]any) error
-	listDashboardsFunc         func(ctx context.Context) ([]DashboardEntry, error)
-	createDashboardFunc        func(ctx context.Context, config DashboardConfig) (*DashboardEntry, error)
-	updateDashboardFunc        func(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error)
-	deleteDashboardFunc        func(ctx context.Context, dashboardID string) error
-	getStatisticsFunc          func(ctx context.Context, statIDs []string, period string) ([]StatisticsResult, error)
-	getTriggersForTargetFunc   func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
-	getConditionsForTargetFunc func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
-	getServicesForTargetFunc   func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
-	extractFromTargetFunc      func(ctx context.Context, target Target, expandGroup *bool) (*ExtractFromTargetResult, error)
-	getScheduleConfigFunc      func(ctx context.Context, scheduleID string) (map[string]any, error)
-	getConfigEntriesFunc       func(ctx context.Context, domain string) ([]ConfigEntryFull, error)
-	getConfigEntryFunc         func(ctx context.Context, entryID string) (*ConfigEntryFull, error)
-	sendHACSCommandFunc        func(ctx context.Context, command string, data map[string]any) (any, error)
+	getStatesFunc               func(ctx context.Context) ([]Entity, error)
+	getStateFunc                func(ctx context.Context, entityID string) (*Entity, error)
+	setStateFunc                func(ctx context.Context, entityID string, state StateUpdate) (*Entity, error)
+	getHistoryFunc              func(ctx context.Context, entityID string, start, end time.Time) ([][]HistoryEntry, error)
+	callServiceFunc             func(ctx context.Context, domain, service string, data map[string]any) ([]Entity, error)
+	callServiceWithResponseFunc func(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error)
+	listAutomationsFunc         func(ctx context.Context) ([]Automation, error)
+	getAutomationFunc           func(ctx context.Context, automationID string) (*Automation, error)
+	createAutomationFunc        func(ctx context.Context, config AutomationConfig) error
+	updateAutomationFunc        func(ctx context.Context, automationID string, config AutomationConfig) error
+	toggleAutomationFunc        func(ctx context.Context, entityID string, enabled bool) error
+	listHelpersFunc             func(ctx context.Context) ([]Entity, error)
+	createHelperFunc            func(ctx context.Context, config HelperConfig) error
+	updateHelperFunc            func(ctx context.Context, helperID string, config HelperConfig) error
+	deleteHelperFunc            func(ctx context.Context, helperID string) error
+	setHelperValueFunc          func(ctx context.Context, entityID string, value any) error
+	listScriptsFunc             func(ctx context.Context) ([]Entity, error)
+	getScriptFunc               func(ctx context.Context, scriptID string) (*Script, error)
+	createScriptFunc            func(ctx context.Context, scriptID string, config ScriptConfig) error
+	updateScriptFunc            func(ctx context.Context, scriptID string, config ScriptConfig) error
+	listScenesFunc              func(ctx context.Context) ([]Entity, error)
+	createSceneFunc             func(ctx context.Context, sceneID string, config SceneConfig) error
+	updateSceneFunc             func(ctx context.Context, sceneID string, config SceneConfig) error
+	getEntityRegistryFunc       func(ctx context.Context) ([]EntityRegistryEntry, error)
+	getDeviceRegistryFunc       func(ctx context.Context) ([]DeviceRegistryEntry, error)
+	getAreaRegistryFunc         func(ctx context.Context) ([]AreaRegistryEntry, error)
+	createAreaFunc              func(ctx context.Context, config AreaConfig) (*AreaRegistryEntry, error)
+	updateAreaFunc              func(ctx context.Context, areaID string, config AreaConfig) (*AreaRegistryEntry, error)
+	deleteAreaFunc              func(ctx context.Context, areaID string) error
+	getLabelRegistryFunc        func(ctx context.Context) ([]LabelRegistryEntry, error)
+	createLabelFunc             func(ctx context.Context, config LabelConfig) (*LabelRegistryEntry, error)
+	updateLabelFunc             func(ctx context.Context, labelID string, config LabelConfig) (*LabelRegistryEntry, error)
+	deleteLabelFunc             func(ctx context.Context, labelID string) error
+	getFloorRegistryFunc        func(ctx context.Context) ([]FloorRegistryEntry, error)
+	createFloorFunc             func(ctx context.Context, config FloorConfig) (*FloorRegistryEntry, error)
+	updateFloorFunc             func(ctx context.Context, floorID string, config FloorConfig) (*FloorRegistryEntry, error)
+	deleteFloorFunc             func(ctx context.Context, floorID string) error
+	getZonesFunc                func(ctx context.Context) ([]ZoneRegistryEntry, error)
+	createZoneFunc              func(ctx context.Context, config ZoneConfig) (*ZoneRegistryEntry, error)
+	updateZoneFunc              func(ctx context.Context, zoneID string, config ZoneConfig) (*ZoneRegistryEntry, error)
+	deleteZoneFunc              func(ctx context.Context, zoneID string) error
+	getPersonsFunc              func(ctx context.Context) ([]PersonRegistryEntry, error)
+	createPersonFunc            func(ctx context.Context, config PersonConfig) (*PersonRegistryEntry, error)
+	updatePersonFunc            func(ctx context.Context, personID string, config PersonConfig) (*PersonRegistryEntry, error)
+	deletePersonFunc            func(ctx context.Context, personID string) error
+	getTagsFunc                 func(ctx context.Context) ([]TagRegistryEntry, error)
+	createTagFunc               func(ctx context.Context, config TagConfig) (*TagRegistryEntry, error)
+	updateTagFunc               func(ctx context.Context, tagID string, config TagConfig) (*TagRegistryEntry, error)
+	deleteTagFunc               func(ctx context.Context, tagID string) error
+	signPathFunc                func(ctx context.Context, path string, expires int) (string, error)
+	getCameraStreamFunc         func(ctx context.Context, entityID string) (*StreamInfo, error)
+	browseMediaFunc             func(ctx context.Context, mediaContentID string) (*MediaBrowseResult, error)
+	getLovelaceConfigFunc       func(ctx context.Context, urlPath string) (map[string]any, error)
+	saveLovelaceConfigFunc      func(ctx context.Context, urlPath string, config map[string]any) error
+	listDashboardsFunc          func(ctx context.Context) ([]DashboardEntry, error)
+	createDashboardFunc         func(ctx context.Context, config DashboardConfig) (*DashboardEntry, error)
+	updateDashboardFunc         func(ctx context.Context, dashboardID string, config DashboardConfig) (*DashboardEntry, error)
+	deleteDashboardFunc         func(ctx context.Context, dashboardID string) error
+	getStatisticsFunc           func(ctx context.Context, statIDs []string, period string) ([]StatisticsResult, error)
+	getTriggersForTargetFunc    func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
+	getConditionsForTargetFunc  func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
+	getServicesForTargetFunc    func(ctx context.Context, target Target, expandGroup *bool) ([]string, error)
+	extractFromTargetFunc       func(ctx context.Context, target Target, expandGroup *bool) (*ExtractFromTargetResult, error)
+	getScheduleConfigFunc       func(ctx context.Context, scheduleID string) (map[string]any, error)
+	getConfigEntriesFunc        func(ctx context.Context, domain string) ([]ConfigEntryFull, error)
+	getConfigEntryFunc          func(ctx context.Context, entryID string) (*ConfigEntryFull, error)
+	sendHACSCommandFunc         func(ctx context.Context, command string, data map[string]any) (any, error)
 }
 
 func (m *mockWSOperations) GetStates(ctx context.Context) ([]Entity, error) {
@@ -522,6 +523,13 @@ func (m *mockWSOperations) GetHistory(ctx context.Context, entityID string, star
 func (m *mockWSOperations) CallService(ctx context.Context, domain, service string, data map[string]any) ([]Entity, error) {
 	if m.callServiceFunc != nil {
 		return m.callServiceFunc(ctx, domain, service, data)
+	}
+	return nil, nil
+}
+
+func (m *mockWSOperations) CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error) {
+	if m.callServiceWithResponseFunc != nil {
+		return m.callServiceWithResponseFunc(ctx, domain, service, data)
 	}
 	return nil, nil
 }
@@ -991,6 +999,9 @@ type mockRESTOperations struct {
 	initConfigEntryOptionsFlowFunc       func(ctx context.Context, entryID string) (*OptionsFlowResult, error)
 	submitConfigEntryOptionsFlowStepFunc func(ctx context.Context, flowID string, data map[string]any) (*OptionsFlowResult, error)
 	abortConfigEntryOptionsFlowFunc      func(ctx context.Context, flowID string) error
+	getCalendarsFunc                     func(ctx context.Context) ([]CalendarEntry, error)
+	getCalendarEventsFunc                func(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error)
+	getCameraSnapshotFunc                func(ctx context.Context, entityID string) ([]byte, string, error)
 }
 
 func (m *mockRESTOperations) CreateAutomation(ctx context.Context, config AutomationConfig) error {
@@ -1131,6 +1142,27 @@ func (m *mockRESTOperations) CheckConfig(ctx context.Context) (*ConfigCheckResul
 		return m.checkConfigFunc(ctx)
 	}
 	return nil, nil
+}
+
+func (m *mockRESTOperations) GetCalendars(ctx context.Context) ([]CalendarEntry, error) {
+	if m.getCalendarsFunc != nil {
+		return m.getCalendarsFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *mockRESTOperations) GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error) {
+	if m.getCalendarEventsFunc != nil {
+		return m.getCalendarEventsFunc(ctx, entityID, start, end)
+	}
+	return nil, nil
+}
+
+func (m *mockRESTOperations) GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error) {
+	if m.getCameraSnapshotFunc != nil {
+		return m.getCameraSnapshotFunc(ctx, entityID)
+	}
+	return nil, "", nil
 }
 
 // Ensure mocks implement interfaces

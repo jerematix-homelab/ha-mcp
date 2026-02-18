@@ -207,4 +207,22 @@ func RegisterAllTools(registry *mcp.Registry) {
 
 	// HACS tools (Home Assistant Community Store management)
 	RegisterHACSTools(registry)
+
+	// Trace tools (automation and script execution traces)
+	RegisterTraceTools(registry)
+
+	// Blueprint tools (automation and script blueprints)
+	RegisterBlueprintTools(registry)
+
+	// Update tools (system and add-on updates)
+	RegisterUpdateTools(registry)
+
+	// Todo tools (todo and shopping lists)
+	RegisterTodoTools(registry)
+
+	// Calendar tools (calendar event management)
+	RegisterCalendarTools(registry)
+
+	// Camera tools (snapshot and stream access)
+	RegisterCameraTools(registry)
 }

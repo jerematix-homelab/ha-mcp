@@ -54,7 +54,15 @@ type UniversalMockClient struct {
 	DeleteSceneFn func(ctx context.Context, sceneID string) error
 
 	// Service operations
-	CallServiceFn func(ctx context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error)
+	CallServiceFn             func(ctx context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error)
+	CallServiceWithResponseFn func(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error)
+
+	// Calendar operations
+	GetCalendarsFn      func(ctx context.Context) ([]homeassistant.CalendarEntry, error)
+	GetCalendarEventsFn func(ctx context.Context, entityID, start, end string) ([]homeassistant.CalendarEvent, error)
+
+	// Camera operations
+	GetCameraSnapshotFn func(ctx context.Context, entityID string) ([]byte, string, error)
 
 	// Registry operations
 	GetEntityRegistryFn         func(ctx context.Context) ([]homeassistant.EntityRegistryEntry, error)
@@ -324,6 +332,38 @@ func (m *UniversalMockClient) CallService(ctx context.Context, domain, service s
 		return m.CallServiceFn(ctx, domain, service, data)
 	}
 	return []homeassistant.Entity{}, nil
+}
+
+func (m *UniversalMockClient) CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error) {
+	if m.CallServiceWithResponseFn != nil {
+		return m.CallServiceWithResponseFn(ctx, domain, service, data)
+	}
+	return map[string]any{}, nil
+}
+
+// Calendar operations implementation
+
+func (m *UniversalMockClient) GetCalendars(ctx context.Context) ([]homeassistant.CalendarEntry, error) {
+	if m.GetCalendarsFn != nil {
+		return m.GetCalendarsFn(ctx)
+	}
+	return []homeassistant.CalendarEntry{}, nil
+}
+
+func (m *UniversalMockClient) GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]homeassistant.CalendarEvent, error) {
+	if m.GetCalendarEventsFn != nil {
+		return m.GetCalendarEventsFn(ctx, entityID, start, end)
+	}
+	return []homeassistant.CalendarEvent{}, nil
+}
+
+// Camera operations implementation
+
+func (m *UniversalMockClient) GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error) {
+	if m.GetCameraSnapshotFn != nil {
+		return m.GetCameraSnapshotFn(ctx, entityID)
+	}
+	return []byte{}, "image/jpeg", nil
 }
 
 // Registry operations implementation

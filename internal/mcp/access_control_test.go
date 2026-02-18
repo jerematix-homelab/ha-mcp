@@ -41,6 +41,12 @@ func TestAccessControlMapCompleteness(t *testing.T) {
 		"manage_dashboard",
 		"manage_config_entry",
 		"manage_hacs",
+		"manage_trace",
+		"manage_blueprint",
+		"manage_update",
+		"manage_todo",
+		"manage_calendar",
+		"manage_camera",
 
 		// Media and rendering
 		"render_template",

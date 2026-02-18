@@ -246,6 +246,18 @@ func (m *mockClient) DeleteScene(ctx context.Context, sceneID string) error { re
 func (m *mockClient) CallService(ctx context.Context, domain, service string, data map[string]any) ([]Entity, error) {
 	return nil, nil
 }
+func (m *mockClient) CallServiceWithResponse(ctx context.Context, domain, service string, data map[string]any) (map[string]any, error) {
+	return nil, nil
+}
+func (m *mockClient) GetCalendars(ctx context.Context) ([]CalendarEntry, error) {
+	return nil, nil
+}
+func (m *mockClient) GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error) {
+	return nil, nil
+}
+func (m *mockClient) GetCameraSnapshot(ctx context.Context, entityID string) ([]byte, string, error) {
+	return nil, "", nil
+}
 func (m *mockClient) SignPath(ctx context.Context, path string, expires int) (string, error) {
 	return "", nil
 }

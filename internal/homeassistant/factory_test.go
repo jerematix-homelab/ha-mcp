@@ -242,6 +242,18 @@ func (m *mockNonCloserClient) DeleteScene(_ context.Context, _ string) error {
 func (m *mockNonCloserClient) CallService(_ context.Context, _, _ string, _ map[string]any) ([]Entity, error) {
 	return []Entity{}, nil
 }
+func (m *mockNonCloserClient) CallServiceWithResponse(context.Context, string, string, map[string]any) (map[string]any, error) {
+	return map[string]any{}, nil
+}
+func (m *mockNonCloserClient) GetCalendars(context.Context) ([]CalendarEntry, error) {
+	return []CalendarEntry{}, nil
+}
+func (m *mockNonCloserClient) GetCalendarEvents(context.Context, string, string, string) ([]CalendarEvent, error) {
+	return []CalendarEvent{}, nil
+}
+func (m *mockNonCloserClient) GetCameraSnapshot(context.Context, string) ([]byte, string, error) {
+	return []byte{}, "", nil
+}
 func (m *mockNonCloserClient) GetEntityRegistry(_ context.Context) ([]EntityRegistryEntry, error) {
 	return []EntityRegistryEntry{}, nil
 }
