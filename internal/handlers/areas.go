@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -20,6 +21,20 @@ const (
 
 	formatJSON = "json"
 )
+
+// areaDetailEnrichment holds optional enrichment data for area get requests.
+type areaDetailEnrichment struct {
+	entities    []compactEntityState
+	automations []areaAutomationMatch
+}
+
+// areaAutomationMatch represents an automation that references entities in an area.
+type areaAutomationMatch struct {
+	EntityID        string   `json:"entity_id"`
+	FriendlyName    string   `json:"friendly_name,omitempty"`
+	State           string   `json:"state"`
+	MatchedEntities []string `json:"matched_entities"`
+}
 
 // AreaHandlers provides handlers for area-related MCP tools.
 type AreaHandlers struct{}
@@ -46,7 +61,7 @@ func (h *AreaHandlers) manageAreaTool() mcp.Tool {
 
 Actions:
 - list: List all areas (optional filters: name_contains)
-- get: Get details of a specific area with device/entity counts (requires area_id)
+- get: Get details of a specific area with device/entity counts (requires area_id); use include_entities/include_automations to enrich with live data
 - create: Create a new area (requires name)
 - update: Update an existing area (requires area_id); labels/aliases use label_mode/alias_mode ('add' default)
 - delete: Delete an area (requires area_id)`,
@@ -97,6 +112,14 @@ func (h *AreaHandlers) buildAreaSchema() mcp.JSONSchema {
 			"name_contains": {
 				Type:        "string",
 				Description: "Filter by area name containing this string (for list action, case-insensitive)",
+			},
+			"include_entities": {
+				Type:        "boolean",
+				Description: "Include compact entity list (entity_id, state, friendly_name) for all entities in the area. Only for get action.",
+			},
+			"include_automations": {
+				Type:        "boolean",
+				Description: "Include automations that reference any entity in the area. Only for get action.",
 			},
 			"format": {
 				Type:        "string",
@@ -186,14 +209,15 @@ func (h *AreaHandlers) handleGet(ctx context.Context, client homeassistant.Clien
 		return errorResult(findErr.Error()), nil
 	}
 
-	// Enrich with device and entity counts
-	deviceCount, entityCount := h.getAreaCounts(ctx, client, found.AreaID)
+	includeEntities := getBoolArg(args, "include_entities")
+	includeAutomations := getBoolArg(args, "include_automations")
+	enrichment, deviceCount, entityCount := h.buildAreaEnrichment(ctx, client, found.AreaID, includeEntities, includeAutomations)
 
 	formatStr, _ := args["format"].(string)
 	if formatStr == formatJSON {
-		return h.formatDetailJSON(*found, deviceCount, entityCount)
+		return h.formatDetailJSON(*found, deviceCount, entityCount, enrichment)
 	}
-	return h.formatDetailNatural(*found, deviceCount, entityCount)
+	return h.formatDetailNatural(*found, deviceCount, entityCount, enrichment)
 }
 
 func (h *AreaHandlers) handleCreate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -214,7 +238,7 @@ func (h *AreaHandlers) handleCreate(ctx context.Context, client homeassistant.Cl
 
 	formatStr, _ := args["format"].(string)
 	if formatStr == formatJSON {
-		return h.formatDetailJSON(*entry, 0, 0)
+		return h.formatDetailJSON(*entry, 0, 0, nil)
 	}
 	return h.formatCreateNatural(*entry)
 }
@@ -250,7 +274,7 @@ func (h *AreaHandlers) handleUpdate(ctx context.Context, client homeassistant.Cl
 
 	formatStr, _ := args["format"].(string)
 	if formatStr == formatJSON {
-		return h.formatDetailJSON(*entry, 0, 0)
+		return h.formatDetailJSON(*entry, 0, 0, nil)
 	}
 	return h.formatUpdateNatural(*entry)
 }
@@ -390,6 +414,121 @@ func (h *AreaHandlers) getAreaCounts(ctx context.Context, client homeassistant.C
 }
 
 // =============================================================================
+// Enrichment Functions
+// =============================================================================
+
+// buildAreaEnrichment returns optional enrichment and device/entity counts for an area.
+// When neither flag is set, it delegates to getAreaCounts and returns nil enrichment.
+func (h *AreaHandlers) buildAreaEnrichment(
+	ctx context.Context, client homeassistant.Client, areaID string,
+	includeEntities, includeAutomations bool,
+) (*areaDetailEnrichment, int, int) {
+	if !includeEntities && !includeAutomations {
+		deviceCount, entityCount := h.getAreaCounts(ctx, client, areaID)
+		return nil, deviceCount, entityCount
+	}
+
+	entityIDsInArea, err := buildEntityIDsInArea(ctx, client, areaID)
+	if err != nil {
+		deviceCount, entityCount := h.getAreaCounts(ctx, client, areaID)
+		return nil, deviceCount, entityCount
+	}
+
+	deviceCount := h.countDevicesInArea(ctx, client, areaID)
+	entityCount := len(entityIDsInArea)
+
+	enrichment := &areaDetailEnrichment{}
+	if includeEntities {
+		enrichment.entities = collectAreaEntities(ctx, client, entityIDsInArea)
+	}
+	if includeAutomations {
+		enrichment.automations = findAreaAutomations(ctx, client, entityIDsInArea)
+	}
+
+	return enrichment, deviceCount, entityCount
+}
+
+// countDevicesInArea returns the number of devices directly assigned to the area.
+func (h *AreaHandlers) countDevicesInArea(ctx context.Context, client homeassistant.Client, areaID string) int {
+	devices, err := client.GetDeviceRegistry(ctx)
+	if err != nil {
+		return 0
+	}
+	count := 0
+	for _, d := range devices {
+		if d.AreaID == areaID {
+			count++
+		}
+	}
+	return count
+}
+
+// collectAreaEntities returns compact entity states for all entities in the area, sorted by entity_id.
+func collectAreaEntities(ctx context.Context, client homeassistant.Client, entityIDsInArea map[string]bool) []compactEntityState {
+	states, err := client.GetStates(ctx)
+	if err != nil {
+		return nil
+	}
+	var result []compactEntityState
+	for _, state := range states {
+		if !entityIDsInArea[state.EntityID] {
+			continue
+		}
+		entry := compactEntityState{
+			EntityID: state.EntityID,
+			State:    state.State,
+		}
+		if fn, ok := state.Attributes["friendly_name"].(string); ok {
+			entry.FriendlyName = fn
+		}
+		result = append(result, entry)
+	}
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].EntityID < result[j].EntityID
+	})
+	return result
+}
+
+// findAreaAutomations returns automations that reference any entity in the area.
+func findAreaAutomations(ctx context.Context, client homeassistant.Client, entityIDsInArea map[string]bool) []areaAutomationMatch {
+	automations, err := client.ListAutomations(ctx)
+	if err != nil {
+		return nil
+	}
+	var matches []areaAutomationMatch
+	for _, auto := range automations {
+		full, getErr := client.GetAutomation(ctx, auto.EntityID)
+		if getErr != nil || full == nil || full.Config == nil {
+			continue
+		}
+		entities := extractEntitiesFromAutomation(full.Config)
+		overlapping := findOverlappingEntities(entities, entityIDsInArea)
+		if len(overlapping) == 0 {
+			continue
+		}
+		sort.Strings(overlapping)
+		matches = append(matches, areaAutomationMatch{
+			EntityID:        auto.EntityID,
+			FriendlyName:    auto.FriendlyName,
+			State:           auto.State,
+			MatchedEntities: overlapping,
+		})
+	}
+	return matches
+}
+
+// findOverlappingEntities returns entity IDs from entityIDs that exist in entitySet.
+func findOverlappingEntities(entityIDs []string, entitySet map[string]bool) []string {
+	var overlap []string
+	for _, id := range entityIDs {
+		if entitySet[id] {
+			overlap = append(overlap, id)
+		}
+	}
+	return overlap
+}
+
+// =============================================================================
 // Formatting Functions (private, domain-specific)
 // =============================================================================
 
@@ -427,7 +566,7 @@ func (h *AreaHandlers) formatListNatural(areas []homeassistant.AreaRegistryEntry
 	return successResult(output.String()), nil
 }
 
-func (h *AreaHandlers) formatDetailJSON(area homeassistant.AreaRegistryEntry, deviceCount, entityCount int) (*mcp.ToolsCallResult, error) {
+func (h *AreaHandlers) formatDetailJSON(area homeassistant.AreaRegistryEntry, deviceCount, entityCount int, enrichment *areaDetailEnrichment) (*mcp.ToolsCallResult, error) {
 	result := map[string]any{
 		"area_id": area.AreaID,
 		"name":    area.Name,
@@ -452,11 +591,19 @@ func (h *AreaHandlers) formatDetailJSON(area homeassistant.AreaRegistryEntry, de
 		result["device_count"] = deviceCount
 		result["entity_count"] = entityCount
 	}
+	if enrichment != nil {
+		if enrichment.entities != nil {
+			result["entities"] = enrichment.entities
+		}
+		if enrichment.automations != nil {
+			result["automations"] = enrichment.automations
+		}
+	}
 
 	return jsonResult(result)
 }
 
-func (h *AreaHandlers) formatDetailNatural(area homeassistant.AreaRegistryEntry, deviceCount, entityCount int) (*mcp.ToolsCallResult, error) {
+func (h *AreaHandlers) formatDetailNatural(area homeassistant.AreaRegistryEntry, deviceCount, entityCount int, enrichment *areaDetailEnrichment) (*mcp.ToolsCallResult, error) {
 	var output strings.Builder
 
 	fmt.Fprintf(&output, "Area: %s\n", area.Name)
@@ -481,8 +628,28 @@ func (h *AreaHandlers) formatDetailNatural(area homeassistant.AreaRegistryEntry,
 		fmt.Fprintf(&output, "\nDevices: %d\n", deviceCount)
 		fmt.Fprintf(&output, "Entities: %d\n", entityCount)
 	}
+	h.writeEnrichmentNatural(&output, enrichment)
 
 	return successResult(output.String()), nil
+}
+
+// writeEnrichmentNatural appends enrichment sections to the output builder.
+func (h *AreaHandlers) writeEnrichmentNatural(output *strings.Builder, enrichment *areaDetailEnrichment) {
+	if enrichment == nil {
+		return
+	}
+	if len(enrichment.entities) > 0 {
+		fmt.Fprintf(output, "\nEntities in Area (%d):\n", len(enrichment.entities))
+		for _, e := range enrichment.entities {
+			fmt.Fprintf(output, "  - %s (%s) [%s]\n", e.EntityID, e.FriendlyName, e.State)
+		}
+	}
+	if len(enrichment.automations) > 0 {
+		fmt.Fprintf(output, "\nAutomations Referencing Area (%d):\n", len(enrichment.automations))
+		for _, a := range enrichment.automations {
+			fmt.Fprintf(output, "  - %s [%s] (matches: %s)\n", a.FriendlyName, a.State, strings.Join(a.MatchedEntities, ", "))
+		}
+	}
 }
 
 func (h *AreaHandlers) formatCreateNatural(area homeassistant.AreaRegistryEntry) (*mcp.ToolsCallResult, error) {
