@@ -189,6 +189,7 @@ For maximum security, you could theoretically use both: Official integration for
 | ----------------------- | ------------------------------------------------------------- | --------------- |
 | List execution traces   | `manage_trace` action=list (domain: automation, script)       | --------------- |
 | Get trace details       | `manage_trace` action=get (execution path, trigger, actions)  | --------------- |
+| Debug automation        | `manage_trace` action=debug (config+trace+trigger states+logbook in one call) | --------------- |
 | List blueprints         | `manage_blueprint` action=list (domain: automation, script)   | --------------- |
 | Import blueprint        | `manage_blueprint` action=import (from URL)                   | --------------- |
 

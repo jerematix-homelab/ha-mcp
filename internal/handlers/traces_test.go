@@ -40,8 +40,8 @@ func TestManageTraceSchema(t *testing.T) {
 	if actionSchema.Type != "string" {
 		t.Errorf("action type = %q, want %q", actionSchema.Type, "string")
 	}
-	if len(actionSchema.Enum) != 2 {
-		t.Errorf("action enum count = %d, want 2", len(actionSchema.Enum))
+	if len(actionSchema.Enum) != 3 {
+		t.Errorf("action enum count = %d, want 3", len(actionSchema.Enum))
 	}
 
 	// Check domain field
@@ -51,6 +51,20 @@ func TestManageTraceSchema(t *testing.T) {
 	}
 	if len(domainSchema.Enum) != 2 {
 		t.Errorf("domain enum count = %d, want 2 (automation, script)", len(domainSchema.Enum))
+	}
+
+	// Check automation_id field
+	if _, ok := props["automation_id"]; !ok {
+		t.Error("automation_id property missing from schema")
+	}
+
+	// Check hours field
+	hoursSchema, ok := props["hours"]
+	if !ok {
+		t.Fatal("hours property missing from schema")
+	}
+	if hoursSchema.Type != "number" {
+		t.Errorf("hours type = %q, want %q", hoursSchema.Type, "number")
 	}
 
 	// Check format field

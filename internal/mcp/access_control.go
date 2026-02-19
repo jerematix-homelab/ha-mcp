@@ -177,7 +177,7 @@ func addSpecialManagementTools(result map[string]ToolClassification) {
 	}
 	result["manage_trace"] = ToolClassification{
 		ParamName: "action",
-		Actions:   map[string]ActionCategory{"list": CategoryRead, "get": CategoryRead},
+		Actions:   map[string]ActionCategory{"list": CategoryRead, "get": CategoryRead, "debug": CategoryRead},
 	}
 	result["manage_blueprint"] = ToolClassification{
 		ParamName: "action",

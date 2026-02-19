@@ -12,8 +12,9 @@ import (
 
 // Action constants for manage_trace tool.
 const (
-	traceActionList = "list"
-	traceActionGet  = "get"
+	traceActionList  = "list"
+	traceActionGet   = "get"
+	traceActionDebug = "debug"
 )
 
 // Domain constants for trace operations.
@@ -36,14 +37,14 @@ func RegisterTraceTools(registry *mcp.Registry) {
 
 	registry.RegisterTool(mcp.Tool{
 		Name:        "manage_trace",
-		Description: "View automation and script execution traces. Supports list (view all traces) and get (view specific trace details).",
+		Description: "View automation and script execution traces. Supports list (view all traces), get (view specific trace details), and debug (consolidated automation debug report: config, latest trace, trigger entity states, and logbook).",
 		InputSchema: mcp.JSONSchema{
 			Type: "object",
 			Properties: map[string]mcp.JSONSchema{
 				"action": {
 					Type:        "string",
-					Description: "Action to perform: 'list' (list all traces) or 'get' (get specific trace details).",
-					Enum:        []string{traceActionList, traceActionGet},
+					Description: "Action to perform: 'list' (list all traces), 'get' (get specific trace details), or 'debug' (consolidated automation debug report).",
+					Enum:        []string{traceActionList, traceActionGet, traceActionDebug},
 				},
 				"domain": {
 					Type:        "string",
@@ -54,9 +55,17 @@ func RegisterTraceTools(registry *mcp.Registry) {
 					Type:        "string",
 					Description: "Entity ID (required for 'get' action, e.g., 'automation.morning_routine').",
 				},
+				"automation_id": {
+					Type:        "string",
+					Description: "Automation entity ID or bare ID (required for 'debug' action, e.g., 'automation.morning_routine' or 'morning_routine').",
+				},
 				"run_id": {
 					Type:        "string",
 					Description: "Trace run ID (required for 'get' action).",
+				},
+				"hours": {
+					Type:        "number",
+					Description: "Number of hours to look back for logbook entries in 'debug' action (default: 6).",
 				},
 				"format": {
 					Type:        "string",
@@ -75,7 +84,7 @@ func (h *TraceHandlers) HandleManageTrace(ctx context.Context, client homeassist
 	// Extract action
 	action, _ := args["action"].(string)
 	if action == "" {
-		return errorResult("action parameter is required and must be 'list' or 'get'"), nil
+		return errorResult("action parameter is required and must be 'list', 'get', or 'debug'"), nil
 	}
 
 	// Extract format (default: natural)
@@ -90,8 +99,10 @@ func (h *TraceHandlers) HandleManageTrace(ctx context.Context, client homeassist
 		return h.handleListTraces(ctx, client, args, format)
 	case traceActionGet:
 		return h.handleGetTrace(ctx, client, args, format)
+	case traceActionDebug:
+		return h.handleDebugTrace(ctx, client, args, format)
 	default:
-		return errorResult(fmt.Sprintf("invalid action %q, must be one of: list, get", action)), nil
+		return errorResult(fmt.Sprintf("invalid action %q, must be one of: list, get, debug", action)), nil
 	}
 }
 
