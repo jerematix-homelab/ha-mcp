@@ -27,7 +27,7 @@ Authorization: Bearer <your-ha-access-token>
 | Tool                  | Description                                                                                                   |
 | --------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `get_registry`        | Query registries (type: entities, devices, areas, all; format: natural/json)                                  |
-| `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; update supports label_mode/alias_mode: add/remove/replace; format: natural/json for list/get) |
+| `manage_area`         | Consolidated area management (actions: list, get, create, update, delete; update supports label_mode/alias_mode: add/remove/replace; get supports include_entities/include_automations; format: natural/json for list/get) |
 | `manage_label`        | Consolidated label management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                           |
 | `manage_floor`        | Consolidated floor management (actions: list, get, create, update, delete; update supports alias_mode: add/remove/replace; format: natural/json for list/get)           |
 | `manage_zone`         | Consolidated zone management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                            |

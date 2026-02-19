@@ -70,6 +70,14 @@ func TestManageArea_Schema(t *testing.T) {
 	if len(formatProp.Enum) != 2 {
 		t.Errorf("expected 2 format enum values, got %d", len(formatProp.Enum))
 	}
+
+	// Verify include_entities and include_automations properties exist
+	if _, ok := tool.InputSchema.Properties["include_entities"]; !ok {
+		t.Error("expected 'include_entities' property in schema")
+	}
+	if _, ok := tool.InputSchema.Properties["include_automations"]; !ok {
+		t.Error("expected 'include_automations' property in schema")
+	}
 }
 
 func TestHandleManageArea(t *testing.T) {
@@ -500,6 +508,7 @@ func TestHandleManageArea(t *testing.T) {
 			wantErr:     false,
 			wantContain: `"area_id":"living_room"`,
 		},
+
 		// =========================
 		// Invalid Action Test
 		// =========================
@@ -510,6 +519,284 @@ func TestHandleManageArea(t *testing.T) {
 			},
 			wantErr:     false,
 			wantContain: "invalid",
+		},
+
+		// =========================
+		// include_entities Tests
+		// =========================
+		{
+			name: "get - include_entities natural",
+			args: map[string]any{
+				"action":           "get",
+				"area_id":          "living_room",
+				"include_entities": true,
+				"format":           "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", AreaID: "living_room"},
+					}, nil
+				}
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{}, nil
+				}
+				m.GetStatesFn = func(context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{
+						{
+							EntityID:   "light.living_room",
+							State:      "on",
+							Attributes: map[string]any{"friendly_name": "Living Room Light"},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Entities in Area",
+		},
+		{
+			name: "get - include_entities json",
+			args: map[string]any{
+				"action":           "get",
+				"area_id":          "living_room",
+				"include_entities": true,
+				"format":           "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", AreaID: "living_room"},
+					}, nil
+				}
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{}, nil
+				}
+				m.GetStatesFn = func(context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{
+						{
+							EntityID:   "light.living_room",
+							State:      "on",
+							Attributes: map[string]any{"friendly_name": "Living Room Light"},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: `"entities"`,
+		},
+		{
+			name: "get - include_entities empty area",
+			args: map[string]any{
+				"action":           "get",
+				"area_id":          "living_room",
+				"include_entities": true,
+				"format":           "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{}, nil
+				}
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{}, nil
+				}
+				m.GetStatesFn = func(context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{
+						{EntityID: "light.other_room", State: "off"},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Living Room",
+		},
+
+		// =========================
+		// include_automations Tests
+		// =========================
+		{
+			name: "get - include_automations with match",
+			args: map[string]any{
+				"action":              "get",
+				"area_id":             "living_room",
+				"include_automations": true,
+				"format":              "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", AreaID: "living_room"},
+					}, nil
+				}
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{}, nil
+				}
+				m.ListAutomationsFn = func(context.Context) ([]homeassistant.Automation, error) {
+					return []homeassistant.Automation{
+						{EntityID: "automation.turn_on_lights", FriendlyName: "Turn On Lights", State: "on"},
+					}, nil
+				}
+				m.GetAutomationFn = func(_ context.Context, automationID string) (*homeassistant.Automation, error) {
+					return &homeassistant.Automation{
+						EntityID: automationID,
+						Config: &homeassistant.AutomationConfig{
+							Actions: []any{
+								map[string]any{"entity_id": "light.living_room"},
+							},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Automations Referencing Area",
+		},
+		{
+			name: "get - include_automations no match",
+			args: map[string]any{
+				"action":              "get",
+				"area_id":             "living_room",
+				"include_automations": true,
+				"format":              "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", AreaID: "living_room"},
+					}, nil
+				}
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{}, nil
+				}
+				m.ListAutomationsFn = func(context.Context) ([]homeassistant.Automation, error) {
+					return []homeassistant.Automation{
+						{EntityID: "automation.kitchen_lights", FriendlyName: "Kitchen Lights", State: "on"},
+					}, nil
+				}
+				m.GetAutomationFn = func(_ context.Context, automationID string) (*homeassistant.Automation, error) {
+					return &homeassistant.Automation{
+						EntityID: automationID,
+						Config: &homeassistant.AutomationConfig{
+							Actions: []any{
+								map[string]any{"entity_id": "light.kitchen"},
+							},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Living Room",
+		},
+		{
+			name: "get - both include flags",
+			args: map[string]any{
+				"action":              "get",
+				"area_id":             "living_room",
+				"include_entities":    true,
+				"include_automations": true,
+				"format":              "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", AreaID: "living_room"},
+					}, nil
+				}
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{}, nil
+				}
+				m.GetStatesFn = func(context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{
+						{
+							EntityID:   "light.living_room",
+							State:      "on",
+							Attributes: map[string]any{"friendly_name": "Living Room Light"},
+						},
+					}, nil
+				}
+				m.ListAutomationsFn = func(context.Context) ([]homeassistant.Automation, error) {
+					return []homeassistant.Automation{
+						{EntityID: "automation.turn_on_lights", FriendlyName: "Turn On Lights", State: "on"},
+					}, nil
+				}
+				m.GetAutomationFn = func(_ context.Context, automationID string) (*homeassistant.Automation, error) {
+					return &homeassistant.Automation{
+						EntityID: automationID,
+						Config: &homeassistant.AutomationConfig{
+							Actions: []any{
+								map[string]any{"entity_id": "light.living_room"},
+							},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: "Entities in Area",
+		},
+		{
+			name: "get - entity via device in area",
+			args: map[string]any{
+				"action":           "get",
+				"area_id":          "living_room",
+				"include_entities": true,
+				"format":           "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAreaRegistryFn = func(context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				}
+				m.GetEntityRegistryFn = func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					// Entity assigned to device (not directly to area)
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "sensor.temp", DeviceID: "device1"},
+					}, nil
+				}
+				m.GetDeviceRegistryFn = func(context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{
+						{ID: "device1", AreaID: "living_room"},
+					}, nil
+				}
+				m.GetStatesFn = func(context.Context) ([]homeassistant.Entity, error) {
+					return []homeassistant.Entity{
+						{
+							EntityID:   "sensor.temp",
+							State:      "22.5",
+							Attributes: map[string]any{"friendly_name": "Living Room Temp"},
+						},
+					}, nil
+				}
+			},
+			wantErr:     false,
+			wantContain: `"entities"`,
 		},
 	}
 
