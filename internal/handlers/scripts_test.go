@@ -27,6 +27,10 @@ type mockScriptClient struct {
 	lastUpdateConfig   *homeassistant.ScriptConfig
 	lastDeleteScriptID string
 	lastServiceData    map[string]any
+
+	// entityDeleted tracks whether DeleteScript was successfully called.
+	// Used to make GetState return "not found" after delete (for fast waitForEntityDisappear in tests).
+	entityDeleted bool
 }
 
 func (m *mockScriptClient) ListScripts(ctx context.Context) ([]homeassistant.Entity, error) {
@@ -46,8 +50,13 @@ func (m *mockScriptClient) GetScript(ctx context.Context, scriptID string) (*hom
 
 func (m *mockScriptClient) CreateScript(ctx context.Context, scriptID string, config homeassistant.ScriptConfig) error {
 	if m.createScriptFn != nil {
-		return m.createScriptFn(ctx, scriptID, config)
+		err := m.createScriptFn(ctx, scriptID, config)
+		if err == nil {
+			m.entityDeleted = false
+		}
+		return err
 	}
+	m.entityDeleted = false
 	return nil
 }
 
@@ -64,8 +73,13 @@ func (m *mockScriptClient) UpdateScript(ctx context.Context, scriptID string, co
 func (m *mockScriptClient) DeleteScript(ctx context.Context, scriptID string) error {
 	m.lastDeleteScriptID = scriptID
 	if m.deleteScriptFn != nil {
-		return m.deleteScriptFn(ctx, scriptID)
+		err := m.deleteScriptFn(ctx, scriptID)
+		if err == nil {
+			m.entityDeleted = true
+		}
+		return err
 	}
+	m.entityDeleted = true
 	return nil
 }
 
@@ -81,6 +95,14 @@ func (m *mockScriptClient) GetState(ctx context.Context, entityID string) (*home
 	m.lastGetScriptID = entityID
 	if m.getStateFn != nil {
 		return m.getStateFn(ctx, entityID)
+	}
+	// Non-script entities (e.g., light.x in call_service data) are not tracked by this mock.
+	// Returning not-found prevents snapshotEntities from capturing them for waitForStateChanges.
+	if !strings.HasPrefix(entityID, "script.") {
+		return nil, errors.New("entity not found")
+	}
+	if m.entityDeleted {
+		return nil, errors.New("entity not found")
 	}
 	return &homeassistant.Entity{
 		EntityID:   entityID,

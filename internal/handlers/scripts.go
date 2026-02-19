@@ -348,7 +348,13 @@ func (h *ScriptHandlers) handleCreate(ctx context.Context, client homeassistant.
 		return errorResult(fmt.Sprintf("Error creating script: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Script '%s' created successfully", scriptID)), nil
+	entityID, _ := normalizeScriptID(scriptID)
+	successMsg := fmt.Sprintf("Script '%s' created successfully", scriptID)
+	if _, appeared := reloadAndWaitForEntity(ctx, client, "script", entityID); !appeared {
+		successMsg += " (warning: script entity not yet visible, reload may be pending)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *ScriptHandlers) handleUpdate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -416,7 +422,14 @@ func (h *ScriptHandlers) handleDelete(ctx context.Context, client homeassistant.
 		return errorResult(fmt.Sprintf("Error deleting script: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Script '%s' deleted successfully", scriptID)), nil
+	entityID, _ := normalizeScriptID(scriptID)
+	_, _ = client.CallService(ctx, "script", "reload", nil)
+	successMsg := fmt.Sprintf("Script '%s' deleted successfully", scriptID)
+	if !waitForEntityDisappear(ctx, client, entityID) {
+		successMsg += " (warning: script entity may still be visible until reload completes)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *ScriptHandlers) handleExecute(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -518,23 +531,28 @@ func (h *ScriptHandlers) handleCallService(ctx context.Context, client homeassis
 		data = d
 	}
 
+	// Extract targets and snapshot state before calling the service
+	targets := extractEntityTargets(data)
+	snapshots := snapshotEntities(ctx, client, targets)
+
 	_, err := client.CallService(ctx, domain, service, data)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error calling service: %v", err)), nil
 	}
 
+	// Wait for state changes and build diff summary
+	diffs, allChanged := waitForStateChanges(ctx, client, snapshots)
+	stateSummary := formatStateDiffs(diffs, !allChanged)
+
 	format := formatter.ParseFormat(getStringArg(args, "format"))
 	f := formatter.New(format)
-
-	// Extract targets from input data since WebSocket response doesn't include affected entities
-	targets := extractEntityTargets(data)
 
 	output, err := f.FormatServiceSuccess(ctx, domain, service, targets, data)
 	if err != nil {
 		return errorResult(fmt.Sprintf("Error formatting result: %v", err)), nil
 	}
 
-	return successResult(output), nil
+	return successResult(output + stateSummary), nil
 }
 
 // extractEntityTargets extracts entity IDs from the data map.

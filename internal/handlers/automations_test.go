@@ -40,6 +40,10 @@ type mockAutomationClient struct {
 	lastDeleteID      string
 	lastToggleID      string
 	lastCreatedConfig *homeassistant.AutomationConfig
+
+	// entityExists tracks whether the mock entity is currently "visible".
+	// Set to true after successful CreateAutomation, false after successful DeleteAutomation.
+	entityExists bool
 }
 
 func (m *mockAutomationClient) ListAutomations(_ context.Context) ([]homeassistant.Automation, error) {
@@ -68,6 +72,7 @@ func (m *mockAutomationClient) CreateAutomation(_ context.Context, config homeas
 	if m.createErr == nil {
 		configCopy := config
 		m.lastCreatedConfig = &configCopy
+		m.entityExists = true
 	}
 	return m.createErr
 }
@@ -79,12 +84,30 @@ func (m *mockAutomationClient) UpdateAutomation(_ context.Context, automationID 
 
 func (m *mockAutomationClient) DeleteAutomation(_ context.Context, automationID string) error {
 	m.lastDeleteID = automationID
+	if m.deleteErr == nil {
+		m.entityExists = false
+	}
 	return m.deleteErr
 }
 
 func (m *mockAutomationClient) ToggleAutomation(_ context.Context, automationID string, _ bool) error {
 	m.lastToggleID = automationID
 	return m.toggleErr
+}
+
+// GetState returns the entity if entityExists is true, otherwise returns not-found error.
+// This allows waitForEntityAppear (after create) and waitForEntityDisappear (after delete)
+// to resolve immediately without real timeouts.
+func (m *mockAutomationClient) GetState(_ context.Context, entityID string) (*homeassistant.Entity, error) {
+	if !m.entityExists {
+		return nil, errors.New("entity not found")
+	}
+	return &homeassistant.Entity{EntityID: entityID, State: "on"}, nil
+}
+
+// CallService is a no-op for reload calls triggered by create/delete operations.
+func (m *mockAutomationClient) CallService(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+	return nil, nil
 }
 
 func TestNewAutomationHandlers(t *testing.T) {

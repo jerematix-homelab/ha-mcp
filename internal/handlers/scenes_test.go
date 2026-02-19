@@ -24,6 +24,10 @@ type mockSceneClient struct {
 	lastUpdateSceneID string
 	lastDeleteSceneID string
 	lastGetStateID    string
+
+	// entityDeleted tracks whether DeleteScene was successfully called.
+	// Used to make GetState return "not found" after delete (for fast waitForEntityDisappear in tests).
+	entityDeleted bool
 }
 
 func (m *mockSceneClient) ListScenes(ctx context.Context) ([]homeassistant.Entity, error) {
@@ -35,8 +39,13 @@ func (m *mockSceneClient) ListScenes(ctx context.Context) ([]homeassistant.Entit
 
 func (m *mockSceneClient) CreateScene(ctx context.Context, sceneID string, config homeassistant.SceneConfig) error {
 	if m.createSceneFn != nil {
-		return m.createSceneFn(ctx, sceneID, config)
+		err := m.createSceneFn(ctx, sceneID, config)
+		if err == nil {
+			m.entityDeleted = false
+		}
+		return err
 	}
+	m.entityDeleted = false
 	return nil
 }
 
@@ -51,8 +60,13 @@ func (m *mockSceneClient) UpdateScene(ctx context.Context, sceneID string, confi
 func (m *mockSceneClient) DeleteScene(ctx context.Context, sceneID string) error {
 	m.lastDeleteSceneID = sceneID
 	if m.deleteSceneFn != nil {
-		return m.deleteSceneFn(ctx, sceneID)
+		err := m.deleteSceneFn(ctx, sceneID)
+		if err == nil {
+			m.entityDeleted = true
+		}
+		return err
 	}
+	m.entityDeleted = true
 	return nil
 }
 
@@ -67,6 +81,9 @@ func (m *mockSceneClient) GetState(ctx context.Context, entityID string) (*homea
 	m.lastGetStateID = entityID
 	if m.getStateFn != nil {
 		return m.getStateFn(ctx, entityID)
+	}
+	if m.entityDeleted {
+		return nil, errors.New("entity not found")
 	}
 	return &homeassistant.Entity{
 		EntityID:   entityID,

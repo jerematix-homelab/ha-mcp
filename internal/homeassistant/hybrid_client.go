@@ -332,8 +332,8 @@ func (c *HybridClient) CreateHelper(ctx context.Context, config HelperConfig) er
 				return fmt.Errorf("helper created but failed to predict entity ID for icon update: %w", err)
 			}
 
-			// Wait briefly for entity to appear in registry
-			time.Sleep(500 * time.Millisecond)
+			// Wait for entity to appear in registry before setting icon
+			WaitForEntityAppear(ctx, c.ws.GetState, entityID, DefaultEntityPollerConfig())
 
 			// Update icon via Entity Registry
 			updateCfg := EntityRegistryUpdateConfig{
@@ -445,7 +445,7 @@ func (c *HybridClient) updateHelperViaOptionsFlow(ctx context.Context, entityID,
 
 	// Update icon via Entity Registry if provided
 	if hasIcon && icon != "" {
-		time.Sleep(500 * time.Millisecond) // Wait for entity registry to be updated
+		WaitForEntityAppear(ctx, c.ws.GetState, entityID, DefaultEntityPollerConfig())
 		updateCfg := EntityRegistryUpdateConfig{Icon: &icon}
 		if _, err := c.ws.UpdateEntityRegistryEntry(ctx, entityID, updateCfg); err != nil {
 			return fmt.Errorf("helper updated, but failed to set icon: %w", err)

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -800,11 +799,9 @@ func (h *ConsolidatedHelperHandlers) createConfigEntryHelper(
 	entityID := fmt.Sprintf("%s.%s", prefix, predictedSlug)
 
 	// Set icon via Entity Registry if provided
-	// Note: We need to wait briefly for the entity to appear in the registry
+	// Wait for entity to appear in registry before setting icon
 	if hasIcon && icon != "" {
-		// Wait a moment for entity to be registered
-		// Config Entry Flow entities may take time to appear in registry
-		time.Sleep(500 * time.Millisecond)
+		waitForEntityAppear(ctx, client, entityID)
 
 		updateCfg := homeassistant.EntityRegistryUpdateConfig{
 			Icon: &icon,
@@ -889,7 +886,12 @@ func (h *ConsolidatedHelperHandlers) handleDelete(ctx context.Context, client ho
 		return errorResult(fmt.Sprintf("Error deleting helper: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Helper '%s' deleted successfully", entityID)), nil
+	successMsg := fmt.Sprintf("Helper '%s' deleted successfully", entityID)
+	if !waitForEntityDisappear(ctx, client, entityID) {
+		successMsg += " (warning: helper entity may still be visible briefly)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *ConsolidatedHelperHandlers) handleGetDetails(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {

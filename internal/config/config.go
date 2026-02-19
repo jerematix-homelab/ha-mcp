@@ -56,6 +56,15 @@ type HomeAssistantConfig struct {
 	REST      RESTConfig      `mapstructure:"rest"`
 	WebSocket WebSocketConfig `mapstructure:"websocket"`
 	Cache     CacheConfig     `mapstructure:"cache"`
+	Wait      WaitConfig      `mapstructure:"wait"`
+}
+
+// WaitConfig holds settings for post-mutation entity state polling.
+type WaitConfig struct {
+	// WaitTimeoutMs is the maximum time to wait for entity state changes in milliseconds (default: 5000)
+	WaitTimeoutMs int `mapstructure:"wait_timeout_ms"`
+	// WaitPollIntervalMs is the polling interval for state change checks in milliseconds (default: 100)
+	WaitPollIntervalMs int `mapstructure:"wait_poll_interval_ms"`
 }
 
 // CacheConfig holds settings for caching static Home Assistant data.
@@ -137,6 +146,8 @@ func setupViper(configFile string) (*viper.Viper, error) {
 	v.SetDefault("homeassistant.cache.entity_reg_ttl_min", 10)
 	v.SetDefault("homeassistant.cache.device_reg_ttl_min", 10)
 	v.SetDefault("homeassistant.cache.area_reg_ttl_min", 30)
+	v.SetDefault("homeassistant.wait.wait_timeout_ms", 5000)
+	v.SetDefault("homeassistant.wait.wait_poll_interval_ms", 100)
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.read_only", false)
 	v.SetDefault("server.tool_filter.whitelist", []string{})
@@ -173,6 +184,8 @@ func setupViper(configFile string) (*viper.Viper, error) {
 	mustBindEnv(v, "homeassistant.cache.entity_reg_ttl_min", "HA_CACHE_ENTITY_REG_TTL_MIN")
 	mustBindEnv(v, "homeassistant.cache.device_reg_ttl_min", "HA_CACHE_DEVICE_REG_TTL_MIN")
 	mustBindEnv(v, "homeassistant.cache.area_reg_ttl_min", "HA_CACHE_AREA_REG_TTL_MIN")
+	mustBindEnv(v, "homeassistant.wait.wait_timeout_ms", "HA_WAIT_TIMEOUT_MS")
+	mustBindEnv(v, "homeassistant.wait.wait_poll_interval_ms", "HA_WAIT_POLL_INTERVAL_MS")
 	mustBindEnv(v, "server.port", "HA_MCP_PORT")
 	mustBindEnv(v, "server.read_only", "HA_MCP_READ_ONLY")
 	mustBindEnv(v, "server.tool_filter.whitelist", "HA_MCP_TOOL_FILTER_WHITELIST")
@@ -243,6 +256,8 @@ func LoadWithViper(v *viper.Viper, configFile string) (*Config, error) {
 	v.SetDefault("homeassistant.cache.entity_reg_ttl_min", 10)
 	v.SetDefault("homeassistant.cache.device_reg_ttl_min", 10)
 	v.SetDefault("homeassistant.cache.area_reg_ttl_min", 30)
+	v.SetDefault("homeassistant.wait.wait_timeout_ms", 5000)
+	v.SetDefault("homeassistant.wait.wait_poll_interval_ms", 100)
 	v.SetDefault("server.port", 8080)
 	v.SetDefault("server.read_only", false)
 	v.SetDefault("server.tool_filter.whitelist", []string{})
@@ -279,6 +294,8 @@ func LoadWithViper(v *viper.Viper, configFile string) (*Config, error) {
 	mustBindEnv(v, "homeassistant.cache.entity_reg_ttl_min", "HA_CACHE_ENTITY_REG_TTL_MIN")
 	mustBindEnv(v, "homeassistant.cache.device_reg_ttl_min", "HA_CACHE_DEVICE_REG_TTL_MIN")
 	mustBindEnv(v, "homeassistant.cache.area_reg_ttl_min", "HA_CACHE_AREA_REG_TTL_MIN")
+	mustBindEnv(v, "homeassistant.wait.wait_timeout_ms", "HA_WAIT_TIMEOUT_MS")
+	mustBindEnv(v, "homeassistant.wait.wait_poll_interval_ms", "HA_WAIT_POLL_INTERVAL_MS")
 	mustBindEnv(v, "server.port", "HA_MCP_PORT")
 	mustBindEnv(v, "server.read_only", "HA_MCP_READ_ONLY")
 	mustBindEnv(v, "server.tool_filter.whitelist", "HA_MCP_TOOL_FILTER_WHITELIST")
