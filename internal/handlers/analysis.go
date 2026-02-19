@@ -35,7 +35,7 @@ func (h *AnalysisHandlers) RegisterTools(registry *mcp.Registry) {
 func (h *AnalysisHandlers) analyzeEntityTool() mcp.Tool {
 	return mcp.Tool{
 		Name:        "analyze_entity",
-		Description: "Analyze an entity and find all automations, scripts, and scenes that reference it. Returns a comprehensive overview of how the entity is controlled and used in Home Assistant.",
+		Description: "Analyze an entity and find all automations, scripts, and scenes that reference it. Returns a comprehensive overview including registry metadata (platform, area, device, labels) and how the entity is controlled and used in Home Assistant.",
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Parameters for analyzing an entity",
@@ -82,6 +82,23 @@ func (h *AnalysisHandlers) getEntityDependenciesTool() mcp.Tool {
 	}
 }
 
+// RegistryInfo holds entity registry metadata for an entity.
+type RegistryInfo struct {
+	Platform      string   `json:"platform,omitempty"`
+	AreaID        string   `json:"area_id,omitempty"`
+	AreaName      string   `json:"area_name,omitempty"`
+	DeviceID      string   `json:"device_id,omitempty"`
+	DeviceName    string   `json:"device_name,omitempty"`
+	Manufacturer  string   `json:"manufacturer,omitempty"`
+	Model         string   `json:"model,omitempty"`
+	ConfigEntryID string   `json:"config_entry_id,omitempty"`
+	DisabledBy    string   `json:"disabled_by,omitempty"`
+	HiddenBy      string   `json:"hidden_by,omitempty"`
+	Icon          string   `json:"icon,omitempty"`
+	Labels        []string `json:"labels,omitempty"`
+	Aliases       []string `json:"aliases,omitempty"`
+}
+
 // EntityAnalysis represents the comprehensive analysis of an entity.
 type EntityAnalysis struct {
 	EntityID     string            `json:"entity_id"`
@@ -90,6 +107,7 @@ type EntityAnalysis struct {
 	Domain       string            `json:"domain"`
 	Attributes   map[string]any    `json:"attributes,omitempty"`
 	LastChanged  string            `json:"last_changed,omitempty"`
+	Registry     *RegistryInfo     `json:"registry,omitempty"`
 	References   *EntityReferences `json:"references"`
 	Summary      string            `json:"summary"`
 	History      []HistoryEntry    `json:"history,omitempty"`
@@ -207,21 +225,24 @@ func (h *AnalysisHandlers) handleAnalyzeEntity(ctx context.Context, client homea
 	}, nil
 }
 
+func (h *AnalysisHandlers) getEntityState(ctx context.Context, snapshot *AnalysisSnapshot, client homeassistant.Client, entityID string) (*homeassistant.Entity, error) {
+	if entity := snapshot.FindEntityByID(entityID); entity != nil {
+		return entity, nil
+	}
+	state, err := client.GetState(ctx, entityID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting entity state: %w", err)
+	}
+	return state, nil
+}
+
 func (h *AnalysisHandlers) buildEntityAnalysis(ctx context.Context, client homeassistant.Client, entityID string, includeHistory bool) (*EntityAnalysis, error) {
 	// Create snapshot of all required data in parallel for better performance
 	snapshot := CreateAnalysisSnapshot(ctx, client)
 
-	// Get entity state - try snapshot first, fallback to direct API call
-	var state *homeassistant.Entity
-	var err error
-	if entity := snapshot.FindEntityByID(entityID); entity != nil {
-		state = entity
-	} else {
-		// Entity not in snapshot, fetch directly
-		state, err = client.GetState(ctx, entityID)
-		if err != nil {
-			return nil, fmt.Errorf("error getting entity state: %w", err)
-		}
+	state, err := h.getEntityState(ctx, snapshot, client, entityID)
+	if err != nil {
+		return nil, err
 	}
 
 	parts := strings.SplitN(entityID, ".", 2)
@@ -244,6 +265,7 @@ func (h *AnalysisHandlers) buildEntityAnalysis(ctx context.Context, client homea
 		LastChanged:  state.LastChanged.Format(time.RFC3339),
 		References:   &EntityReferences{},
 	}
+	analysis.Registry = h.extractRegistryInfo(snapshot, entityID)
 
 	// Find all references
 	h.findAutomationReferences(ctx, client, entityID, analysis.References)
@@ -1011,6 +1033,94 @@ func (h *AnalysisHandlers) extractDevicesRecursive(val any, seen map[string]bool
 	}
 }
 
+// extractRegistryInfo builds a RegistryInfo from the snapshot for a given entityID.
+// Returns nil if the entity is not found in the entity registry.
+func (h *AnalysisHandlers) extractRegistryInfo(snapshot *AnalysisSnapshot, entityID string) *RegistryInfo {
+	entry := snapshot.FindEntityRegistryEntry(entityID)
+	if entry == nil {
+		return nil
+	}
+
+	reg := &RegistryInfo{
+		Platform:      entry.Platform,
+		DeviceID:      entry.DeviceID,
+		ConfigEntryID: entry.ConfigEntryID,
+		DisabledBy:    entry.DisabledBy,
+		HiddenBy:      entry.HiddenBy,
+		Icon:          entry.Icon,
+		Labels:        entry.Labels,
+		Aliases:       entry.Aliases,
+	}
+
+	// Resolve area: entity area takes precedence, then device area
+	areaID := snapshot.GetEntityArea(entityID)
+	if areaID != "" {
+		reg.AreaID = areaID
+		if area := snapshot.FindAreaByID(areaID); area != nil {
+			reg.AreaName = area.Name
+		}
+	}
+
+	// Resolve device details
+	if entry.DeviceID != "" {
+		if device := snapshot.FindDeviceByID(entry.DeviceID); device != nil {
+			name := device.NameByUser
+			if name == "" {
+				name = device.Name
+			}
+			reg.DeviceName = name
+			reg.Manufacturer = device.Manufacturer
+			reg.Model = string(device.Model)
+		}
+	}
+
+	return reg
+}
+
+// formatRegistry formats the registry section for natural language output.
+func (h *AnalysisHandlers) formatRegistry(parts []string, reg *RegistryInfo) []string {
+	parts = append(parts, "\nRegistry:")
+	if reg.Platform != "" {
+		parts = append(parts, fmt.Sprintf("- Platform: %s", reg.Platform))
+	}
+	if reg.AreaName != "" {
+		parts = append(parts, fmt.Sprintf("- Area: %s (%s)", reg.AreaName, reg.AreaID))
+	} else if reg.AreaID != "" {
+		parts = append(parts, fmt.Sprintf("- Area: %s", reg.AreaID))
+	}
+	parts = h.formatDeviceDetails(parts, reg)
+	if len(reg.Labels) > 0 {
+		parts = append(parts, fmt.Sprintf("- Labels: %s", strings.Join(reg.Labels, ", ")))
+	}
+	if len(reg.Aliases) > 0 {
+		parts = append(parts, fmt.Sprintf("- Aliases: %s", strings.Join(reg.Aliases, ", ")))
+	}
+	if reg.DisabledBy != "" {
+		parts = append(parts, fmt.Sprintf("- Disabled by: %s", reg.DisabledBy))
+	}
+	if reg.HiddenBy != "" {
+		parts = append(parts, fmt.Sprintf("- Hidden by: %s", reg.HiddenBy))
+	}
+	return parts
+}
+
+// formatDeviceDetails formats device name, manufacturer, and model lines.
+func (h *AnalysisHandlers) formatDeviceDetails(parts []string, reg *RegistryInfo) []string {
+	if reg.DeviceName == "" && reg.Manufacturer == "" && reg.Model == "" {
+		return parts
+	}
+	device := reg.DeviceName
+	if reg.Manufacturer != "" || reg.Model != "" {
+		extra := strings.TrimSpace(reg.Manufacturer + " " + reg.Model)
+		if extra != "" && device != "" {
+			device = fmt.Sprintf("%s [%s]", device, extra)
+		} else if extra != "" {
+			device = extra
+		}
+	}
+	return append(parts, fmt.Sprintf("- Device: %s", device))
+}
+
 func (h *AnalysisHandlers) generateEntitySummary(analysis *EntityAnalysis) string {
 	var parts []string
 
@@ -1095,6 +1205,11 @@ func (h *AnalysisHandlers) formatAnalysisNatural(analysis *EntityAnalysis) strin
 		fmt.Sprintf("%s (%s) is %s", analysis.EntityID, name, analysis.State),
 		fmt.Sprintf("Domain: %s | Last changed: %s", analysis.Domain, analysis.LastChanged),
 	)
+
+	// Registry metadata
+	if analysis.Registry != nil {
+		parts = h.formatRegistry(parts, analysis.Registry)
+	}
 
 	// References section
 	if analysis.References.TotalReferences == 0 {

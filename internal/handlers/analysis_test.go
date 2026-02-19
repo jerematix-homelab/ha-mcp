@@ -1264,6 +1264,487 @@ func TestAnalysisHandlers_searchAreaInSlice(t *testing.T) {
 	}
 }
 
+func TestAnalysisSnapshot_FindEntityRegistryEntry(t *testing.T) {
+	t.Parallel()
+
+	snapshot := &AnalysisSnapshot{
+		EntityRegistry: []homeassistant.EntityRegistryEntry{
+			{EntityID: "light.living_room", Platform: "hue"},
+			{EntityID: "sensor.temp", Platform: "mqtt"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		entityID string
+		wantNil  bool
+		wantPlat string
+	}{
+		{
+			name:     "found entity",
+			entityID: "light.living_room",
+			wantNil:  false,
+			wantPlat: "hue",
+		},
+		{
+			name:     "found second entity",
+			entityID: "sensor.temp",
+			wantNil:  false,
+			wantPlat: "mqtt",
+		},
+		{
+			name:     "not found returns nil",
+			entityID: "switch.nonexistent",
+			wantNil:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := snapshot.FindEntityRegistryEntry(tt.entityID)
+			if tt.wantNil {
+				if result != nil {
+					t.Errorf("FindEntityRegistryEntry() = %v, want nil", result)
+				}
+				return
+			}
+			if result == nil {
+				t.Fatal("FindEntityRegistryEntry() returned nil, want non-nil")
+			}
+			if result.Platform != tt.wantPlat {
+				t.Errorf("FindEntityRegistryEntry().Platform = %q, want %q", result.Platform, tt.wantPlat)
+			}
+		})
+	}
+}
+
+func TestAnalysisSnapshot_FindAreaByID(t *testing.T) {
+	t.Parallel()
+
+	snapshot := &AnalysisSnapshot{
+		AreaRegistry: []homeassistant.AreaRegistryEntry{
+			{AreaID: "living_room", Name: "Living Room"},
+			{AreaID: "bedroom", Name: "Bedroom"},
+		},
+	}
+
+	tests := []struct {
+		name     string
+		areaID   string
+		wantNil  bool
+		wantName string
+	}{
+		{
+			name:     "found area",
+			areaID:   "living_room",
+			wantNil:  false,
+			wantName: "Living Room",
+		},
+		{
+			name:     "found second area",
+			areaID:   "bedroom",
+			wantNil:  false,
+			wantName: "Bedroom",
+		},
+		{
+			name:    "not found returns nil",
+			areaID:  "nonexistent",
+			wantNil: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := snapshot.FindAreaByID(tt.areaID)
+			if tt.wantNil {
+				if result != nil {
+					t.Errorf("FindAreaByID() = %v, want nil", result)
+				}
+				return
+			}
+			if result == nil {
+				t.Fatal("FindAreaByID() returned nil, want non-nil")
+			}
+			if result.Name != tt.wantName {
+				t.Errorf("FindAreaByID().Name = %q, want %q", result.Name, tt.wantName)
+			}
+		})
+	}
+}
+
+func TestAnalysisHandlers_extractRegistryInfo(t *testing.T) {
+	t.Parallel()
+
+	h := NewAnalysisHandlers()
+
+	tests := []struct {
+		name     string
+		snapshot *AnalysisSnapshot
+		entityID string
+		wantNil  bool
+		check    func(t *testing.T, reg *RegistryInfo)
+	}{
+		{
+			name: "entity not in registry returns nil",
+			snapshot: &AnalysisSnapshot{
+				EntityRegistry: []homeassistant.EntityRegistryEntry{},
+			},
+			entityID: "light.unknown",
+			wantNil:  true,
+		},
+		{
+			name: "entity with full device and area",
+			snapshot: &AnalysisSnapshot{
+				EntityRegistry: []homeassistant.EntityRegistryEntry{
+					{
+						EntityID: "light.bulb",
+						Platform: "hue",
+						DeviceID: "device_abc",
+						AreaID:   "living_room",
+					},
+				},
+				DeviceRegistry: []homeassistant.DeviceRegistryEntry{
+					{
+						ID:           "device_abc",
+						Name:         "Hue Bulb",
+						Manufacturer: "Signify",
+						Model:        "LCA001",
+					},
+				},
+				AreaRegistry: []homeassistant.AreaRegistryEntry{
+					{AreaID: "living_room", Name: "Living Room"},
+				},
+			},
+			entityID: "light.bulb",
+			wantNil:  false,
+			check: func(t *testing.T, reg *RegistryInfo) {
+				t.Helper()
+				if reg.Platform != "hue" {
+					t.Errorf("Platform = %q, want %q", reg.Platform, "hue")
+				}
+				if reg.AreaID != "living_room" {
+					t.Errorf("AreaID = %q, want %q", reg.AreaID, "living_room")
+				}
+				if reg.AreaName != "Living Room" {
+					t.Errorf("AreaName = %q, want %q", reg.AreaName, "Living Room")
+				}
+				if reg.DeviceID != "device_abc" {
+					t.Errorf("DeviceID = %q, want %q", reg.DeviceID, "device_abc")
+				}
+				if reg.DeviceName != "Hue Bulb" {
+					t.Errorf("DeviceName = %q, want %q", reg.DeviceName, "Hue Bulb")
+				}
+				if reg.Manufacturer != "Signify" {
+					t.Errorf("Manufacturer = %q, want %q", reg.Manufacturer, "Signify")
+				}
+				if reg.Model != "LCA001" {
+					t.Errorf("Model = %q, want %q", reg.Model, "LCA001")
+				}
+			},
+		},
+		{
+			name: "device area fallback when entity has no direct area",
+			snapshot: &AnalysisSnapshot{
+				EntityRegistry: []homeassistant.EntityRegistryEntry{
+					{EntityID: "light.bulb", Platform: "hue", DeviceID: "device_abc"},
+				},
+				DeviceRegistry: []homeassistant.DeviceRegistryEntry{
+					{ID: "device_abc", Name: "Hue Bulb", AreaID: "bedroom"},
+				},
+				AreaRegistry: []homeassistant.AreaRegistryEntry{
+					{AreaID: "bedroom", Name: "Bedroom"},
+				},
+			},
+			entityID: "light.bulb",
+			wantNil:  false,
+			check: func(t *testing.T, reg *RegistryInfo) {
+				t.Helper()
+				if reg.AreaID != "bedroom" {
+					t.Errorf("AreaID = %q, want %q (device fallback)", reg.AreaID, "bedroom")
+				}
+				if reg.AreaName != "Bedroom" {
+					t.Errorf("AreaName = %q, want %q", reg.AreaName, "Bedroom")
+				}
+			},
+		},
+		{
+			name: "device NameByUser takes precedence over Name",
+			snapshot: &AnalysisSnapshot{
+				EntityRegistry: []homeassistant.EntityRegistryEntry{
+					{EntityID: "light.x", Platform: "hue", DeviceID: "dev1"},
+				},
+				DeviceRegistry: []homeassistant.DeviceRegistryEntry{
+					{ID: "dev1", Name: "Original Name", NameByUser: "Custom Name"},
+				},
+			},
+			entityID: "light.x",
+			wantNil:  false,
+			check: func(t *testing.T, reg *RegistryInfo) {
+				t.Helper()
+				if reg.DeviceName != "Custom Name" {
+					t.Errorf("DeviceName = %q, want %q", reg.DeviceName, "Custom Name")
+				}
+			},
+		},
+		{
+			name: "labels and aliases populated",
+			snapshot: &AnalysisSnapshot{
+				EntityRegistry: []homeassistant.EntityRegistryEntry{
+					{
+						EntityID:   "light.tagged",
+						Platform:   "hue",
+						Labels:     []string{"indoor", "smart"},
+						Aliases:    []string{"living room light"},
+						DisabledBy: "user",
+						HiddenBy:   "integration",
+					},
+				},
+			},
+			entityID: "light.tagged",
+			wantNil:  false,
+			check: func(t *testing.T, reg *RegistryInfo) {
+				t.Helper()
+				if len(reg.Labels) != 2 || reg.Labels[0] != "indoor" {
+					t.Errorf("Labels = %v, want [indoor, smart]", reg.Labels)
+				}
+				if len(reg.Aliases) != 1 || reg.Aliases[0] != "living room light" {
+					t.Errorf("Aliases = %v, want [living room light]", reg.Aliases)
+				}
+				if reg.DisabledBy != "user" {
+					t.Errorf("DisabledBy = %q, want %q", reg.DisabledBy, "user")
+				}
+				if reg.HiddenBy != "integration" {
+					t.Errorf("HiddenBy = %q, want %q", reg.HiddenBy, "integration")
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			reg := h.extractRegistryInfo(tt.snapshot, tt.entityID)
+			if tt.wantNil {
+				if reg != nil {
+					t.Errorf("extractRegistryInfo() = %v, want nil", reg)
+				}
+				return
+			}
+			if reg == nil {
+				t.Fatal("extractRegistryInfo() returned nil, want non-nil")
+			}
+			if tt.check != nil {
+				tt.check(t, reg)
+			}
+		})
+	}
+}
+
+func TestAnalysisHandlers_formatRegistry(t *testing.T) {
+	t.Parallel()
+
+	h := NewAnalysisHandlers()
+
+	tests := []struct {
+		name            string
+		reg             *RegistryInfo
+		wantContains    []string
+		wantNotContains []string
+	}{
+		{
+			name: "full details",
+			reg: &RegistryInfo{
+				Platform:     "hue",
+				AreaID:       "living_room",
+				AreaName:     "Living Room",
+				DeviceName:   "Hue Bulb",
+				Manufacturer: "Signify",
+				Model:        "LCA001",
+				Labels:       []string{"indoor"},
+				Aliases:      []string{"hall light"},
+			},
+			wantContains: []string{
+				"Registry:",
+				"Platform: hue",
+				"Area: Living Room (living_room)",
+				"Device: Hue Bulb [Signify LCA001]",
+				"Labels: indoor",
+				"Aliases: hall light",
+			},
+		},
+		{
+			name: "area id only when name missing",
+			reg: &RegistryInfo{
+				AreaID: "office",
+			},
+			wantContains:    []string{"Area: office"},
+			wantNotContains: []string{"("},
+		},
+		{
+			name: "disabled and hidden",
+			reg: &RegistryInfo{
+				Platform:   "mqtt",
+				DisabledBy: "user",
+				HiddenBy:   "integration",
+			},
+			wantContains: []string{
+				"Platform: mqtt",
+				"Disabled by: user",
+				"Hidden by: integration",
+			},
+		},
+		{
+			name: "device with no name shows manufacturer model",
+			reg: &RegistryInfo{
+				Manufacturer: "Sonoff",
+				Model:        "ZBMINI",
+			},
+			wantContains: []string{"Device: Sonoff ZBMINI"},
+		},
+		{
+			name:            "empty registry no device line",
+			reg:             &RegistryInfo{Platform: "hue"},
+			wantContains:    []string{"Platform: hue"},
+			wantNotContains: []string{"Device:", "Area:", "Labels:", "Aliases:"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			parts := h.formatRegistry([]string{}, tt.reg)
+			output := strings.Join(parts, "\n")
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(output, want) {
+					t.Errorf("formatRegistry() output missing %q, got:\n%s", want, output)
+				}
+			}
+			for _, notWant := range tt.wantNotContains {
+				if strings.Contains(output, notWant) {
+					t.Errorf("formatRegistry() output should not contain %q, got:\n%s", notWant, output)
+				}
+			}
+		})
+	}
+}
+
+func TestAnalysisHandlers_handleAnalyzeEntity_withRegistry(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		args         map[string]any
+		client       *mockAnalysisClient
+		wantContains []string
+	}{
+		{
+			name: "natural format includes registry section",
+			args: map[string]any{
+				"entity_id": "light.living_room",
+				"format":    "natural",
+			},
+			client: &mockAnalysisClient{
+				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID:   "light.living_room",
+						State:      "on",
+						Attributes: map[string]any{"friendly_name": "Living Room Light"},
+					}, nil
+				},
+				GetEntityRegistryFn: func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{
+							EntityID: "light.living_room",
+							Platform: "hue",
+							DeviceID: "dev1",
+							AreaID:   "living_room",
+						},
+					}, nil
+				},
+				GetDeviceRegistryFn: func(_ context.Context) ([]homeassistant.DeviceRegistryEntry, error) {
+					return []homeassistant.DeviceRegistryEntry{
+						{ID: "dev1", Name: "Hue Bulb", Manufacturer: "Signify", Model: "LCA001"},
+					}, nil
+				},
+				GetAreaRegistryFn: func(_ context.Context) ([]homeassistant.AreaRegistryEntry, error) {
+					return []homeassistant.AreaRegistryEntry{
+						{AreaID: "living_room", Name: "Living Room"},
+					}, nil
+				},
+			},
+			wantContains: []string{"Platform:", "Area:", "Device:"},
+		},
+		{
+			name: "json format includes registry field",
+			args: map[string]any{
+				"entity_id": "light.living_room",
+				"format":    "json",
+			},
+			client: &mockAnalysisClient{
+				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID:   "light.living_room",
+						State:      "on",
+						Attributes: map[string]any{},
+					}, nil
+				},
+				GetEntityRegistryFn: func(_ context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+					return []homeassistant.EntityRegistryEntry{
+						{EntityID: "light.living_room", Platform: "hue"},
+					}, nil
+				},
+			},
+			wantContains: []string{`"registry"`, `"platform"`},
+		},
+		{
+			name: "no registry entry results in no registry section",
+			args: map[string]any{
+				"entity_id": "light.virtual",
+				"format":    "natural",
+			},
+			client: &mockAnalysisClient{
+				GetStateFn: func(_ context.Context, _ string) (*homeassistant.Entity, error) {
+					return &homeassistant.Entity{
+						EntityID:   "light.virtual",
+						State:      "on",
+						Attributes: map[string]any{},
+					}, nil
+				},
+			},
+			wantContains: []string{"light.virtual"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := NewAnalysisHandlers()
+			result, err := h.handleAnalyzeEntity(context.Background(), tt.client, tt.args)
+			if err != nil {
+				t.Fatalf("handleAnalyzeEntity() returned error: %v", err)
+			}
+			if result == nil || len(result.Content) == 0 {
+				t.Fatal("handleAnalyzeEntity() returned nil/empty result")
+			}
+
+			text := result.Content[0].Text
+			for _, want := range tt.wantContains {
+				if !strings.Contains(text, want) {
+					t.Errorf("output missing %q, got:\n%s", want, text)
+				}
+			}
+		})
+	}
+}
+
 func TestAnalysisHandlers_formatHistory(t *testing.T) {
 	t.Parallel()
 
