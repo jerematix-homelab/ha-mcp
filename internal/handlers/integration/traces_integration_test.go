@@ -3,7 +3,9 @@
 package integration
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/suite"
 )
@@ -108,4 +110,54 @@ func (s *TraceIntegrationTestSuite) TestGetTrace() {
 	s.NotNil(traceResponse, "Trace response should not be nil")
 
 	s.T().Logf("Successfully retrieved trace for %s", itemID)
+}
+
+// TestDebugAutomation verifies that all 4 API calls used by the debug action work against real HA.
+// It finds an existing automation, then exercises GetAutomation, trace/list, GetState, and GetLogbook.
+func (s *TraceIntegrationTestSuite) TestDebugAutomation() {
+	// Find an existing automation to debug
+	automations, err := s.Client().ListAutomations(s.Context())
+	s.Require().NoError(err, "Failed to list automations")
+
+	if len(automations) == 0 {
+		s.T().Skip("Skipping TestDebugAutomation: no automations available")
+		return
+	}
+
+	// Pick the first automation
+	testAuto := automations[0]
+	entityID := testAuto.EntityID
+	configID := strings.TrimPrefix(entityID, "automation.")
+
+	s.T().Logf("Debugging automation: %s", entityID)
+
+	// 1. Verify GetAutomation works (fetches config, triggers, mode, etc.)
+	fullAuto, err := s.Client().GetAutomation(s.Context(), configID)
+	s.Require().NoError(err, "GetAutomation should succeed")
+	s.Require().NotNil(fullAuto, "GetAutomation should return automation")
+	s.T().Logf("Automation state: %s, config: %v", fullAuto.State, fullAuto.Config != nil)
+
+	// 2. Verify trace/list works for this automation
+	traceResponse, err := s.Client().SendHACSCommand(s.Context(), "trace/list", map[string]any{
+		"domain":  "automation",
+		"item_id": entityID,
+	})
+	s.Require().NoError(err, "trace/list should succeed")
+	s.NotNil(traceResponse, "trace/list response should not be nil")
+	s.T().Logf("trace/list response type: %T", traceResponse)
+
+	// 3. Verify GetState works (for trigger entity states)
+	entityState, err := s.Client().GetState(s.Context(), entityID)
+	s.Require().NoError(err, "GetState for automation should succeed")
+	s.NotNil(entityState, "Entity state should not be nil")
+	s.T().Logf("Automation entity state: %s", entityState.State)
+
+	// 4. Verify GetLogbook works for the automation
+	now := time.Now()
+	startTime := now.Add(-6 * time.Hour)
+	logbook, err := s.Client().GetLogbook(s.Context(), startTime.Format(time.RFC3339), now.Format(time.RFC3339), entityID)
+	s.Require().NoError(err, "GetLogbook should succeed")
+	s.T().Logf("Found %d logbook entries for %s in last 6 hours", len(logbook), entityID)
+
+	s.T().Log("All 4 debug action API calls succeeded")
 }

@@ -198,7 +198,7 @@ Universal tool for runtime helper operations:
 
 | Tool               | Description                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `manage_trace`     | View automation and script execution traces (actions: list, get; format: natural/json)              |
+| `manage_trace`     | View automation and script execution traces (actions: list, get, debug; format: natural/json)       |
 | `manage_blueprint` | Manage blueprints for automations and scripts (actions: list, import; format: natural/json)         |
 
 ### Update Tools
