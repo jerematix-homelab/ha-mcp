@@ -13,9 +13,8 @@ import (
 // mockMediaClient implements homeassistant.Client for testing.
 type mockMediaClient struct {
 	homeassistant.Client
-	signPathFn        func(ctx context.Context, path string, expires int) (string, error)
-	getCameraStreamFn func(ctx context.Context, entityID string) (*homeassistant.StreamInfo, error)
-	browseMediaFn     func(ctx context.Context, mediaContentID string) (*homeassistant.MediaBrowseResult, error)
+	signPathFn    func(ctx context.Context, path string, expires int) (string, error)
+	browseMediaFn func(ctx context.Context, mediaContentID string) (*homeassistant.MediaBrowseResult, error)
 }
 
 func (m *mockMediaClient) SignPath(ctx context.Context, path string, expires int) (string, error) {
@@ -23,13 +22,6 @@ func (m *mockMediaClient) SignPath(ctx context.Context, path string, expires int
 		return m.signPathFn(ctx, path, expires)
 	}
 	return "", nil
-}
-
-func (m *mockMediaClient) GetCameraStream(ctx context.Context, entityID string) (*homeassistant.StreamInfo, error) {
-	if m.getCameraStreamFn != nil {
-		return m.getCameraStreamFn(ctx, entityID)
-	}
-	return &homeassistant.StreamInfo{}, nil
 }
 
 func (m *mockMediaClient) BrowseMedia(ctx context.Context, mediaContentID string) (*homeassistant.MediaBrowseResult, error) {
@@ -57,15 +49,14 @@ func TestMediaHandlers_RegisterTools(t *testing.T) {
 	h.RegisterTools(registry)
 
 	tools := registry.ListTools()
-	const expectedToolCount = 3
+	const expectedToolCount = 2
 	if len(tools) != expectedToolCount {
 		t.Errorf("RegisterTools() registered %d tools, want %d", len(tools), expectedToolCount)
 	}
 
 	expectedTools := map[string]bool{
-		"sign_media_path":   false,
-		"get_camera_stream": false,
-		"browse_media":      false,
+		"sign_media_path": false,
+		"browse_media":    false,
 	}
 
 	for _, tool := range tools {
@@ -110,33 +101,6 @@ func TestMediaHandlers_signPathTool(t *testing.T) {
 	// Check optional properties exist
 	if _, ok := tool.InputSchema.Properties["expires"]; !ok {
 		t.Error("Property 'expires' not found in schema")
-	}
-}
-
-func TestMediaHandlers_getCameraStreamTool(t *testing.T) {
-	t.Parallel()
-
-	h := NewMediaHandlers()
-	tool := h.getCameraStreamTool()
-
-	if tool.Name != "get_camera_stream" {
-		t.Errorf("Tool name = %q, want %q", tool.Name, "get_camera_stream")
-	}
-
-	if tool.InputSchema.Type != testSchemaTypeObject {
-		t.Errorf("InputSchema.Type = %q, want %q", tool.InputSchema.Type, testSchemaTypeObject)
-	}
-
-	// Check required fields
-	requiredFields := map[string]bool{"entity_id": false}
-	for _, field := range tool.InputSchema.Required {
-		requiredFields[field] = true
-	}
-
-	for field, found := range requiredFields {
-		if !found {
-			t.Errorf("Required field %q not found", field)
-		}
 	}
 }
 
@@ -243,96 +207,6 @@ func TestMediaHandlers_handleSignPath(t *testing.T) {
 
 			if result == nil {
 				t.Error("handleSignPath() returned nil result")
-				return
-			}
-
-			if result.IsError != tt.wantError {
-				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantError)
-			}
-
-			if len(result.Content) == 0 {
-				t.Error("Content is empty")
-				return
-			}
-
-			content := result.Content[0].Text
-			if tt.wantContains != "" && !strings.Contains(content, tt.wantContains) {
-				t.Errorf("Content = %q, want to contain %q", content, tt.wantContains)
-			}
-		})
-	}
-}
-
-func TestMediaHandlers_handleGetCameraStream(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                string
-		args                map[string]any
-		getCameraStreamErr  error
-		getCameraStreamResp *homeassistant.StreamInfo
-		wantError           bool
-		wantContains        string
-	}{
-		{
-			name: "success",
-			args: map[string]any{
-				"entity_id": "camera.front_door",
-			},
-			getCameraStreamResp: &homeassistant.StreamInfo{
-				URL: "http://192.168.1.100:8123/api/hls/camera.front_door/master.m3u8",
-			},
-			wantError:    false,
-			wantContains: "url",
-		},
-		{
-			name:         "missing entity_id",
-			args:         map[string]any{},
-			wantError:    true,
-			wantContains: "'entity_id' parameter is required",
-		},
-		{
-			name: "empty entity_id",
-			args: map[string]any{
-				"entity_id": "",
-			},
-			wantError:    true,
-			wantContains: "'entity_id' parameter is required",
-		},
-		{
-			name: "client error",
-			args: map[string]any{
-				"entity_id": "camera.front_door",
-			},
-			getCameraStreamErr: errors.New("camera unavailable"),
-			wantError:          true,
-			wantContains:       "Error getting camera stream",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			client := &mockMediaClient{
-				getCameraStreamFn: func(_ context.Context, _ string) (*homeassistant.StreamInfo, error) {
-					if tt.getCameraStreamErr != nil {
-						return nil, tt.getCameraStreamErr
-					}
-					return tt.getCameraStreamResp, nil
-				},
-			}
-
-			h := NewMediaHandlers()
-			result, err := h.handleGetCameraStream(context.Background(), client, tt.args)
-
-			if err != nil {
-				t.Errorf("handleGetCameraStream() returned unexpected error: %v", err)
-				return
-			}
-
-			if result == nil {
-				t.Error("handleGetCameraStream() returned nil result")
 				return
 			}
 

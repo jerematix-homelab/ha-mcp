@@ -21,7 +21,6 @@ func NewMediaHandlers() *MediaHandlers {
 // RegisterTools registers all media-related tools with the registry.
 func (h *MediaHandlers) RegisterTools(registry *mcp.Registry) {
 	registry.RegisterTool(h.signPathTool(), h.handleSignPath)
-	registry.RegisterTool(h.getCameraStreamTool(), h.handleGetCameraStream)
 	registry.RegisterTool(h.browseMediaTool(), h.handleBrowseMedia)
 }
 
@@ -84,67 +83,6 @@ func (h *MediaHandlers) handleSignPath(
 	}
 
 	output, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent(fmt.Sprintf("Error formatting response: %v", err)),
-			},
-			IsError: true,
-		}, nil
-	}
-
-	return &mcp.ToolsCallResult{
-		Content: []mcp.ContentBlock{
-			mcp.NewTextContent(string(output)),
-		},
-	}, nil
-}
-
-// getCameraStreamTool returns the tool definition for getting camera stream URLs.
-func (h *MediaHandlers) getCameraStreamTool() mcp.Tool {
-	return mcp.Tool{
-		Name:        "get_camera_stream",
-		Description: "Get the streaming URL for a camera entity. Returns HLS stream URL for live camera feeds.",
-		InputSchema: mcp.JSONSchema{
-			Type: "object",
-			Properties: map[string]mcp.JSONSchema{
-				"entity_id": {
-					Type:        "string",
-					Description: "The camera entity ID (e.g., 'camera.front_door')",
-				},
-			},
-			Required: []string{"entity_id"},
-		},
-	}
-}
-
-// handleGetCameraStream handles requests to get camera stream information.
-func (h *MediaHandlers) handleGetCameraStream(
-	ctx context.Context,
-	client homeassistant.Client,
-	args map[string]any,
-) (*mcp.ToolsCallResult, error) {
-	entityID, ok := args["entity_id"].(string)
-	if !ok || entityID == "" {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent("Error: 'entity_id' parameter is required"),
-			},
-			IsError: true,
-		}, nil
-	}
-
-	streamInfo, err := client.GetCameraStream(ctx, entityID)
-	if err != nil {
-		return &mcp.ToolsCallResult{
-			Content: []mcp.ContentBlock{
-				mcp.NewTextContent(fmt.Sprintf("Error getting camera stream: %v", err)),
-			},
-			IsError: true,
-		}, nil
-	}
-
-	output, err := json.MarshalIndent(streamInfo, "", "  ")
 	if err != nil {
 		return &mcp.ToolsCallResult{
 			Content: []mcp.ContentBlock{

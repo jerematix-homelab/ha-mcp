@@ -130,11 +130,10 @@ Universal tool for runtime helper operations:
 
 ### Media Tools
 
-| Tool                | Description                                |
-| ------------------- | ------------------------------------------ |
-| `browse_media`      | Browse media sources and libraries         |
-| `get_camera_stream` | Get camera stream URL for an entity        |
-| `sign_media_path`   | Sign a media path for authenticated access |
+| Tool              | Description                                |
+| ----------------- | ------------------------------------------ |
+| `browse_media`    | Browse media sources and libraries         |
+| `sign_media_path` | Sign a media path for authenticated access |
 
 ### Dashboard Tools
 

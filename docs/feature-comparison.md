@@ -15,7 +15,7 @@ This document compares the features of `ha-mcp` (this project) with the official
 | **Type**             | Standalone Go binary (external server)     | HA integration (built-in)                                   |
 | **Transport**        | HTTP JSON-RPC                              | Streamable HTTP                                             |
 | **HA Communication** | WebSocket + REST API (Hybrid)              | Direct Python API (internal)                                |
-| **Tool Design**      | 39 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
+| **Tool Design**      | 38 specialized tools with granular control | Dynamically generated tools from Assist API (~10 tools)     |
 | **Authentication**   | Long-Lived Access Token                    | OAuth (IndieAuth) + Long-Lived Token                        |
 | **Access Control**   | Tool-level filtering (read-only, whitelist/blacklist, action-level) | Entity-level exposure (Voice Assistant Exposure) |
 
@@ -147,9 +147,8 @@ For maximum security, you could theoretically use both: Official integration for
 
 | Function          | ha-mcp              | Official HA MCP   |
 | ----------------- | ------------------- | ----------------- |
-| Browse media      | `browse_media`      | ----------------- |
-| Camera stream URL | `get_camera_stream` | ----------------- |
-| Sign media path   | `sign_media_path`   | ----------------- |
+| Browse media    | `browse_media`    | ----------------- |
+| Sign media path | `sign_media_path` | ----------------- |
 
 ### HACS (Community Store)
 
