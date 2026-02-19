@@ -407,30 +407,37 @@ func (h *ConsolidatedHelperHandlers) manageHelperTool() mcp.Tool {
 		"monday": {
 			Type:        "array",
 			Description: "Time blocks for Monday [{from, to}] (schedule)",
+			Items:       &mcp.JSONSchema{Type: "object"},
 		},
 		"tuesday": {
 			Type:        "array",
 			Description: "Time blocks for Tuesday [{from, to}] (schedule)",
+			Items:       &mcp.JSONSchema{Type: "object"},
 		},
 		"wednesday": {
 			Type:        "array",
 			Description: "Time blocks for Wednesday [{from, to}] (schedule)",
+			Items:       &mcp.JSONSchema{Type: "object"},
 		},
 		"thursday": {
 			Type:        "array",
 			Description: "Time blocks for Thursday [{from, to}] (schedule)",
+			Items:       &mcp.JSONSchema{Type: "object"},
 		},
 		"friday": {
 			Type:        "array",
 			Description: "Time blocks for Friday [{from, to}] (schedule)",
+			Items:       &mcp.JSONSchema{Type: "object"},
 		},
 		"saturday": {
 			Type:        "array",
 			Description: "Time blocks for Saturday [{from, to}] (schedule)",
+			Items:       &mcp.JSONSchema{Type: "object"},
 		},
 		"sunday": {
 			Type:        "array",
 			Description: "Time blocks for Sunday [{from, to}] (schedule)",
+			Items:       &mcp.JSONSchema{Type: "object"},
 		},
 		"entities": {
 			Type:        "array",

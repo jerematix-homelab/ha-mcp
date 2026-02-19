@@ -596,6 +596,7 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 		"statistic_ids": {
 			Type:        "array",
 			Description: "Array of statistic IDs to retrieve. Required for mode=statistics",
+			Items:       &mcp.JSONSchema{Type: "string"},
 		},
 		"period": {
 			Type:        "string",
@@ -636,6 +637,7 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 		"entity_ids": {
 			Type:        "array",
 			Description: "Array of entity IDs to remove from registry. Required for mode=health with action=remove",
+			Items:       &mcp.JSONSchema{Type: "string"},
 		},
 	}
 }

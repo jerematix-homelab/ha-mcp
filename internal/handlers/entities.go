@@ -42,6 +42,7 @@ func (h *EntityHandlers) getStateTool() mcp.Tool {
 				"entity_ids": {
 					Type:        "array",
 					Description: "Array of entity IDs for batch query (e.g., ['light.living_room', 'light.bedroom']). Use entity_id OR entity_ids, not both.",
+					Items:       &mcp.JSONSchema{Type: "string"},
 				},
 				"format": {
 					Type:        "string",

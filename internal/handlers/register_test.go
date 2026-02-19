@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/mcp"
@@ -254,5 +256,86 @@ func TestRegisterAllTools_AllToolsHaveInputSchema(t *testing.T) {
 		if tool.InputSchema.Type == "" {
 			t.Errorf("Tool %q has no input schema type", tool.Name)
 		}
+	}
+}
+
+// validJSONSchemaTypes is the set of valid JSON Schema type values per draft 2020-12.
+var validJSONSchemaTypes = map[string]bool{
+	"null":    true,
+	"boolean": true,
+	"object":  true,
+	"array":   true,
+	"number":  true,
+	"string":  true,
+	"integer": true,
+}
+
+// validateSchemaNode recursively validates a schema node for JSON Schema draft 2020-12 compliance.
+// It reports violations as formatted strings containing the property path.
+func validateSchemaNode(node map[string]any, path string, violations *[]string) {
+	typeVal, hasType := node["type"]
+	if hasType {
+		typeStr, ok := typeVal.(string)
+		if !ok {
+			*violations = append(*violations, fmt.Sprintf("%s: 'type' is not a string: %T", path, typeVal))
+		} else if typeStr == "" {
+			*violations = append(*violations, fmt.Sprintf("%s: 'type' is empty string (must be omitted or a valid JSON Schema type)", path))
+		} else if !validJSONSchemaTypes[typeStr] {
+			*violations = append(*violations, fmt.Sprintf("%s: 'type' = %q is not a valid JSON Schema type", path, typeStr))
+		}
+
+		if typeStr == "array" {
+			if _, hasItems := node["items"]; !hasItems {
+				*violations = append(*violations, fmt.Sprintf("%s: type=array is missing 'items'", path))
+			}
+		}
+	}
+
+	if items, ok := node["items"]; ok {
+		if itemsMap, ok := items.(map[string]any); ok {
+			validateSchemaNode(itemsMap, path+"/items", violations)
+		}
+	}
+
+	if props, ok := node["properties"]; ok {
+		if propsMap, ok := props.(map[string]any); ok {
+			for propName, propVal := range propsMap {
+				if propMap, ok := propVal.(map[string]any); ok {
+					validateSchemaNode(propMap, path+"/properties/"+propName, violations)
+				}
+			}
+		}
+	}
+}
+
+func TestRegisterAllTools_SchemaCompliance(t *testing.T) {
+	t.Parallel()
+
+	registry := mcp.NewRegistry()
+	RegisterAllTools(registry)
+	tools := registry.ListTools()
+
+	var allViolations []string
+
+	for _, tool := range tools {
+		// Serialize and re-parse so we see exactly what the API would receive.
+		schemaData, err := json.Marshal(tool.InputSchema)
+		if err != nil {
+			t.Errorf("Tool %q: failed to marshal InputSchema: %v", tool.Name, err)
+			continue
+		}
+		var schemaMap map[string]any
+		if err := json.Unmarshal(schemaData, &schemaMap); err != nil {
+			t.Errorf("Tool %q: failed to unmarshal InputSchema JSON: %v", tool.Name, err)
+			continue
+		}
+
+		var violations []string
+		validateSchemaNode(schemaMap, tool.Name, &violations)
+		allViolations = append(allViolations, violations...)
+	}
+
+	for _, v := range allViolations {
+		t.Error(v)
 	}
 }
