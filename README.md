@@ -27,6 +27,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with access to
 - **Auto-Reconnect**: Automatic reconnection with exponential backoff
 - **Request Retries**: Automatic retries with exponential backoff for transient failures (5xx, 429, network errors)
 - **Optional Caching**: TTL-based caching for static data (services, config, registries) to reduce API calls
+- **Post-Mutation Confirmation**: Automatic state polling after create/update/delete operations confirms changes propagated to Home Assistant
 - **Access Control**: Flexible tool filtering with read-only mode, whitelist/blacklist, and fine-grained action control
 
 ## Comparison with Official Home Assistant MCP Server
@@ -280,6 +281,9 @@ homeassistant:
     entity_reg_ttl_min: 10   # Entity registry cache TTL
     device_reg_ttl_min: 10   # Device registry cache TTL
     area_reg_ttl_min: 30     # Area registry cache TTL
+  wait:
+    wait_timeout_ms: 5000     # Max wait for state change confirmation (ms)
+    wait_poll_interval_ms: 100  # Polling interval for state checks (ms)
 
 server:
   port: 8080
@@ -319,6 +323,10 @@ export HA_CACHE_CONFIG_TTL_MIN=30          # Config cache TTL (default: 30)
 export HA_CACHE_ENTITY_REG_TTL_MIN=10      # Entity registry TTL (default: 10)
 export HA_CACHE_DEVICE_REG_TTL_MIN=10      # Device registry TTL (default: 10)
 export HA_CACHE_AREA_REG_TTL_MIN=30        # Area registry TTL (default: 30)
+
+# Post-mutation polling settings (optional)
+export HA_WAIT_TIMEOUT_MS=5000             # Max wait for state confirmation (default: 5000)
+export HA_WAIT_POLL_INTERVAL_MS=100        # Poll interval in ms (default: 100)
 
 # Access control settings (optional)
 export HA_MCP_READ_ONLY=false              # Enable read-only mode (default: false)
@@ -1174,6 +1182,7 @@ ha-mcp/
 │   │   ├── ws_client_impl.go    # WebSocket Client implementation
 │   │   ├── ws_messages.go       # WebSocket message types
 │   │   ├── ws_reconnect.go      # Reconnection logic
+│   │   ├── entity_poller.go     # Entity state polling for post-mutation confirmation
 │   │   └── types.go             # Data types
 │   ├── mcp/
 │   │   ├── server.go            # MCP HTTP server
@@ -1233,6 +1242,7 @@ ha-mcp/
 │   │   ├── todos.go             # Todo list management handler (list/get_items/add/update/remove)
 │   │   ├── calendars.go         # Calendar management handler (list/get_events/create_event/delete_event)
 │   │   ├── cameras.go           # Camera handler (snapshot/stream)
+│   │   ├── waiter.go             # Post-mutation wait utilities (state diff detection)
 │   │   └── register.go          # Handler registration
 │   └── logging/
 │       └── logger.go            # Structured logging

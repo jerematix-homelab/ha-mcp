@@ -50,6 +50,14 @@ homeassistant:
     # Maximum delay between retries in milliseconds (default: 5000)
     retry_max_delay_ms: 5000
 
+  # Post-mutation state polling settings
+  # After create/update/delete operations, ha-mcp polls entity state to confirm changes
+  wait:
+    # Maximum time to wait for entity state change confirmation in milliseconds (default: 5000)
+    wait_timeout_ms: 5000
+    # Polling interval for checking state changes in milliseconds (default: 100)
+    wait_poll_interval_ms: 100
+
 # MCP Server settings
 server:
   # Port for the MCP HTTP server
