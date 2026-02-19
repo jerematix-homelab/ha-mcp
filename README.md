@@ -14,7 +14,7 @@ A Model Context Protocol (MCP) server that provides AI assistants with access to
 
 ## Features
 
-- **39 Specialized Tools**: Entity queries, automation CRUD, helper management, scripts, scenes, devices, areas, labels, floors, zones, persons, tags, traces, blueprints, updates, todos, calendars, cameras, dashboards, and more
+- **38 Specialized Tools**: Entity queries, automation CRUD, helper management, scripts, scenes, devices, areas, labels, floors, zones, persons, tags, traces, blueprints, updates, todos, calendars, cameras, dashboards, and more
 - **Hybrid Architecture**: WebSocket for most operations, REST API for automation/script/scene CRUD
 - **Complete CRUD**: Create, read, update, delete automations/scripts/scenes/helpers
 - **Deep System Access**: Query registries, analyze dependencies, access logbook, validate config
@@ -122,7 +122,7 @@ See [docs/configuration.md](docs/configuration.md) for Cline, opencode, and othe
 
 ## Available Tools
 
-39 tools organized by domain. Full reference at [docs/tools.md](docs/tools.md).
+38 tools organized by domain. Full reference at [docs/tools.md](docs/tools.md).
 
 | Category          | Count | Highlights                                                                  |
 | ----------------- | ----- | --------------------------------------------------------------------------- |
