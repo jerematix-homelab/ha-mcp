@@ -147,6 +147,61 @@ type AutomationConfig struct {
 	Variables   map[string]any `json:"variables,omitempty"`
 }
 
+// unmarshalDualKeySlice tries the plural key first, then the singular key, and
+// unmarshals the found value into dest. Errors are silently ignored to allow
+// graceful degradation when an individual array contains unexpected element types.
+func unmarshalDualKeySlice(raw map[string]json.RawMessage, plural, singular string, dest *[]any) {
+	if v, ok := raw[plural]; ok {
+		_ = json.Unmarshal(v, dest)
+	} else if v, ok := raw[singular]; ok {
+		_ = json.Unmarshal(v, dest)
+	}
+}
+
+// UnmarshalJSON implements json.Unmarshaler for AutomationConfig.
+// The HA WebSocket API (automation/config command) returns singular keys:
+// "trigger", "condition", "action" — while the REST API and struct tags use
+// plural forms: "triggers", "conditions", "actions". This method accepts both.
+func (c *AutomationConfig) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	if v, ok := raw["id"]; ok {
+		if err := json.Unmarshal(v, &c.ID); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["alias"]; ok {
+		if err := json.Unmarshal(v, &c.Alias); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["description"]; ok {
+		if err := json.Unmarshal(v, &c.Description); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["mode"]; ok {
+		if err := json.Unmarshal(v, &c.Mode); err != nil {
+			return err
+		}
+	}
+	if v, ok := raw["variables"]; ok {
+		if err := json.Unmarshal(v, &c.Variables); err != nil {
+			return err
+		}
+	}
+
+	// Accept both plural (REST/newer HA) and singular (WebSocket/older HA).
+	unmarshalDualKeySlice(raw, "triggers", "trigger", &c.Triggers)
+	unmarshalDualKeySlice(raw, "conditions", "condition", &c.Conditions)
+	unmarshalDualKeySlice(raw, "actions", "action", &c.Actions)
+
+	return nil
+}
+
 // HelperConfig represents the configuration for creating/updating an input helper.
 type HelperConfig struct {
 	// Platform is the helper type: input_boolean, input_number, input_text, input_select, input_datetime
