@@ -1,3 +1,5 @@
+> [README](../README.md) | [Configuration](configuration.md) | [Tools](tools.md) | [Access Control](access-control.md) | [Architecture](architecture.md) | [Troubleshooting](troubleshooting.md) | [Feature Comparison](feature-comparison.md) | [Integration Tests](integration-tests.md)
+
 # Feature Comparison: ha-mcp vs. Official Home Assistant MCP Server
 
 ## Context
