@@ -1306,6 +1306,260 @@ func TestSceneState_JSONRoundtrip(t *testing.T) {
 	}
 }
 
+func TestAutomationConfig_UnmarshalJSON_PluralKeys(t *testing.T) {
+	t.Parallel()
+
+	input := `{
+		"id": "abc123",
+		"alias": "Morning Lights",
+		"description": "Turn on lights",
+		"mode": "single",
+		"triggers": [{"platform": "time", "at": "08:00:00"}],
+		"conditions": [{"condition": "state", "entity_id": "input_boolean.home"}],
+		"actions": [{"service": "light.turn_on"}],
+		"variables": {"brightness": 255}
+	}`
+
+	var got AutomationConfig
+	if err := json.Unmarshal([]byte(input), &got); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if got.ID != "abc123" {
+		t.Errorf("ID = %q, want %q", got.ID, "abc123")
+	}
+	if got.Alias != "Morning Lights" {
+		t.Errorf("Alias = %q, want %q", got.Alias, "Morning Lights")
+	}
+	if got.Mode != "single" {
+		t.Errorf("Mode = %q, want %q", got.Mode, "single")
+	}
+	if len(got.Triggers) != 1 {
+		t.Errorf("Triggers len = %d, want 1", len(got.Triggers))
+	}
+	if len(got.Conditions) != 1 {
+		t.Errorf("Conditions len = %d, want 1", len(got.Conditions))
+	}
+	if len(got.Actions) != 1 {
+		t.Errorf("Actions len = %d, want 1", len(got.Actions))
+	}
+	if got.Variables == nil {
+		t.Error("Variables should not be nil")
+	}
+}
+
+func TestAutomationConfig_UnmarshalJSON_SingularKeys(t *testing.T) {
+	t.Parallel()
+
+	// This is the actual bug scenario: HA WebSocket returns singular keys
+	input := `{
+		"id": "abc123",
+		"alias": "Morning Lights",
+		"description": "Turn on lights",
+		"mode": "single",
+		"trigger": [{"platform": "time", "at": "08:00:00"}],
+		"condition": [{"condition": "state", "entity_id": "input_boolean.home"}],
+		"action": [{"service": "light.turn_on"}]
+	}`
+
+	var got AutomationConfig
+	if err := json.Unmarshal([]byte(input), &got); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if got.ID != "abc123" {
+		t.Errorf("ID = %q, want %q", got.ID, "abc123")
+	}
+	if got.Alias != "Morning Lights" {
+		t.Errorf("Alias = %q, want %q", got.Alias, "Morning Lights")
+	}
+	if len(got.Triggers) != 1 {
+		t.Errorf("Triggers len = %d, want 1 (singular 'trigger' key not mapped)", len(got.Triggers))
+	}
+	if len(got.Conditions) != 1 {
+		t.Errorf("Conditions len = %d, want 1 (singular 'condition' key not mapped)", len(got.Conditions))
+	}
+	if len(got.Actions) != 1 {
+		t.Errorf("Actions len = %d, want 1 (singular 'action' key not mapped)", len(got.Actions))
+	}
+}
+
+func TestAutomationConfig_UnmarshalJSON_MixedKeys(t *testing.T) {
+	t.Parallel()
+
+	// Plural takes precedence; singular used as fallback
+	input := `{
+		"id": "mixed",
+		"triggers": [{"platform": "time"}],
+		"condition": [{"condition": "state"}],
+		"action": [{"service": "light.turn_on"}]
+	}`
+
+	var got AutomationConfig
+	if err := json.Unmarshal([]byte(input), &got); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if len(got.Triggers) != 1 {
+		t.Errorf("Triggers len = %d, want 1", len(got.Triggers))
+	}
+	if len(got.Conditions) != 1 {
+		t.Errorf("Conditions len = %d, want 1 (fallback to singular 'condition')", len(got.Conditions))
+	}
+	if len(got.Actions) != 1 {
+		t.Errorf("Actions len = %d, want 1 (fallback to singular 'action')", len(got.Actions))
+	}
+}
+
+func TestAutomationConfig_UnmarshalJSON_EmptyArrays(t *testing.T) {
+	t.Parallel()
+
+	// Empty arrays [] must be preserved (not treated as absent)
+	input := `{
+		"id": "empty",
+		"triggers": [],
+		"conditions": [],
+		"actions": []
+	}`
+
+	var got AutomationConfig
+	if err := json.Unmarshal([]byte(input), &got); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if got.Triggers == nil {
+		t.Error("Triggers should be empty slice, not nil")
+	}
+	if len(got.Triggers) != 0 {
+		t.Errorf("Triggers len = %d, want 0", len(got.Triggers))
+	}
+	if got.Conditions == nil {
+		t.Error("Conditions should be empty slice, not nil")
+	}
+	if got.Actions == nil {
+		t.Error("Actions should be empty slice, not nil")
+	}
+}
+
+func TestAutomationConfig_UnmarshalJSON_AbsentKeys(t *testing.T) {
+	t.Parallel()
+
+	// Absent keys should leave fields nil (omitempty handles this in marshal)
+	input := `{"id": "minimal", "alias": "Minimal"}`
+
+	var got AutomationConfig
+	if err := json.Unmarshal([]byte(input), &got); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if got.Triggers != nil {
+		t.Errorf("Triggers should be nil for absent key, got %v", got.Triggers)
+	}
+	if got.Conditions != nil {
+		t.Errorf("Conditions should be nil for absent key, got %v", got.Conditions)
+	}
+	if got.Actions != nil {
+		t.Errorf("Actions should be nil for absent key, got %v", got.Actions)
+	}
+}
+
+func TestAutomationConfig_UnmarshalJSON_RoundTrip_SingularToPlural(t *testing.T) {
+	t.Parallel()
+
+	// The key fix: unmarshal WS singular keys, marshal back → plural keys for REST
+	wsInput := `{
+		"id": "roundtrip",
+		"alias": "Test",
+		"trigger": [{"platform": "time"}],
+		"condition": [{"condition": "state"}],
+		"action": [{"service": "light.turn_on"}]
+	}`
+
+	var cfg AutomationConfig
+	if err := json.Unmarshal([]byte(wsInput), &cfg); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	out, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	// Check top-level keys by decoding into a map — string-contains is unreliable
+	// because "condition" appears inside the conditions array values themselves.
+	var topLevel map[string]json.RawMessage
+	if err := json.Unmarshal(out, &topLevel); err != nil {
+		t.Fatalf("unmarshal output to check keys: %v", err)
+	}
+
+	for _, plural := range []string{"triggers", "conditions", "actions"} {
+		if _, ok := topLevel[plural]; !ok {
+			t.Errorf("output missing plural top-level key %q, got keys: %v", plural, topLevel)
+		}
+	}
+	for _, singular := range []string{"trigger", "condition", "action"} {
+		if _, ok := topLevel[singular]; ok {
+			t.Errorf("output has unexpected singular top-level key %q", singular)
+		}
+	}
+}
+
+func TestAutomationConfig_Marshal_OmitsNilSlices(t *testing.T) {
+	t.Parallel()
+
+	// nil slices must be omitted (omitempty) so REST API doesn't get null fields
+	cfg := AutomationConfig{
+		ID:    "niltest",
+		Alias: "No slices",
+	}
+
+	out, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	output := string(out)
+	if strings.Contains(output, `"triggers"`) {
+		t.Errorf("nil Triggers should be omitted, got: %s", output)
+	}
+	if strings.Contains(output, `"conditions"`) {
+		t.Errorf("nil Conditions should be omitted, got: %s", output)
+	}
+	if strings.Contains(output, `"actions"`) {
+		t.Errorf("nil Actions should be omitted, got: %s", output)
+	}
+}
+
+func TestAutomationConfig_Marshal_OmitsEmptySlices(t *testing.T) {
+	t.Parallel()
+
+	// In Go, omitempty omits both nil and empty (len==0) slices.
+	// Populated slices (len>0) are what matter for the REST API.
+	cfg := AutomationConfig{
+		ID:         "emptyslice",
+		Triggers:   []any{},
+		Conditions: []any{},
+		Actions:    []any{},
+	}
+
+	out, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	output := string(out)
+	// omitempty omits empty slices just like nil slices
+	if strings.Contains(output, `"triggers"`) {
+		t.Errorf("empty Triggers slice should be omitted by omitempty, got: %s", output)
+	}
+	if strings.Contains(output, `"conditions"`) {
+		t.Errorf("empty Conditions slice should be omitted by omitempty, got: %s", output)
+	}
+	if strings.Contains(output, `"actions"`) {
+		t.Errorf("empty Actions slice should be omitted by omitempty, got: %s", output)
+	}
+}
+
 func TestStatisticsResult_StartTime(t *testing.T) {
 	t.Parallel()
 
