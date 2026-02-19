@@ -135,7 +135,7 @@ For maximum security, you could theoretically use both: Official integration for
 
 | Function                | ha-mcp                                                                                          | Official HA MCP   |
 | ----------------------- | ----------------------------------------------------------------------------------------------- | ----------------- |
-| Entity analysis         | `analyze_entity` (references in automations/scripts/scenes)                                     | ----------------- |
+| Entity analysis         | `analyze_entity` (references + registry metadata: platform, area, device, labels)              | ----------------- |
 | Dependency analysis     | `get_entity_dependencies`                                                                       | ----------------- |
 | Target analysis         | `analyze_target` (triggers/conditions/services)                                                 | ----------------- |
 | Render Jinja2 templates | `render_template`                                                                               | ----------------- |
