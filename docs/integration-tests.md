@@ -1,3 +1,5 @@
+> [README](../README.md) | [Configuration](configuration.md) | [Tools](tools.md) | [Access Control](access-control.md) | [Architecture](architecture.md) | [Troubleshooting](troubleshooting.md) | [Feature Comparison](feature-comparison.md) | [Integration Tests](integration-tests.md)
+
 # Integration Tests
 
 This document describes how to run integration tests against a real Home Assistant instance.
