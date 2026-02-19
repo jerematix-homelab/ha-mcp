@@ -101,14 +101,17 @@ Actions:
 				"trigger": {
 					Type:        "array",
 					Description: "List of triggers that start the automation (required for create; pass empty array [] for manual-only automations)",
+					Items:       &mcp.JSONSchema{Type: "object"},
 				},
 				"condition": {
 					Type:        "array",
 					Description: "Optional conditions that must be met",
+					Items:       &mcp.JSONSchema{Type: "object"},
 				},
 				"automation_action": {
 					Type:        "array",
 					Description: "Actions to perform when triggered (required for create)",
+					Items:       &mcp.JSONSchema{Type: "object"},
 				},
 				"mode": {
 					Type:        "string",

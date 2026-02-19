@@ -736,3 +736,50 @@ func TestJSONRPCVersion(t *testing.T) {
 		t.Errorf("JSONRPCVersion = %q, want %q", JSONRPCVersion, "2.0")
 	}
 }
+
+func TestJSONSchema_OmitsEmptyType(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty type is omitted from JSON", func(t *testing.T) {
+		t.Parallel()
+
+		schema := JSONSchema{
+			Description: "A value accepting any JSON type",
+		}
+		data, err := json.Marshal(schema)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if _, ok := m["type"]; ok {
+			t.Errorf("JSON output contains %q key with value %q, want key omitted when Type is empty string", "type", m["type"])
+		}
+	})
+
+	t.Run("non-empty type is present in JSON", func(t *testing.T) {
+		t.Parallel()
+
+		schema := JSONSchema{
+			Type:        "string",
+			Description: "A string value",
+		}
+		data, err := json.Marshal(schema)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		typeVal, ok := m["type"]
+		if !ok {
+			t.Error("JSON output is missing 'type' key when Type is set")
+		}
+		if typeVal != "string" {
+			t.Errorf("JSON 'type' = %q, want 'string'", typeVal)
+		}
+	})
+}

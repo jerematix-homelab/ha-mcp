@@ -229,6 +229,15 @@ func TestPatchOperationsSchema(t *testing.T) {
 	if len(opSchema.Enum) != len(expectedOps) {
 		t.Errorf("op enum count = %d, want %d", len(opSchema.Enum), len(expectedOps))
 	}
+
+	// value intentionally has no type (accepts any JSON value)
+	valueSchema, ok := schema.Items.Properties["value"]
+	if !ok {
+		t.Fatal("schema.Items.Properties missing 'value'")
+	}
+	if valueSchema.Type != "" {
+		t.Errorf("value.Type = %q, want empty (any type)", valueSchema.Type)
+	}
 }
 
 func TestParseOneOperation_FromField(t *testing.T) {

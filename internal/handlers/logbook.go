@@ -52,6 +52,7 @@ func (h *LogbookHandlers) getLogbookTool() mcp.Tool {
 				"entity_ids": {
 					Type:        "array",
 					Description: "Array of entity IDs to analyze for correlations. Required for mode=correlation",
+					Items:       &mcp.JSONSchema{Type: "string"},
 				},
 				"hours": {
 					Type:        "number",
