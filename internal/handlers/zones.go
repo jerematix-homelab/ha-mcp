@@ -206,7 +206,13 @@ func (h *ZoneHandlers) handleCreate(ctx context.Context, client homeassistant.Cl
 		return errorResult(fmt.Sprintf("error creating zone: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Zone '%s' created successfully with ID: %s", zone.Name, zone.ID)), nil
+	successMsg := fmt.Sprintf("Zone '%s' created successfully with ID: %s", zone.Name, zone.ID)
+	entityID := "zone." + zone.ID
+	if _, appeared := waitForEntityAppear(ctx, client, entityID); !appeared {
+		successMsg += " (warning: zone entity not yet visible)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *ZoneHandlers) handleUpdate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -245,7 +251,13 @@ func (h *ZoneHandlers) handleDelete(ctx context.Context, client homeassistant.Cl
 		return errorResult(fmt.Sprintf("error deleting zone: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Zone '%s' deleted successfully", resolvedID)), nil
+	entityID := "zone." + resolvedID
+	successMsg := fmt.Sprintf("Zone '%s' deleted successfully", resolvedID)
+	if !waitForEntityDisappear(ctx, client, entityID) {
+		successMsg += " (warning: zone entity may still be visible briefly)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 // =============================================================================

@@ -817,7 +817,14 @@ func runHandlerTestCases(
 				tt.setupMock(client)
 			}
 
-			result, err := handlerFunc(context.Background(), client, tt.args)
+			// Use a fast wait config so tests don't block on real timeouts.
+			// The poller resolves within one poll interval when the mock responds instantly.
+			ctx := mcp.WithWaitConfig(context.Background(), mcp.WaitConfig{
+				Timeout:      50 * time.Millisecond,
+				PollInterval: 5 * time.Millisecond,
+			})
+
+			result, err := handlerFunc(ctx, client, tt.args)
 			if err != nil {
 				t.Fatalf("handler returned unexpected error: %v", err)
 			}

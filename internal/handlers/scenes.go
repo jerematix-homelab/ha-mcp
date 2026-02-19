@@ -275,7 +275,13 @@ func (h *SceneHandlers) handleCreate(ctx context.Context, client homeassistant.C
 		return errorResult(fmt.Sprintf("Error creating scene: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Scene '%s' created successfully", sceneID)), nil
+	entityID, _ := normalizeSceneID(sceneID)
+	successMsg := fmt.Sprintf("Scene '%s' created successfully", sceneID)
+	if _, appeared := reloadAndWaitForEntity(ctx, client, "scene", entityID); !appeared {
+		successMsg += " (note: scene may require Home Assistant restart to become visible)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *SceneHandlers) handleUpdate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -315,7 +321,13 @@ func (h *SceneHandlers) handleDelete(ctx context.Context, client homeassistant.C
 		return errorResult(fmt.Sprintf("Error deleting scene: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Scene '%s' deleted successfully", sceneID)), nil
+	entityID, _ := normalizeSceneID(sceneID)
+	successMsg := fmt.Sprintf("Scene '%s' deleted successfully", sceneID)
+	if !waitForEntityDisappear(ctx, client, entityID) {
+		successMsg += " (note: scene may remain visible until Home Assistant restart)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *SceneHandlers) handleActivate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {

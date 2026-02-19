@@ -59,6 +59,7 @@ type Server struct {
 	port          int
 	logger        *logging.Logger
 	toolFilter    *ToolFilterEngine // Optional tool filter for access control
+	waitConfig    WaitConfig        // Polling config injected into handler contexts
 	mu            sync.RWMutex
 	initialized   bool
 }
@@ -82,6 +83,7 @@ func NewServer(
 		registry:      registry,
 		port:          port,
 		logger:        logger,
+		waitConfig:    DefaultWaitConfig(),
 	}
 }
 
@@ -363,6 +365,9 @@ func (s *Server) handleToolsCall(ctx context.Context, req *Request, r *http.Requ
 			fmt.Sprintf("action blocked by server filter (tool: %s)", params.Name), nil)
 	}
 
+	// Inject wait config into context so handlers can access polling settings
+	ctx = context.WithValue(ctx, waitContextKey{}, s.waitConfig)
+
 	result, err := handler(ctx, client, params.Arguments)
 	if err != nil {
 		s.logger.Error("Tool execution failed", "tool", params.Name, "error", err)
@@ -526,4 +531,42 @@ func (s *Server) DefaultClient() homeassistant.Client {
 // SetToolFilter sets the tool filter for access control.
 func (s *Server) SetToolFilter(filter *ToolFilterEngine) {
 	s.toolFilter = filter
+}
+
+// waitContextKey is the unexported context key type for WaitConfig.
+type waitContextKey struct{}
+
+// WaitConfig holds polling configuration injected into handler contexts.
+// Handlers use WaitConfigFromContext to retrieve these values.
+type WaitConfig struct {
+	Timeout      time.Duration
+	PollInterval time.Duration
+}
+
+// DefaultWaitConfig returns the default wait configuration (5s timeout, 100ms poll).
+func DefaultWaitConfig() WaitConfig {
+	return WaitConfig{
+		Timeout:      5 * time.Second,
+		PollInterval: 100 * time.Millisecond,
+	}
+}
+
+// WaitConfigFromContext extracts the WaitConfig from the context.
+// Falls back to DefaultWaitConfig if not set.
+func WaitConfigFromContext(ctx context.Context) WaitConfig {
+	if wc, ok := ctx.Value(waitContextKey{}).(WaitConfig); ok {
+		return wc
+	}
+	return DefaultWaitConfig()
+}
+
+// WithWaitConfig returns a context with the given WaitConfig injected.
+// Useful for testing handler functions that call WaitConfigFromContext.
+func WithWaitConfig(ctx context.Context, wc WaitConfig) context.Context {
+	return context.WithValue(ctx, waitContextKey{}, wc)
+}
+
+// SetWaitConfig stores the WaitConfig on the server for injection into handler contexts.
+func (s *Server) SetWaitConfig(wc WaitConfig) {
+	s.waitConfig = wc
 }

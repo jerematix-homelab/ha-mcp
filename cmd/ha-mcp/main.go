@@ -358,6 +358,10 @@ func (a *App) initMCPServer(
 
 	server := mcp.NewServer(clientPool, defaultClient, registry, cfg.Server.Port, logger)
 	server.SetToolFilter(filter)
+	server.SetWaitConfig(mcp.WaitConfig{
+		Timeout:      time.Duration(cfg.HomeAssistant.Wait.WaitTimeoutMs) * time.Millisecond,
+		PollInterval: time.Duration(cfg.HomeAssistant.Wait.WaitPollIntervalMs) * time.Millisecond,
+	})
 
 	return server
 }

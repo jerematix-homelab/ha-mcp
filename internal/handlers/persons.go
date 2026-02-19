@@ -183,7 +183,13 @@ func (h *PersonHandlers) handleCreate(ctx context.Context, client homeassistant.
 		return errorResult(fmt.Sprintf("error creating person: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Person '%s' created successfully with ID: %s", person.Name, person.ID)), nil
+	successMsg := fmt.Sprintf("Person '%s' created successfully with ID: %s", person.Name, person.ID)
+	entityID := "person." + person.ID
+	if _, appeared := waitForEntityAppear(ctx, client, entityID); !appeared {
+		successMsg += " (warning: person entity not yet visible)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *PersonHandlers) handleUpdate(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -222,7 +228,13 @@ func (h *PersonHandlers) handleDelete(ctx context.Context, client homeassistant.
 		return errorResult(fmt.Sprintf("error deleting person: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Person '%s' deleted successfully", resolvedID)), nil
+	entityID := "person." + resolvedID
+	successMsg := fmt.Sprintf("Person '%s' deleted successfully", resolvedID)
+	if !waitForEntityDisappear(ctx, client, entityID) {
+		successMsg += " (warning: person entity may still be visible briefly)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 // =============================================================================

@@ -345,10 +345,16 @@ func (h *AutomationHandlers) handleCreate(ctx context.Context, client homeassist
 		return errorResult(fmt.Sprintf("Error creating automation: %v", err)), nil
 	}
 
+	entityID := "automation." + id
 	successMsg := fmt.Sprintf("Automation '%s' created successfully with ID '%s'", alias, id)
 	if autoFilled {
 		successMsg += " (manual-only: placeholder trigger inserted)"
 	}
+
+	if _, appeared := reloadAndWaitForEntity(ctx, client, "automation", entityID); !appeared {
+		successMsg += " (warning: automation entity not yet visible, reload may be pending)"
+	}
+
 	return successResult(successMsg), nil
 }
 
@@ -416,7 +422,14 @@ func (h *AutomationHandlers) handleDelete(ctx context.Context, client homeassist
 		return errorResult(fmt.Sprintf("Error deleting automation: %v", err)), nil
 	}
 
-	return successResult(fmt.Sprintf("Automation '%s' deleted successfully", automationID)), nil
+	entityID, _ := normalizeAutomationID(automationID)
+	_, _ = client.CallService(ctx, "automation", "reload", nil)
+	successMsg := fmt.Sprintf("Automation '%s' deleted successfully", automationID)
+	if !waitForEntityDisappear(ctx, client, entityID) {
+		successMsg += " (warning: automation entity may still be visible until reload completes)"
+	}
+
+	return successResult(successMsg), nil
 }
 
 func (h *AutomationHandlers) handleToggle(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
