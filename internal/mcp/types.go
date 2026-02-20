@@ -170,6 +170,30 @@ type ContentBlock struct {
 	URI      string `json:"uri,omitempty"`  // for embedded resources
 }
 
+// MarshalJSON emits only the fields relevant to each content type.
+// For text blocks, "text" is always included even when empty, satisfying
+// the MCP specification which requires the key to be present on TextContent.
+func (cb ContentBlock) MarshalJSON() ([]byte, error) {
+	switch cb.Type {
+	case "image":
+		return json.Marshal(struct {
+			Type     string `json:"type"`
+			MimeType string `json:"mimeType"`
+			Data     string `json:"data"`
+		}{Type: cb.Type, MimeType: cb.MimeType, Data: cb.Data})
+	case "resource":
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			URI  string `json:"uri"`
+		}{Type: cb.Type, URI: cb.URI})
+	default: // "text"
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}{Type: cb.Type, Text: cb.Text})
+	}
+}
+
 // NewImageContent creates a ContentBlock with image type.
 func NewImageContent(data, mimeType string) ContentBlock {
 	return ContentBlock{

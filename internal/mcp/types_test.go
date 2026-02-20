@@ -484,6 +484,13 @@ func TestContentBlock_JSONSerialization(t *testing.T) {
 			},
 		},
 		{
+			name: "empty text content",
+			content: ContentBlock{
+				Type: "text",
+				Text: "",
+			},
+		},
+		{
 			name: "image content",
 			content: ContentBlock{
 				Type:     "image",
@@ -734,6 +741,86 @@ func TestJSONRPCVersion(t *testing.T) {
 
 	if JSONRPCVersion != "2.0" {
 		t.Errorf("JSONRPCVersion = %q, want %q", JSONRPCVersion, "2.0")
+	}
+}
+
+func TestContentBlock_MarshalJSON_EmptyText(t *testing.T) {
+	t.Parallel()
+
+	cb := ContentBlock{Type: "text", Text: ""}
+	data, err := json.Marshal(cb)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+
+	textVal, ok := m["text"]
+	if !ok {
+		t.Errorf("JSON output is missing 'text' key for empty-string text block; got: %s", string(data))
+	}
+	if textVal != "" {
+		t.Errorf("JSON 'text' = %q, want empty string", textVal)
+	}
+}
+
+func TestContentBlock_MarshalJSON_TypeSpecificFields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		block         ContentBlock
+		wantKeys      []string
+		forbiddenKeys []string
+	}{
+		{
+			name:          "text block only has type and text",
+			block:         ContentBlock{Type: "text", Text: "hello"},
+			wantKeys:      []string{"type", "text"},
+			forbiddenKeys: []string{"mimeType", "data", "uri"},
+		},
+		{
+			name:          "image block only has type, mimeType, and data",
+			block:         ContentBlock{Type: "image", MimeType: "image/png", Data: "abc123"},
+			wantKeys:      []string{"type", "mimeType", "data"},
+			forbiddenKeys: []string{"text", "uri"},
+		},
+		{
+			name:          "resource block only has type and uri",
+			block:         ContentBlock{Type: "resource", URI: "ha://test"},
+			wantKeys:      []string{"type", "uri"},
+			forbiddenKeys: []string{"text", "mimeType", "data"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			data, err := json.Marshal(tt.block)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+
+			var m map[string]any
+			if err := json.Unmarshal(data, &m); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+
+			for _, key := range tt.wantKeys {
+				if _, ok := m[key]; !ok {
+					t.Errorf("JSON output missing required key %q; got: %s", key, string(data))
+				}
+			}
+			for _, key := range tt.forbiddenKeys {
+				if _, ok := m[key]; ok {
+					t.Errorf("JSON output contains forbidden key %q for type %q; got: %s", key, tt.block.Type, string(data))
+				}
+			}
+		})
 	}
 }
 
