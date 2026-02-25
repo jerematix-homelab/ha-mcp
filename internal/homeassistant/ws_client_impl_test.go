@@ -3801,3 +3801,151 @@ func TestWSClientImplWithSender_CallService_NoData(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestWSClientImplWithSender_UpdateEntityRegistryEntry(t *testing.T) {
+	t.Parallel()
+
+	// Home Assistant wraps entity registry update responses in an "entity_entry" key.
+	// This test verifies the unwrapping is correct and fields are populated.
+	mock := &mockWSClientSender{
+		sendCommandFunc: func(_ context.Context, cmdType string, params map[string]any) (*WSResultMessage, error) {
+			if cmdType != "config/entity_registry/update" {
+				t.Errorf("unexpected command: %s", cmdType)
+			}
+			if params["entity_id"] != "light.living_room" {
+				t.Errorf("unexpected entity_id: %v", params["entity_id"])
+			}
+			return makeWSResultMsg(map[string]any{
+				"entity_entry": map[string]any{
+					"entity_id": "light.living_room",
+					"name":      "Updated Name",
+					"platform":  "hue",
+				},
+			}), nil
+		},
+	}
+
+	name := "Updated Name"
+	client := NewWSClientImplWithSender(mock)
+	result, err := client.UpdateEntityRegistryEntry(context.Background(), "light.living_room", EntityRegistryUpdateConfig{
+		Name: &name,
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.EntityID != "light.living_room" {
+		t.Errorf("got EntityID %q, want %q", result.EntityID, "light.living_room")
+	}
+	if result.Name != "Updated Name" {
+		t.Errorf("got Name %q, want %q", result.Name, "Updated Name")
+	}
+}
+
+func TestWSClientImplWithSender_UpdateEntityRegistryEntry_Rename(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockWSClientSender{
+		sendCommandFunc: func(_ context.Context, _ string, _ map[string]any) (*WSResultMessage, error) {
+			return makeWSResultMsg(map[string]any{
+				"entity_entry": map[string]any{
+					"entity_id": "light.main_room",
+					"name":      "Main Room Light",
+					"platform":  "hue",
+				},
+			}), nil
+		},
+	}
+
+	newID := "light.main_room"
+	client := NewWSClientImplWithSender(mock)
+	result, err := client.UpdateEntityRegistryEntry(context.Background(), "light.living_room", EntityRegistryUpdateConfig{
+		NewEntityID: &newID,
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.EntityID != "light.main_room" {
+		t.Errorf("got EntityID %q, want %q", result.EntityID, "light.main_room")
+	}
+}
+
+func TestWSClientImplWithSender_UpdateEntityRegistryEntry_Error(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockWSClientSender{
+		sendCommandFunc: func(_ context.Context, _ string, _ map[string]any) (*WSResultMessage, error) {
+			return nil, errors.New("connection failed")
+		},
+	}
+
+	client := NewWSClientImplWithSender(mock)
+	_, err := client.UpdateEntityRegistryEntry(context.Background(), "light.living_room", EntityRegistryUpdateConfig{})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestWSClientImplWithSender_UpdateDeviceRegistryEntry(t *testing.T) {
+	t.Parallel()
+
+	// Home Assistant wraps device registry update responses in a "device_entry" key.
+	// This test verifies the unwrapping is correct and fields are populated.
+	mock := &mockWSClientSender{
+		sendCommandFunc: func(_ context.Context, cmdType string, params map[string]any) (*WSResultMessage, error) {
+			if cmdType != "config/device_registry/update" {
+				t.Errorf("unexpected command: %s", cmdType)
+			}
+			if params["device_id"] != "abc123" {
+				t.Errorf("unexpected device_id: %v", params["device_id"])
+			}
+			return makeWSResultMsg(map[string]any{
+				"device_entry": map[string]any{
+					"id":           "abc123",
+					"name_by_user": "My Custom Name",
+					"area_id":      "bedroom",
+				},
+			}), nil
+		},
+	}
+
+	nameByUser := "My Custom Name"
+	areaID := "bedroom"
+	client := NewWSClientImplWithSender(mock)
+	result, err := client.UpdateDeviceRegistryEntry(context.Background(), "abc123", DeviceRegistryUpdateConfig{
+		NameByUser: &nameByUser,
+		AreaID:     &areaID,
+	})
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ID != "abc123" {
+		t.Errorf("got ID %q, want %q", result.ID, "abc123")
+	}
+	if result.NameByUser != "My Custom Name" {
+		t.Errorf("got NameByUser %q, want %q", result.NameByUser, "My Custom Name")
+	}
+	if result.AreaID != "bedroom" {
+		t.Errorf("got AreaID %q, want %q", result.AreaID, "bedroom")
+	}
+}
+
+func TestWSClientImplWithSender_UpdateDeviceRegistryEntry_Error(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockWSClientSender{
+		sendCommandFunc: func(_ context.Context, _ string, _ map[string]any) (*WSResultMessage, error) {
+			return nil, errors.New("connection failed")
+		},
+	}
+
+	client := NewWSClientImplWithSender(mock)
+	_, err := client.UpdateDeviceRegistryEntry(context.Background(), "abc123", DeviceRegistryUpdateConfig{})
+
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}
