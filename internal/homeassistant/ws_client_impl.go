@@ -830,12 +830,15 @@ func (c *wsClientImpl) UpdateEntityRegistryEntry(ctx context.Context, entityID s
 		return nil, fmt.Errorf("failed to update entity: %w", err)
 	}
 
-	var entry EntityRegistryEntry
-	if err := json.Unmarshal(result.Result, &entry); err != nil {
+	// Home Assistant wraps the response in an "entity_entry" key
+	var wrapper struct {
+		EntityEntry EntityRegistryEntry `json:"entity_entry"`
+	}
+	if err := json.Unmarshal(result.Result, &wrapper); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal updated entity: %w", err)
 	}
 
-	return &entry, nil
+	return &wrapper.EntityEntry, nil
 }
 
 // RemoveDeviceConfigEntry removes a config entry from a device.
@@ -876,12 +879,15 @@ func (c *wsClientImpl) UpdateDeviceRegistryEntry(ctx context.Context, deviceID s
 		return nil, fmt.Errorf("failed to update device: %w", err)
 	}
 
-	var entry DeviceRegistryEntry
-	if err := json.Unmarshal(result.Result, &entry); err != nil {
+	// Home Assistant wraps the response in a "device_entry" key
+	var wrapper struct {
+		DeviceEntry DeviceRegistryEntry `json:"device_entry"`
+	}
+	if err := json.Unmarshal(result.Result, &wrapper); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal updated device: %w", err)
 	}
 
-	return &entry, nil
+	return &wrapper.DeviceEntry, nil
 }
 
 // CreateArea creates a new area in the area registry.

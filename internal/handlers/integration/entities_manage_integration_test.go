@@ -71,24 +71,9 @@ func (s *EntityManageIntegrationTestSuite) TestEntityUpdateBasicFields() {
 	s.Require().NotNil(updated, "Updated entity should not be nil")
 	s.T().Logf("Updated entity: EntityID=%s, Name=%s", updated.EntityID, updated.Name)
 
-	// Verify updates (if API returns updated entity)
-	if updated.EntityID != "" {
-		s.Equal(entityID, updated.EntityID, "Entity ID should not change")
-		s.Equal("Updated Test Name", updated.Name, "Name should be updated")
-	} else {
-		// If API doesn't return the updated entity, fetch it from registry
-		s.T().Log("API returned empty entity, fetching from registry to verify update")
-		time.Sleep(500 * time.Millisecond)
-		registry, err = s.Client().GetEntityRegistry(s.Context())
-		s.Require().NoError(err)
-
-		for _, entry := range registry {
-			if entry.EntityID == entityID {
-				s.Equal("Updated Test Name", entry.Name, "Name should be updated in registry")
-				break
-			}
-		}
-	}
+	// Verify the updated entity is returned directly (API wraps response in "entity_entry")
+	s.Equal(entityID, updated.EntityID, "Entity ID should not change")
+	s.Equal("Updated Test Name", updated.Name, "Name should be updated")
 
 	// Cleanup
 	err = s.Client().DeleteHelper(s.Context(), entityID)
