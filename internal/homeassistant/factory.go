@@ -4,7 +4,6 @@ package homeassistant
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/config"
 	"github.com/zorak1103/ha-mcp/internal/logging"
@@ -130,21 +129,3 @@ var (
 	_ Client       = (*wsClientImplCloser)(nil)
 	_ ClientCloser = (*wsClientImplCloser)(nil)
 )
-
-// RetryConfigFromSettings creates a RetryConfig from max retries, initial delay (ms), and max delay (ms).
-// This is a helper function for building retry configuration from application config settings.
-func RetryConfigFromSettings(maxRetries, initialDelayMs, maxDelayMs int) RetryConfig {
-	retryCfg := DefaultRetryConfig()
-
-	if maxRetries >= 0 {
-		retryCfg.MaxRetries = maxRetries
-	}
-	if initialDelayMs > 0 {
-		retryCfg.InitialDelay = time.Duration(initialDelayMs) * time.Millisecond
-	}
-	if maxDelayMs > 0 {
-		retryCfg.MaxDelay = time.Duration(maxDelayMs) * time.Millisecond
-	}
-
-	return retryCfg
-}
