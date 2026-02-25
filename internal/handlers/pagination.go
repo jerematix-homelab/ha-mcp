@@ -228,17 +228,3 @@ func BuildPaginationSummary(meta PaginationMetadata, itemType string) string {
 	}
 	return summary
 }
-
-// PaginationSchemaProperties returns the standard pagination InputSchema properties.
-func PaginationSchemaProperties() map[string]any {
-	return map[string]any{
-		"limit": map[string]any{
-			"type":        "integer",
-			"description": fmt.Sprintf("Maximum number of items to return (max %d, default: no limit)", DefaultMaxLimit),
-		},
-		"cursor": map[string]any{
-			"type":        "string",
-			"description": "Pagination cursor from previous response to get next page",
-		},
-	}
-}
