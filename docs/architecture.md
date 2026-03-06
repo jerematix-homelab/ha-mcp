@@ -144,7 +144,10 @@ ha-mcp/
 │   ├── integration-tests.md     # Integration test documentation
 │   ├── tools.md                 # Tools reference & examples
 │   └── troubleshooting.md       # Troubleshooting guide
+├── scripts/
+│   └── check-coverage.sh        # Per-file 80% coverage enforcement
 ├── Dockerfile                   # Container build
+├── Taskfile.yml                 # Build automation (task commands)
 ├── .golangci.yml               # Linter configuration
 └── README.md                   # Project overview and quick start
 ```
@@ -155,25 +158,33 @@ ha-mcp/
 
 - Go 1.26+
 - golangci-lint v2
+- [Task](https://taskfile.dev/#/installation) (build automation)
 - Docker (for container builds)
 
 ### Build Commands
 
 ```bash
+# List all available tasks
+task --list
+
 # Build binary
-go build -o ha-mcp ./cmd/ha-mcp
+task build
 
 # Run unit tests
-go test ./...
+task test
 
-# Run linter (always use timeout for complete analysis)
-golangci-lint run --timeout=5m ./...
+# Run linter
+task lint
 
-# Format check
-gofmt -l .
+# Format check / auto-fix
+task fmt
+task fmt:fix
 
 # Vulnerability check
-govulncheck ./...
+task vulncheck
+
+# Tests with race detector and per-file 80% coverage enforcement
+task test:coverage
 ```
 
 ### Integration Tests
@@ -194,9 +205,9 @@ export HA_INTEGRATION_TEST_TIMEOUT=5m  # optional
 **Running integration tests:**
 ```bash
 # Run all integration tests
-go test -tags=integration -v ./internal/handlers/integration/...
+task test:integration
 
-# Run specific test suite
+# Run specific test suite directly
 go test -tags=integration -v ./internal/handlers/integration/... -run TestCounterIntegration
 ```
 
