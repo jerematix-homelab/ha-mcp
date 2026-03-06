@@ -111,16 +111,16 @@ server:
       - "*:read"                       # Allow only read operations
 ```
 
-### Sub-Action Filtering
+### Action Filtering on manage_entity / manage_device
 
-For tools with nested actions (like `query_entities` with mode=health, action=remove):
+To allow read access but block deletions:
 
 ```yaml
 server:
   tool_filter:
     blacklist:
-      - "query_entities:health:remove"   # Block health check removal
-      - "query_devices:health:remove"    # Block device health removal
+      - "manage_entity:delete"   # Block entity registry deletion
+      - "manage_device:delete"   # Block device registry deletion
 ```
 
 ## Filter Behavior

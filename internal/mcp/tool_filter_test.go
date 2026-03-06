@@ -318,28 +318,27 @@ func TestToolFilterEngine_ApplyToRegistry_ModifySchema(t *testing.T) {
 	}
 }
 
-// TestToolFilterEngine_IsActionAllowed_SubAction verifies sub-action filtering.
-func TestToolFilterEngine_IsActionAllowed_SubAction(t *testing.T) {
+// TestToolFilterEngine_IsActionAllowed_ManageEntityDelete verifies manage_entity delete filtering.
+func TestToolFilterEngine_IsActionAllowed_ManageEntityDelete(t *testing.T) {
 	t.Parallel()
 
 	cfg := ToolFilterConfig{
-		Blacklist: []string{"query_entities:health:remove"},
+		Blacklist: []string{"manage_entity:delete"},
 	}
 	filter := NewToolFilterEngine(cfg, false)
 
-	// Health analyze should be allowed
-	if !filter.IsActionAllowed("query_entities", map[string]any{"mode": "health", "action": "analyze"}) {
-		t.Error("query_entities mode=health action=analyze should be allowed")
+	// delete should be blocked
+	if filter.IsActionAllowed("manage_entity", map[string]any{"action": "delete"}) {
+		t.Error("manage_entity:delete should be blocked")
 	}
 
-	// Health remove should be blocked
-	if filter.IsActionAllowed("query_entities", map[string]any{"mode": "health", "action": "remove"}) {
-		t.Error("query_entities mode=health action=remove should be blocked")
+	// get and update should still be allowed
+	if !filter.IsActionAllowed("manage_entity", map[string]any{"action": "get"}) {
+		t.Error("manage_entity:get should be allowed")
 	}
 
-	// Health without action (default analyze) should be allowed
-	if !filter.IsActionAllowed("query_entities", map[string]any{"mode": "health"}) {
-		t.Error("query_entities mode=health (default) should be allowed")
+	if !filter.IsActionAllowed("manage_entity", map[string]any{"action": "update"}) {
+		t.Error("manage_entity:update should be allowed")
 	}
 }
 
