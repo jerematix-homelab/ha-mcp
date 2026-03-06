@@ -1,0 +1,97 @@
+# https://taskfile.dev
+version: "3"
+
+tasks:
+  # ──────────────────────────────────────────────
+  # Build
+  # ──────────────────────────────────────────────
+  build:
+    desc: Build the ha-mcp binary
+    cmds:
+      - go build -o ha-mcp{{exeExt}} ./cmd/ha-mcp
+
+  # ──────────────────────────────────────────────
+  # Tests
+  # ──────────────────────────────────────────────
+  test:
+    desc: Run unit tests (no race detector, Windows-safe)
+    cmds:
+      - go test ./...
+
+  test:race:
+    desc: Run unit tests with race detector (requires CGO_ENABLED=1, Linux/CI)
+    env:
+      CGO_ENABLED: "1"
+    cmds:
+      - go test -race ./...
+
+  test:integration:
+    desc: Run integration tests (requires HA_INTEGRATION_TEST_URL and HA_INTEGRATION_TEST_TOKEN)
+    cmds:
+      - go test -tags=integration -v ./internal/handlers/integration/...
+
+  test:coverage:
+    desc: Run tests with race detector, generate coverage, and enforce per-file 80% threshold
+    env:
+      CGO_ENABLED: "1"
+    cmds:
+      - go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      - bash scripts/check-coverage.sh coverage.out 80
+
+  # ──────────────────────────────────────────────
+  # Lint & Format
+  # ──────────────────────────────────────────────
+  lint:
+    desc: Run golangci-lint (unit code)
+    cmds:
+      - golangci-lint run --timeout=5m ./...
+
+  lint:integration:
+    desc: Run golangci-lint on integration test code
+    cmds:
+      - golangci-lint run --timeout=5m --build-tags=integration ./internal/handlers/integration/...
+
+  fmt:
+    desc: Check Go formatting (report unformatted files)
+    cmds:
+      - |
+        unformatted=$(gofmt -l .)
+        if [ -n "$unformatted" ]; then
+          echo "The following files are not formatted:"
+          echo "$unformatted"
+          echo ""
+          echo "Run 'task fmt:fix' to auto-fix formatting"
+          exit 1
+        fi
+        echo "All files are properly formatted"
+
+  fmt:fix:
+    desc: Auto-fix Go formatting
+    cmds:
+      - gofmt -w .
+
+  # ──────────────────────────────────────────────
+  # Security & Analysis
+  # ──────────────────────────────────────────────
+  vulncheck:
+    desc: Run govulncheck security scanner
+    cmds:
+      - govulncheck ./...
+
+  deadcode:
+    desc: Run dead code detection (requires deadcode tool)
+    cmds:
+      - deadcode -test ./...
+
+  # ──────────────────────────────────────────────
+  # Dev
+  # ──────────────────────────────────────────────
+  run:
+    desc: Run the ha-mcp server (set HA_URL and HA_TOKEN env vars)
+    cmds:
+      - go run ./cmd/ha-mcp
+
+  release:snapshot:
+    desc: Build a local snapshot release (does not publish)
+    cmds:
+      - goreleaser release --snapshot --clean --skip=publish
