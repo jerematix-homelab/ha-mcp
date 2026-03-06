@@ -5,6 +5,98 @@ import (
 	"testing"
 )
 
+// TestValidateFilterConfig verifies startup validation rejects invalid filter entries.
+func TestValidateFilterConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		cfg         ToolFilterConfig
+		wantErr     bool
+		errContains []string
+	}{
+		{
+			name:    "disabled (empty)",
+			cfg:     ToolFilterConfig{},
+			wantErr: false,
+		},
+		{
+			name:    "valid whitelist",
+			cfg:     ToolFilterConfig{Whitelist: []string{"get_state", "manage_automation:list"}},
+			wantErr: false,
+		},
+		{
+			name:    "valid blacklist glob",
+			cfg:     ToolFilterConfig{Blacklist: []string{"manage_*:delete"}},
+			wantErr: false,
+		},
+		{
+			name:    "category expansion",
+			cfg:     ToolFilterConfig{Blacklist: []string{"*:write"}},
+			wantErr: false,
+		},
+		{
+			name:    "bare wildcard",
+			cfg:     ToolFilterConfig{Blacklist: []string{"*"}},
+			wantErr: false,
+		},
+		{
+			name:        "old sub-action (removed)",
+			cfg:         ToolFilterConfig{Blacklist: []string{"query_entities:health:remove"}},
+			wantErr:     true,
+			errContains: []string{"query_entities", "sub-action", "remove"},
+		},
+		{
+			name:        "nonexistent tool",
+			cfg:         ToolFilterConfig{Blacklist: []string{"manage_nonexistent"}},
+			wantErr:     true,
+			errContains: []string{"manage_nonexistent", "no tools match"},
+		},
+		{
+			name:        "nonexistent action",
+			cfg:         ToolFilterConfig{Blacklist: []string{"manage_entity:frobnicate"}},
+			wantErr:     true,
+			errContains: []string{"manage_entity", "frobnicate"},
+		},
+		{
+			name:        "pure tool with action specified",
+			cfg:         ToolFilterConfig{Blacklist: []string{"get_state:list"}},
+			wantErr:     true,
+			errContains: []string{"get_state", "no action parameter"},
+		},
+		{
+			name:        "glob action on no matching tool",
+			cfg:         ToolFilterConfig{Blacklist: []string{"get_*:create"}},
+			wantErr:     true,
+			errContains: []string{"create", "get_*"},
+		},
+		{
+			name:        "multiple errors reported together",
+			cfg:         ToolFilterConfig{Blacklist: []string{"bad_tool", "manage_entity:bad"}},
+			wantErr:     true,
+			errContains: []string{"bad_tool", "manage_entity", "bad"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := ValidateFilterConfig(tt.cfg)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ValidateFilterConfig() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err != nil {
+				for _, want := range tt.errContains {
+					if !strings.Contains(err.Error(), want) {
+						t.Errorf("expected error to contain %q, got: %s", want, err.Error())
+					}
+				}
+			}
+		})
+	}
+}
+
 // TestToolFilterEngine_ReadOnly verifies read-only mode blocks all write operations.
 func TestToolFilterEngine_ReadOnly(t *testing.T) {
 	t.Parallel()
