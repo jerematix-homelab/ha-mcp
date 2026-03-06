@@ -1,4 +1,5 @@
 // Package homeassistant provides a WebSocket client for Home Assistant API.
+// coverage-exempt: real WebSocket I/O, connection management, and health loop require a live server
 package homeassistant
 
 import (

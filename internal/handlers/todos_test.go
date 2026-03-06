@@ -355,3 +355,220 @@ func TestManageTodo_MissingRequiredParams(t *testing.T) {
 		})
 	}
 }
+
+// TestManageTodo_List_JSONFormat verifies list action with JSON format.
+func TestManageTodo_List_JSONFormat(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		GetStatesFn: func(context.Context) ([]homeassistant.Entity, error) {
+			return []homeassistant.Entity{
+				{
+					EntityID: "todo.shopping_list",
+					State:    "3",
+					Attributes: map[string]any{
+						"friendly_name": "Shopping List",
+					},
+				},
+			}, nil
+		},
+	}
+
+	handler := NewTodoHandlers()
+	result, err := handler.HandleManageTodo(context.Background(), client, map[string]any{
+		"action": "list",
+		"format": "json",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result content")
+	}
+
+	text := result.Content[0].Text
+	if !contains(text, "todo.shopping_list") {
+		t.Errorf("JSON result does not contain entity_id: %s", text)
+	}
+}
+
+// TestManageTodo_List_Error verifies list action handles client error.
+func TestManageTodo_List_Error(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		GetStatesFn: func(context.Context) ([]homeassistant.Entity, error) {
+			return nil, fmt.Errorf("connection failed")
+		},
+	}
+
+	handler := NewTodoHandlers()
+	result, err := handler.HandleManageTodo(context.Background(), client, map[string]any{
+		"action": "list",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageTodo_GetItems_Error verifies get_items handles client error.
+func TestManageTodo_GetItems_Error(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		CallServiceWithResponseFn: func(context.Context, string, string, map[string]any) (map[string]any, error) {
+			return nil, fmt.Errorf("service call failed")
+		},
+	}
+
+	handler := NewTodoHandlers()
+	result, err := handler.HandleManageTodo(context.Background(), client, map[string]any{
+		"action":    "get_items",
+		"entity_id": "todo.shopping_list",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageTodo_GetItems_JSONFormat verifies get_items JSON format path.
+func TestManageTodo_GetItems_JSONFormat(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		CallServiceWithResponseFn: func(context.Context, string, string, map[string]any) (map[string]any, error) {
+			return map[string]any{
+				"todo.tasks": map[string]any{
+					"items": []any{
+						map[string]any{"uid": "item1", "summary": "Task 1", "status": "needs_action"},
+					},
+				},
+			}, nil
+		},
+	}
+
+	handler := NewTodoHandlers()
+	result, err := handler.HandleManageTodo(context.Background(), client, map[string]any{
+		"action":    "get_items",
+		"entity_id": "todo.tasks",
+		"format":    "json",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result content")
+	}
+
+	text := result.Content[0].Text
+	if !contains(text, "item1") {
+		t.Errorf("JSON result does not contain uid: %s", text)
+	}
+}
+
+// TestManageTodo_UpdateItem_Error verifies update_item handles client error.
+func TestManageTodo_UpdateItem_Error(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		CallServiceFn: func(context.Context, string, string, map[string]any) ([]homeassistant.Entity, error) {
+			return nil, fmt.Errorf("update failed")
+		},
+	}
+
+	handler := NewTodoHandlers()
+	result, err := handler.HandleManageTodo(context.Background(), client, map[string]any{
+		"action":    "update_item",
+		"entity_id": "todo.tasks",
+		"uid":       "item1",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageTodo_UpdateItem_MissingEntityID verifies update_item validation.
+func TestManageTodo_UpdateItem_MissingEntityID(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{}
+	handler := NewTodoHandlers()
+
+	result, err := handler.HandleManageTodo(context.Background(), client, map[string]any{
+		"action": "update_item",
+		"uid":    "item1",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageTodo_AddItem_WithOptionalFields verifies add_item with description and due date.
+func TestManageTodo_AddItem_WithOptionalFields(t *testing.T) {
+	t.Parallel()
+
+	var capturedData map[string]any
+	client := &UniversalMockClient{
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "todo" || service != "add_item" {
+				return nil, fmt.Errorf("wrong call: %s.%s", domain, service)
+			}
+			capturedData = data
+			return nil, nil
+		},
+	}
+
+	handler := NewTodoHandlers()
+	_, err := handler.HandleManageTodo(context.Background(), client, map[string]any{
+		"action":      "add_item",
+		"entity_id":   "todo.tasks",
+		"item":        "Buy groceries",
+		"description": "Weekly groceries",
+		"due_date":    "2024-01-20",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if capturedData["description"] != "Weekly groceries" {
+		t.Errorf("description = %v, want 'Weekly groceries'", capturedData["description"])
+	}
+	if capturedData["due_date"] != "2024-01-20" {
+		t.Errorf("due_date = %v, want '2024-01-20'", capturedData["due_date"])
+	}
+}
+
+// TestExtractTodoItems_EmptyResponse verifies extractTodoItems with mismatched entity key.
+func TestExtractTodoItems_EmptyResponse(t *testing.T) {
+	t.Parallel()
+
+	// Response doesn't match entity_id
+	response := map[string]any{
+		"todo.other_list": map[string]any{
+			"items": []any{map[string]any{"uid": "item1"}},
+		},
+	}
+
+	items := extractTodoItems(response, "todo.shopping_list")
+	if len(items) != 0 {
+		t.Errorf("extractTodoItems() = %d items, want 0 (key mismatch)", len(items))
+	}
+}

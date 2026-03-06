@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -167,6 +168,86 @@ func TestManageCamera_InvalidAction(t *testing.T) {
 	result, err := handler.HandleManageCamera(context.Background(), client, map[string]any{
 		"action":    "invalid",
 		"entity_id": "camera.test",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageCamera_Stream_JSONFormat verifies stream action with JSON format.
+func TestManageCamera_Stream_JSONFormat(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		GetCameraStreamFn: func(context.Context, string) (*homeassistant.StreamInfo, error) {
+			return &homeassistant.StreamInfo{
+				URL: "http://localhost:8123/api/hls/stream.m3u8",
+			}, nil
+		},
+	}
+
+	handler := NewCameraHandlers()
+	result, err := handler.HandleManageCamera(context.Background(), client, map[string]any{
+		"action":    "stream",
+		"entity_id": "camera.backyard",
+		"format":    "json",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result content")
+	}
+
+	text := result.Content[0].Text
+	if !contains(text, "stream.m3u8") {
+		t.Errorf("JSON result does not contain stream URL: %s", text)
+	}
+}
+
+// TestManageCamera_Stream_Error verifies stream action handles client error.
+func TestManageCamera_Stream_Error(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		GetCameraStreamFn: func(context.Context, string) (*homeassistant.StreamInfo, error) {
+			return nil, fmt.Errorf("stream unavailable")
+		},
+	}
+
+	handler := NewCameraHandlers()
+	result, err := handler.HandleManageCamera(context.Background(), client, map[string]any{
+		"action":    "stream",
+		"entity_id": "camera.backyard",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || !result.IsError {
+		t.Error("expected error result")
+	}
+}
+
+// TestManageCamera_Snapshot_Error verifies snapshot handles client error.
+func TestManageCamera_Snapshot_Error(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		GetCameraSnapshotFn: func(context.Context, string) ([]byte, string, error) {
+			return nil, "", fmt.Errorf("snapshot failed")
+		},
+	}
+
+	handler := NewCameraHandlers()
+	result, err := handler.HandleManageCamera(context.Background(), client, map[string]any{
+		"action":    "snapshot",
+		"entity_id": "camera.front_door",
 	})
 
 	if err != nil {

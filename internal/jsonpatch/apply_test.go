@@ -2,6 +2,7 @@ package jsonpatch
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -644,5 +645,25 @@ func TestValidate_PathValidation(t *testing.T) {
 				t.Errorf("error = %q, want to contain %q", err, tt.errFrag)
 			}
 		})
+	}
+}
+
+// TestSetAtPath_UnexpectedIntermediateType verifies that navigating into a
+// non-map, non-slice value (e.g., a string) returns an error.
+func TestSetAtPath_UnexpectedIntermediateType(t *testing.T) {
+	t.Parallel()
+
+	// The document has "name" pointing to a string "foo".
+	// Trying to set "name/sub" requires navigating into that string, which should fail.
+	doc := map[string]any{"name": "foo"}
+	_, err := Apply(doc, []Operation{
+		{Op: "add", Path: "/name/sub", Value: "bar"},
+	})
+
+	if err == nil {
+		t.Fatal("Apply() expected error when navigating into non-map/non-slice, got nil")
+	}
+	if !strings.Contains(err.Error(), "cannot navigate") {
+		t.Errorf("error = %q, want to contain %q", err.Error(), "cannot navigate")
 	}
 }

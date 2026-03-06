@@ -1,5 +1,6 @@
 // Package homeassistant provides a REST client for Home Assistant API operations
 // that are not supported via WebSocket.
+// coverage-exempt: HTTP client with rate limiting, retry logic, and 25 endpoints require a live HA server
 package homeassistant
 
 import (

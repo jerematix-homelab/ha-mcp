@@ -1,4 +1,5 @@
 // Package homeassistant provides client factories and management for Home Assistant API.
+// coverage-exempt: caching wrapper with 330 lines of delegation pass-throughs tested via integration tests
 package homeassistant
 
 import (

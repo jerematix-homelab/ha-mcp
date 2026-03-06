@@ -554,3 +554,176 @@ func TestConsolidatedTargetHandlers_HandleAnalyzeTarget_All_FormatJSON(t *testin
 		t.Errorf("Expected JSON output to contain services field, got: %s", content[:min(500, len(content))])
 	}
 }
+
+// TestConsolidatedTargetHandlers_AllInfo_NaturalWithErrors covers formatSectionWithError error branch
+// and formatExtractedSectionWithError error branch via handleAllInfo (natural format).
+func TestConsolidatedTargetHandlers_AllInfo_NaturalWithErrors(t *testing.T) {
+	t.Parallel()
+
+	h := NewConsolidatedTargetHandlers()
+	client := &mockConsolidatedTargetsClient{
+		triggersErr:   errors.New("triggers unavailable"),
+		conditionsErr: errors.New("conditions unavailable"),
+		extractErr:    errors.New("extract failed"),
+	}
+
+	result, err := h.handleAnalyzeTarget(context.Background(), client, map[string]any{
+		"info":      "all",
+		"entity_id": []any{"light.test"},
+		"format":    "natural",
+	})
+	if err != nil {
+		t.Fatalf("handleAnalyzeTarget() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result")
+	}
+
+	content := result.Content[0].Text
+	if !strings.Contains(content, "Error") {
+		t.Errorf("Expected content to contain 'Error', got: %s", content)
+	}
+}
+
+// TestConsolidatedTargetHandlers_AllInfo_NaturalWithMissingItems covers formatMissingItems.
+func TestConsolidatedTargetHandlers_AllInfo_NaturalWithMissingItems(t *testing.T) {
+	t.Parallel()
+
+	h := NewConsolidatedTargetHandlers()
+	client := &mockConsolidatedTargetsClient{
+		triggers:   []string{"state"},
+		conditions: []string{},
+		services:   []string{},
+		extract: &homeassistant.ExtractFromTargetResult{
+			ReferencedEntities: []string{"light.living_room"},
+			MissingDevices:     []string{"device_abc"},
+			MissingAreas:       []string{"area_xyz"},
+		},
+	}
+
+	result, err := h.handleAnalyzeTarget(context.Background(), client, map[string]any{
+		"info":      "all",
+		"entity_id": []any{"light.test"},
+		"format":    "natural",
+	})
+	if err != nil {
+		t.Fatalf("handleAnalyzeTarget() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result")
+	}
+
+	content := result.Content[0].Text
+	if !strings.Contains(content, "Missing") {
+		t.Errorf("Expected content to contain 'Missing', got: %s", content)
+	}
+}
+
+// TestConsolidatedTargetHandlers_AllInfo_NaturalNilExtracted covers nil extracted in formatExtractedSectionWithError.
+func TestConsolidatedTargetHandlers_AllInfo_NaturalNilExtracted(t *testing.T) {
+	t.Parallel()
+
+	h := NewConsolidatedTargetHandlers()
+	// extract returns nil with no error
+	client := &mockConsolidatedTargetsClient{
+		triggers: []string{},
+		extract:  nil,
+	}
+
+	result, err := h.handleAnalyzeTarget(context.Background(), client, map[string]any{
+		"info":      "all",
+		"entity_id": []any{"light.test"},
+		"format":    "natural",
+	})
+	if err != nil {
+		t.Fatalf("handleAnalyzeTarget() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result")
+	}
+
+	content := result.Content[0].Text
+	if !strings.Contains(content, "Entities") {
+		t.Errorf("Expected content to contain 'Entities' section, got: %s", content)
+	}
+}
+
+// TestConsolidatedTargetHandlers_ExpandGroup covers parseTargetParams expand_group branch.
+func TestConsolidatedTargetHandlers_ExpandGroup(t *testing.T) {
+	t.Parallel()
+
+	h := NewConsolidatedTargetHandlers()
+	client := &mockConsolidatedTargetsClient{
+		triggers: []string{"state"},
+	}
+
+	// Test with expand_group=true
+	result, err := h.handleAnalyzeTarget(context.Background(), client, map[string]any{
+		"info":         "triggers",
+		"entity_id":    []any{"group.lights"},
+		"expand_group": true,
+	})
+	if err != nil {
+		t.Fatalf("handleAnalyzeTarget() error = %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Error("expected success result")
+	}
+}
+
+// TestConsolidatedTargetHandlers_AllInfo_WithDeviceAndAreaIDs covers extractStringArray for different target types.
+func TestConsolidatedTargetHandlers_AllInfo_WithDeviceAndAreaIDs(t *testing.T) {
+	t.Parallel()
+
+	h := NewConsolidatedTargetHandlers()
+	client := &mockConsolidatedTargetsClient{
+		triggers: []string{"state"},
+	}
+
+	result, err := h.handleAnalyzeTarget(context.Background(), client, map[string]any{
+		"info":      "triggers",
+		"device_id": []any{"device_abc"},
+		"area_id":   []any{"living_room"},
+	})
+	if err != nil {
+		t.Fatalf("handleAnalyzeTarget() error = %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Error("expected success result")
+	}
+}
+
+// TestConsolidatedTargetHandlers_ExtractedWithReferencedDevicesAreas covers formatExtractedSectionWithError
+// when devices and areas are referenced.
+func TestConsolidatedTargetHandlers_ExtractedWithReferencedDevicesAreas(t *testing.T) {
+	t.Parallel()
+
+	h := NewConsolidatedTargetHandlers()
+	client := &mockConsolidatedTargetsClient{
+		triggers:   []string{},
+		conditions: []string{},
+		services:   []string{},
+		extract: &homeassistant.ExtractFromTargetResult{
+			ReferencedEntities: []string{"light.living_room"},
+			ReferencedDevices:  []string{"device_abc"},
+			ReferencedAreas:    []string{"living_room"},
+		},
+	}
+
+	result, err := h.handleAnalyzeTarget(context.Background(), client, map[string]any{
+		"info":      "all",
+		"entity_id": []any{"light.test"},
+		"format":    "natural",
+	})
+	if err != nil {
+		t.Fatalf("handleAnalyzeTarget() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected result")
+	}
+
+	content := result.Content[0].Text
+	if !strings.Contains(content, "Entities") {
+		t.Errorf("Expected content to contain 'Entities', got: %s", content)
+	}
+}

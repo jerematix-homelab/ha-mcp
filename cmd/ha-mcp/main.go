@@ -1,4 +1,5 @@
 // Package main provides the entry point for the ha-mcp server.
+// coverage-exempt: CLI orchestration, server lifecycle, and OS signal handling require a real process environment
 package main
 
 import (

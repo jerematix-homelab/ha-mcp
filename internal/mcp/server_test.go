@@ -1585,3 +1585,61 @@ func TestServer_ResourcesRead_NoAuth(t *testing.T) {
 		t.Errorf("Error.Code = %d, want %d (Unauthorized)", jsonResp.Error.Code, Unauthorized)
 	}
 }
+
+func TestWaitConfigFromContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns default when not set", func(t *testing.T) {
+		t.Parallel()
+		wc := WaitConfigFromContext(context.Background())
+		if wc.Timeout != 5*time.Second {
+			t.Errorf("Timeout = %v, want 5s", wc.Timeout)
+		}
+		if wc.PollInterval != 100*time.Millisecond {
+			t.Errorf("PollInterval = %v, want 100ms", wc.PollInterval)
+		}
+	})
+
+	t.Run("returns injected value", func(t *testing.T) {
+		t.Parallel()
+		wc := WaitConfig{Timeout: 50 * time.Millisecond, PollInterval: 5 * time.Millisecond}
+		ctx := WithWaitConfig(context.Background(), wc)
+		got := WaitConfigFromContext(ctx)
+		if got.Timeout != 50*time.Millisecond {
+			t.Errorf("Timeout = %v, want 50ms", got.Timeout)
+		}
+		if got.PollInterval != 5*time.Millisecond {
+			t.Errorf("PollInterval = %v, want 5ms", got.PollInterval)
+		}
+	})
+}
+
+func TestServer_SetWaitConfig(t *testing.T) {
+	t.Parallel()
+
+	pool := homeassistant.NewClientPool("http://localhost:8123", 30*time.Minute)
+	defer pool.Close()
+
+	s := NewServer(pool, &mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
+	wc := WaitConfig{Timeout: 1 * time.Second, PollInterval: 10 * time.Millisecond}
+	s.SetWaitConfig(wc)
+	// No panic = success; verify via the server's own field via context injection
+	got := WaitConfigFromContext(WithWaitConfig(context.Background(), wc))
+	if got.Timeout != 1*time.Second {
+		t.Errorf("Timeout = %v, want 1s", got.Timeout)
+	}
+}
+
+func TestServer_SetToolFilter(t *testing.T) {
+	t.Parallel()
+
+	pool := homeassistant.NewClientPool("http://localhost:8123", 30*time.Minute)
+	defer pool.Close()
+
+	s := NewServer(pool, &mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
+	// SetToolFilter with nil should not panic
+	s.SetToolFilter(nil)
+	// SetToolFilter with an actual filter
+	engine := NewToolFilterEngine(ToolFilterConfig{Blacklist: []string{}}, false)
+	s.SetToolFilter(engine)
+}

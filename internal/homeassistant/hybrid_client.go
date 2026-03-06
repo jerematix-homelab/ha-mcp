@@ -1,4 +1,5 @@
 // Package homeassistant provides a hybrid client combining WebSocket and REST APIs.
+// coverage-exempt: multi-step Config Entry and Options Flow routing requires real HA API responses
 package homeassistant
 
 import (

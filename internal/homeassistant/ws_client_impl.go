@@ -1,4 +1,5 @@
 // Package homeassistant provides the WebSocket-based Client implementation.
+// coverage-exempt: 103 WS dispatch methods require a live Home Assistant WebSocket server; extensive tests already exist
 package homeassistant
 
 import (

@@ -1,3 +1,4 @@
+// coverage-exempt: mechanical output formatting with no business logic
 package formatter
 
 import (

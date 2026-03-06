@@ -243,6 +243,79 @@ func TestManageUpdate_Install(t *testing.T) {
 	}
 }
 
+// TestManageUpdate_List_JSONFormat verifies list action returns JSON when requested.
+func TestManageUpdate_List_JSONFormat(t *testing.T) {
+	t.Parallel()
+
+	client := &UniversalMockClient{
+		GetStatesFn: func(context.Context) ([]homeassistant.Entity, error) {
+			return []homeassistant.Entity{
+				{
+					EntityID: "update.hass_os",
+					State:    "on",
+					Attributes: map[string]any{
+						"friendly_name":     "Home Assistant OS",
+						"installed_version": "10.0",
+						"latest_version":    "10.1",
+					},
+				},
+			}, nil
+		},
+	}
+
+	handler := NewUpdateHandlers()
+	result, err := handler.HandleManageUpdate(context.Background(), client, map[string]any{
+		"action": "list",
+		"format": "json",
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || len(result.Content) == 0 {
+		t.Fatal("expected result content")
+	}
+
+	text := result.Content[0].Text
+	if !contains(text, "update.hass_os") {
+		t.Errorf("JSON result does not contain entity_id: %s", text)
+	}
+}
+
+// TestManageUpdate_Install_WithVersion verifies install action passes version parameter.
+func TestManageUpdate_Install_WithVersion(t *testing.T) {
+	t.Parallel()
+
+	var capturedData map[string]any
+	client := &UniversalMockClient{
+		CallServiceFn: func(_ context.Context, domain, service string, data map[string]any) ([]homeassistant.Entity, error) {
+			if domain != "update" || service != "install" {
+				return nil, fmt.Errorf("wrong call: %s.%s", domain, service)
+			}
+			capturedData = data
+			return nil, nil
+		},
+	}
+
+	handler := NewUpdateHandlers()
+	result, err := handler.HandleManageUpdate(context.Background(), client, map[string]any{
+		"action":    "install",
+		"entity_id": "update.hass_os",
+		"version":   "10.1",
+		"backup":    true,
+	})
+
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+	if result == nil || result.IsError {
+		t.Error("expected success result")
+	}
+	if capturedData["version"] != "10.1" {
+		t.Errorf("version = %v, want %q", capturedData["version"], "10.1")
+	}
+}
+
 // TestManageUpdate_Skip verifies skip action.
 func TestManageUpdate_Skip(t *testing.T) {
 	t.Parallel()
