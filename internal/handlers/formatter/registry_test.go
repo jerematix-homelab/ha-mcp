@@ -275,3 +275,129 @@ func TestJSONRegistryFormatter_FormatAreaRegistry(t *testing.T) {
 		t.Errorf("FormatAreaRegistry() should contain area_id value, got %q", result)
 	}
 }
+
+func TestJSONRegistryFormatter_FormatAreaRegistry_Nil(t *testing.T) {
+	f := NewJSONRegistryFormatter()
+
+	result, err := f.FormatAreaRegistry(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("FormatAreaRegistry() error = %v", err)
+	}
+	// nil should produce empty JSON array
+	if !strings.Contains(result, "[]") {
+		t.Errorf("FormatAreaRegistry(nil) = %q, want empty JSON array", result)
+	}
+}
+
+func TestJSONRegistryFormatter_FormatDeviceRegistry_WithEntityMap(t *testing.T) {
+	f := NewJSONRegistryFormatter()
+
+	entries := []homeassistant.DeviceRegistryEntry{
+		{ID: "dev1", Name: "Hue Bridge", Manufacturer: "Philips"},
+	}
+
+	opts := RegistryOptions{
+		EntityMap: map[string][]EntityInfo{
+			"dev1": {
+				{EntityID: "light.hue_1"},
+			},
+		},
+	}
+
+	result, err := f.FormatDeviceRegistry(context.Background(), entries, opts)
+	if err != nil {
+		t.Fatalf("FormatDeviceRegistry() error = %v", err)
+	}
+
+	// Should include entities key
+	if !strings.Contains(result, `"entities"`) {
+		t.Errorf("FormatDeviceRegistry() should contain entities key, got %q", result)
+	}
+	if !strings.Contains(result, "light.hue_1") {
+		t.Errorf("FormatDeviceRegistry() should contain entity_id, got %q", result)
+	}
+}
+
+func TestJSONRegistryFormatter_FormatDeviceRegistry_Nil(t *testing.T) {
+	f := NewJSONRegistryFormatter()
+
+	result, err := f.FormatDeviceRegistry(context.Background(), nil, RegistryOptions{})
+	if err != nil {
+		t.Fatalf("FormatDeviceRegistry() error = %v", err)
+	}
+	if !strings.Contains(result, "[]") {
+		t.Errorf("FormatDeviceRegistry(nil) = %q, want empty JSON array", result)
+	}
+}
+
+func TestJSONRegistryFormatter_FormatAllRegistries(t *testing.T) {
+	f := NewJSONRegistryFormatter()
+
+	entities := []homeassistant.EntityRegistryEntry{
+		{EntityID: "light.living_room", Platform: "hue"},
+	}
+	devices := []homeassistant.DeviceRegistryEntry{
+		{ID: "dev1", Name: "Hue Bridge"},
+	}
+	areas := []homeassistant.AreaRegistryEntry{
+		{AreaID: "living_room", Name: "Living Room"},
+	}
+
+	result, err := f.FormatAllRegistries(context.Background(), entities, devices, areas, RegistryOptions{})
+	if err != nil {
+		t.Fatalf("FormatAllRegistries() error = %v", err)
+	}
+
+	// Should be JSON with all three keys
+	if !strings.Contains(result, `"entities"`) {
+		t.Errorf("FormatAllRegistries() should contain entities key, got %q", result)
+	}
+	if !strings.Contains(result, `"devices"`) {
+		t.Errorf("FormatAllRegistries() should contain devices key, got %q", result)
+	}
+	if !strings.Contains(result, `"areas"`) {
+		t.Errorf("FormatAllRegistries() should contain areas key, got %q", result)
+	}
+}
+
+func TestJSONRegistryFormatter_FormatAllRegistries_Nil(t *testing.T) {
+	f := NewJSONRegistryFormatter()
+
+	result, err := f.FormatAllRegistries(context.Background(), nil, nil, nil, RegistryOptions{})
+	if err != nil {
+		t.Fatalf("FormatAllRegistries(nil) error = %v", err)
+	}
+	if !strings.Contains(result, `"entities"`) {
+		t.Errorf("FormatAllRegistries(nil) should contain entities key, got %q", result)
+	}
+}
+
+func TestNaturalRegistryFormatter_FormatDeviceRegistry_WithEntityMap(t *testing.T) {
+	f := NewNaturalRegistryFormatter()
+
+	entries := []homeassistant.DeviceRegistryEntry{
+		{ID: "dev1", Name: "Hue Bridge", Manufacturer: "Philips", Model: "BSB002"},
+	}
+
+	opts := RegistryOptions{
+		Verbose: true,
+		EntityMap: map[string][]EntityInfo{
+			"dev1": {
+				{EntityID: "light.hue_1"},
+				{EntityID: "light.hue_2"},
+			},
+		},
+	}
+
+	result, err := f.FormatDeviceRegistry(context.Background(), entries, opts)
+	if err != nil {
+		t.Fatalf("FormatDeviceRegistry() error = %v", err)
+	}
+
+	if !strings.Contains(result, "Hue Bridge") {
+		t.Errorf("FormatDeviceRegistry() should contain device name, got %q", result)
+	}
+	if !strings.Contains(result, "light.hue_1") {
+		t.Errorf("FormatDeviceRegistry() should contain entity, got %q", result)
+	}
+}

@@ -1681,3 +1681,453 @@ func TestAutomationHandlers_IDNormalization(t *testing.T) {
 		})
 	}
 }
+
+// TestSafeDeref tests the safeDeref helper function.
+func TestSafeDeref(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil pointer returns empty string", func(t *testing.T) {
+		t.Parallel()
+		if got := safeDeref(nil); got != "" {
+			t.Errorf("safeDeref(nil) = %q, want %q", got, "")
+		}
+	})
+
+	t.Run("non-nil pointer returns value", func(t *testing.T) {
+		t.Parallel()
+		s := "hello"
+		if got := safeDeref(&s); got != "hello" {
+			t.Errorf("safeDeref(&s) = %q, want %q", got, "hello")
+		}
+	})
+}
+
+// TestFormatNaturalPaginationNote tests the formatNaturalPaginationNote helper.
+func TestFormatNaturalPaginationNote(t *testing.T) {
+	t.Parallel()
+
+	cursor := "abc123"
+	paginated := PaginatedResponse[homeassistant.Automation]{
+		Items: make([]homeassistant.Automation, 2),
+		Pagination: PaginationMetadata{
+			Total:      10,
+			NextCursor: &cursor,
+		},
+	}
+
+	note := formatNaturalPaginationNote(paginated)
+	if !strings.Contains(note, "2") {
+		t.Errorf("note should contain item count, got %q", note)
+	}
+	if !strings.Contains(note, "10") {
+		t.Errorf("note should contain total count, got %q", note)
+	}
+	if !strings.Contains(note, "abc123") {
+		t.Errorf("note should contain cursor, got %q", note)
+	}
+}
+
+// TestBuildPaginatedAutomationResponse tests buildPaginatedAutomationResponse.
+func TestBuildPaginatedAutomationResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no pagination limit returns raw items", func(t *testing.T) {
+		t.Parallel()
+		items := json.RawMessage(`[{"id":"1"}]`)
+		result := buildPaginatedAutomationResponse(PaginatedResponse[homeassistant.Automation]{
+			Pagination: PaginationMetadata{Limit: 0},
+		}, items)
+		if string(result) != `[{"id":"1"}]` {
+			t.Errorf("result = %s, want raw items", result)
+		}
+	})
+
+	t.Run("with pagination wraps items", func(t *testing.T) {
+		t.Parallel()
+		items := json.RawMessage(`[{"id":"1"}]`)
+		result := buildPaginatedAutomationResponse(PaginatedResponse[homeassistant.Automation]{
+			Pagination: PaginationMetadata{Limit: 10, Total: 1},
+		}, items)
+		resultStr := string(result)
+		if !strings.Contains(resultStr, "pagination") {
+			t.Errorf("result should contain pagination, got %s", resultStr)
+		}
+	})
+}
+
+// TestApplyAutomationConfigUpdates_EmptyTrigger tests applyAutomationConfigUpdates with empty trigger array.
+func TestApplyAutomationConfigUpdates_EmptyTrigger(t *testing.T) {
+	t.Parallel()
+
+	config := &homeassistant.AutomationConfig{
+		Alias:    "Test",
+		Triggers: []any{map[string]any{"trigger": "state", "entity_id": "light.test"}},
+	}
+
+	// Empty trigger array should use manual-only placeholder
+	applyAutomationConfigUpdates(config, map[string]any{
+		"trigger": []any{},
+	})
+
+	if len(config.Triggers) != 1 {
+		t.Errorf("config.Triggers len = %d, want 1 (manual-only placeholder)", len(config.Triggers))
+	}
+
+	// Non-empty trigger replaces existing
+	applyAutomationConfigUpdates(config, map[string]any{
+		"trigger": []any{map[string]any{"trigger": "time", "at": "07:00"}},
+	})
+	if len(config.Triggers) != 1 {
+		t.Errorf("config.Triggers len = %d, want 1", len(config.Triggers))
+	}
+
+	// Mode update
+	applyAutomationConfigUpdates(config, map[string]any{
+		"mode": "queued",
+	})
+	if config.Mode != "queued" {
+		t.Errorf("config.Mode = %q, want 'queued'", config.Mode)
+	}
+
+	// Description update
+	applyAutomationConfigUpdates(config, map[string]any{
+		"description": "My automation",
+	})
+	if config.Description != "My automation" {
+		t.Errorf("config.Description = %q, want 'My automation'", config.Description)
+	}
+}
+
+// TestSearchInConfigSliceValue tests the searchInConfigSliceValue helper.
+func TestSearchInConfigSliceValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		items    []any
+		entityID string
+		want     bool
+	}{
+		{
+			name:     "empty slice returns false",
+			items:    []any{},
+			entityID: "light.test",
+			want:     false,
+		},
+		{
+			name:     "string match returns true",
+			items:    []any{"light.test", "sensor.temp"},
+			entityID: "light.test",
+			want:     true,
+		},
+		{
+			name:     "no match returns false",
+			items:    []any{"sensor.temp", "switch.fan"},
+			entityID: "light.test",
+			want:     false,
+		},
+		{
+			name: "nested map match",
+			items: []any{
+				map[string]any{"entity_id": "light.test"},
+			},
+			entityID: "light.test",
+			want:     true,
+		},
+		{
+			name: "nested slice match",
+			items: []any{
+				[]any{"light.test", "sensor.other"},
+			},
+			entityID: "light.test",
+			want:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := searchInConfigSliceValue(tt.items, tt.entityID)
+			if got != tt.want {
+				t.Errorf("searchInConfigSliceValue() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSearchInConfigMapEntry tests searchInConfigMapEntry with target key.
+func TestSearchInConfigMapEntry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("target key with entity_id", func(t *testing.T) {
+		t.Parallel()
+		// "target" key should search for entity_id inside the target map
+		val := map[string]any{
+			"entity_id": "light.test",
+		}
+		got := searchInConfigMapEntry("target", val, "light.test")
+		if !got {
+			t.Error("searchInConfigMapEntry(target) should return true for matching entity_id")
+		}
+	})
+
+	t.Run("target key no match", func(t *testing.T) {
+		t.Parallel()
+		val := map[string]any{
+			"entity_id": "light.other",
+		}
+		got := searchInConfigMapEntry("target", val, "light.test")
+		if got {
+			t.Error("searchInConfigMapEntry(target) should return false for non-matching entity_id")
+		}
+	})
+
+	t.Run("other key recurses into value", func(t *testing.T) {
+		t.Parallel()
+		got := searchInConfigMapEntry("entity_id", "light.test", "light.test")
+		if !got {
+			t.Error("searchInConfigMapEntry(entity_id) should return true for matching value")
+		}
+	})
+}
+
+// TestManageAutomation_List_WithPagination covers formatJSONPaginatedAutomations and formatNaturalPaginationNote.
+func TestManageAutomation_List_WithPagination(t *testing.T) {
+	t.Parallel()
+
+	testAutomations := []homeassistant.Automation{
+		{EntityID: "automation.first", State: "on", FriendlyName: "First"},
+		{EntityID: "automation.second", State: "on", FriendlyName: "Second"},
+		{EntityID: "automation.third", State: "on", FriendlyName: "Third"},
+	}
+
+	t.Run("json format with limit", func(t *testing.T) {
+		t.Parallel()
+
+		client := &mockAutomationClient{automations: testAutomations}
+		h := &AutomationHandlers{}
+		result, err := h.handleManageAutomation(context.Background(), client, map[string]any{
+			"action": "list",
+			"format": "json",
+			"limit":  float64(2),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.IsError {
+			t.Fatalf("expected success, got error: %v", result.Content)
+		}
+		content := result.Content[0].Text
+		// Should be wrapped in pagination response
+		if !strings.Contains(content, "pagination") {
+			t.Errorf("paginated JSON should contain 'pagination', got: %s", content[:min(200, len(content))])
+		}
+	})
+
+	t.Run("natural format with limit shows pagination note", func(t *testing.T) {
+		t.Parallel()
+
+		client := &mockAutomationClient{automations: testAutomations}
+		h := &AutomationHandlers{}
+		result, err := h.handleManageAutomation(context.Background(), client, map[string]any{
+			"action": "list",
+			"format": "natural",
+			"limit":  float64(1),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.IsError {
+			t.Fatalf("expected success, got error: %v", result.Content)
+		}
+		content := result.Content[0].Text
+		// HasMore=true, should include pagination note
+		if !strings.Contains(content, "Showing") {
+			t.Errorf("paginated natural should contain 'Showing', got: %s", content[:min(300, len(content))])
+		}
+	})
+
+	t.Run("json format verbose with limit", func(t *testing.T) {
+		t.Parallel()
+
+		client := &mockAutomationClient{
+			automations: testAutomations,
+			automationMap: map[string]*homeassistant.Automation{
+				"first": {
+					EntityID: "automation.first",
+					State:    "on",
+					Config:   &homeassistant.AutomationConfig{Alias: "First", ID: "uuid-first"},
+				},
+			},
+		}
+		h := &AutomationHandlers{}
+		result, err := h.handleManageAutomation(context.Background(), client, map[string]any{
+			"action":  "list",
+			"format":  "json",
+			"limit":   float64(1),
+			"verbose": true,
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.IsError {
+			t.Fatalf("expected success, got error: %v", result.Content)
+		}
+		content := result.Content[0].Text
+		if !strings.Contains(content, "pagination") {
+			t.Errorf("verbose paginated JSON should contain 'pagination', got: %s", content[:min(300, len(content))])
+		}
+	})
+}
+
+// TestFindAutomationByID_Alias tests findAutomationByID by alias/friendly_name.
+func TestFindAutomationByID_Alias(t *testing.T) {
+	t.Parallel()
+
+	testAutomations := []homeassistant.Automation{
+		{EntityID: "automation.morning", State: "on", FriendlyName: "Morning Routine"},
+	}
+
+	client := &mockAutomationClient{
+		automations: testAutomations,
+		automationMap: map[string]*homeassistant.Automation{
+			"morning": {
+				EntityID:     "automation.morning",
+				State:        "on",
+				FriendlyName: "Morning Routine",
+				Config:       &homeassistant.AutomationConfig{Alias: "Morning Routine", ID: "uuid-abc"},
+			},
+		},
+	}
+
+	h := &AutomationHandlers{}
+
+	t.Run("find by alias", func(t *testing.T) {
+		t.Parallel()
+		auto, err := h.findAutomationByID(context.Background(), client, "morning routine")
+		if err != nil {
+			t.Fatalf("findAutomationByID() error = %v", err)
+		}
+		if auto == nil {
+			t.Fatal("expected automation, got nil")
+		}
+	})
+
+	t.Run("find by entity_id prefix", func(t *testing.T) {
+		t.Parallel()
+		c := &mockAutomationClient{
+			automations: testAutomations,
+			automationMap: map[string]*homeassistant.Automation{
+				"morning": {EntityID: "automation.morning", State: "on"},
+			},
+		}
+		auto, err := h.findAutomationByID(context.Background(), c, "automation.morning")
+		if err != nil {
+			t.Fatalf("findAutomationByID() error = %v", err)
+		}
+		if auto == nil {
+			t.Fatal("expected automation, got nil")
+		}
+	})
+
+	t.Run("not found returns error", func(t *testing.T) {
+		t.Parallel()
+		_, err := h.findAutomationByID(context.Background(), client, "nonexistent")
+		if err == nil {
+			t.Fatal("expected error for not found")
+		}
+	})
+}
+
+// TestApplyAutomationConfigUpdates_AutomationAction tests the automation_action field.
+func TestApplyAutomationConfigUpdates_AutomationAction(t *testing.T) {
+	t.Parallel()
+
+	config := &homeassistant.AutomationConfig{Alias: "Test"}
+
+	// automation_action takes priority over action
+	newAction := []any{map[string]any{"action": "light.turn_on"}}
+	applyAutomationConfigUpdates(config, map[string]any{
+		"automation_action": newAction,
+	})
+
+	if len(config.Actions) != 1 {
+		t.Errorf("config.Actions len = %d, want 1", len(config.Actions))
+	}
+
+	// legacy "action" field also works
+	legacyAction := []any{map[string]any{"action": "switch.turn_off"}}
+	applyAutomationConfigUpdates(config, map[string]any{
+		"action": legacyAction,
+	})
+	if len(config.Actions) != 1 {
+		t.Errorf("config.Actions via action key len = %d, want 1", len(config.Actions))
+	}
+}
+
+// TestBuildVerboseAutomationOutput tests buildVerboseAutomationOutput.
+func TestBuildVerboseAutomationOutput(t *testing.T) {
+	t.Parallel()
+
+	automations := []homeassistant.Automation{
+		{EntityID: "automation.test", State: "on", FriendlyName: "Test"},
+	}
+
+	// With pre-fetched configs
+	configs := map[string]*homeassistant.AutomationConfig{
+		"test": {Alias: "Test", ID: "uuid-test"},
+	}
+
+	result, err := buildVerboseAutomationOutput(context.Background(), &mockAutomationClient{}, automations, configs)
+	if err != nil {
+		t.Fatalf("buildVerboseAutomationOutput() error = %v", err)
+	}
+	if len(result) == 0 {
+		t.Error("expected non-empty result")
+	}
+	if !strings.Contains(string(result), "automation.test") {
+		t.Errorf("result should contain entity_id, got: %s", result)
+	}
+}
+
+// TestFetchAutomationConfigs tests fetchAutomationConfigs.
+func TestFetchAutomationConfigs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("fetches configs for valid automations", func(t *testing.T) {
+		t.Parallel()
+
+		client := &mockAutomationClient{
+			automationMap: map[string]*homeassistant.Automation{
+				"morning": {
+					EntityID: "automation.morning",
+					Config:   &homeassistant.AutomationConfig{Alias: "Morning Routine"},
+				},
+			},
+		}
+
+		automations := []homeassistant.Automation{
+			{EntityID: "automation.morning", State: "on"},
+		}
+
+		configs := fetchAutomationConfigs(context.Background(), client, automations)
+		if _, ok := configs["morning"]; !ok {
+			t.Error("expected config for 'morning'")
+		}
+	})
+
+	t.Run("skips automations without automation. prefix", func(t *testing.T) {
+		t.Parallel()
+
+		client := &mockAutomationClient{}
+		// entity without automation. prefix
+		automations := []homeassistant.Automation{
+			{EntityID: "scene.morning", State: "on"},
+		}
+
+		configs := fetchAutomationConfigs(context.Background(), client, automations)
+		if len(configs) != 0 {
+			t.Errorf("expected empty configs for non-automation entity, got %d", len(configs))
+		}
+	})
+}

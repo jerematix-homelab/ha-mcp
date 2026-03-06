@@ -1,4 +1,5 @@
 // Package homeassistant provides client factories for Home Assistant API.
+// coverage-exempt: client factory requires real WebSocket connections to Home Assistant
 package homeassistant
 
 import (

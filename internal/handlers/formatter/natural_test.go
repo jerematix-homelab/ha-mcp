@@ -403,3 +403,89 @@ type testError struct {
 func (e *testError) Error() string {
 	return e.msg
 }
+
+// TestNaturalFormatter_BinarySensorDeviceClasses verifies device-class-specific
+// formatting for binary_sensor entities that were not yet covered.
+func TestNaturalFormatter_BinarySensorDeviceClasses(t *testing.T) {
+	t.Parallel()
+
+	f := NewNaturalFormatter()
+
+	tests := []struct {
+		name        string
+		deviceClass string
+		state       string
+		wantContain string
+	}{
+		{
+			name:        "window open",
+			deviceClass: "window",
+			state:       "on",
+			wantContain: "is open",
+		},
+		{
+			name:        "window closed",
+			deviceClass: "window",
+			state:       "off",
+			wantContain: "is closed",
+		},
+		{
+			name:        "occupancy occupied",
+			deviceClass: "occupancy",
+			state:       "on",
+			wantContain: "is occupied",
+		},
+		{
+			name:        "occupancy not occupied",
+			deviceClass: "occupancy",
+			state:       "off",
+			wantContain: "is not occupied",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			entity := homeassistant.Entity{
+				EntityID: "binary_sensor.test",
+				State:    tt.state,
+				Attributes: map[string]any{
+					"friendly_name": "Test Sensor",
+					"device_class":  tt.deviceClass,
+				},
+			}
+
+			result, err := f.FormatEntity(context.Background(), entity)
+			if err != nil {
+				t.Fatalf("FormatEntity() error = %v", err)
+			}
+			if !strings.Contains(result, tt.wantContain) {
+				t.Errorf("FormatEntity() = %q, want to contain %q", result, tt.wantContain)
+			}
+		})
+	}
+}
+
+// TestNaturalFormatter_ClimateOff verifies climate entity formatting when state is "off".
+func TestNaturalFormatter_ClimateOff(t *testing.T) {
+	t.Parallel()
+
+	f := NewNaturalFormatter()
+
+	entity := homeassistant.Entity{
+		EntityID: "climate.thermostat",
+		State:    "off",
+		Attributes: map[string]any{
+			"friendly_name": "Thermostat",
+		},
+	}
+
+	result, err := f.FormatEntity(context.Background(), entity)
+	if err != nil {
+		t.Fatalf("FormatEntity() error = %v", err)
+	}
+	if !strings.Contains(result, "is off") {
+		t.Errorf("FormatEntity() = %q, want to contain %q", result, "is off")
+	}
+}

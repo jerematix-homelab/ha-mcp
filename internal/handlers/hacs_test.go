@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
@@ -787,4 +788,181 @@ func getResultText(t *testing.T, result *mcp.ToolsCallResult) string {
 // Helper to check if text contains substring (case-insensitive).
 func containsText(text, substr string) bool {
 	return strings.Contains(strings.ToLower(text), strings.ToLower(substr))
+}
+
+// TestHACSHandlers_GetReleasesAndCritical covers formatReleases, formatCritical and related error paths.
+func TestHACSHandlers_GetReleasesAndCritical(t *testing.T) {
+	t.Parallel()
+
+	tests := []handlerTestCase{
+		{
+			name: "get_natural_format",
+			args: map[string]any{
+				"action":        "get",
+				"repository_id": "repo123",
+				"format":        "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repository/info" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					return map[string]any{
+						"name":     "my-integration",
+						"category": "integration",
+						"status":   "installed",
+					}, nil
+				}
+			},
+			wantContains: []string{"my-integration"},
+		},
+		{
+			name: "get_json_format",
+			args: map[string]any{
+				"action":        "get",
+				"repository_id": "repo123",
+				"format":        "json",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repository/info" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					return map[string]any{
+						"name": "my-integration",
+					}, nil
+				}
+			},
+			wantContains: []string{`"name"`},
+		},
+		{
+			name: "get_error",
+			args: map[string]any{
+				"action":        "get",
+				"repository_id": "repo123",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return nil, fmt.Errorf("unknown_command")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"HACS is not installed"},
+		},
+		{
+			name: "releases_natural_with_releases",
+			args: map[string]any{
+				"action":        "releases",
+				"repository_id": "repo123",
+				"format":        "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/repository/releases" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					return []any{
+						map[string]any{"tag": "v1.0.0"},
+						map[string]any{"tag": "v0.9.0"},
+					}, nil
+				}
+			},
+			wantContains: []string{"v1.0.0", "v0.9.0"},
+		},
+		{
+			name: "releases_error",
+			args: map[string]any{
+				"action":        "releases",
+				"repository_id": "repo123",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return nil, fmt.Errorf("network error")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"HACS operation failed"},
+		},
+		{
+			name: "critical_natural_with_items",
+			args: map[string]any{
+				"action": "critical",
+				"format": "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/critical/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					return []any{
+						map[string]any{"repository": "bad-integration/repo"},
+					}, nil
+				}
+			},
+			wantContains: []string{"bad-integration/repo"},
+		},
+		{
+			name: "critical_empty",
+			args: map[string]any{
+				"action": "critical",
+				"format": "natural",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(_ context.Context, cmd string, _ map[string]any) (any, error) {
+					if cmd != "hacs/critical/list" {
+						return nil, fmt.Errorf("wrong command: %s", cmd)
+					}
+					return []any{}, nil
+				}
+			},
+			wantContains: []string{"No critical"},
+		},
+		{
+			name: "uninstall_error",
+			args: map[string]any{
+				"action":        "uninstall",
+				"repository_id": "repo123",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return nil, fmt.Errorf("operation failed")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"HACS operation failed"},
+		},
+		{
+			name: "remove_repository_error",
+			args: map[string]any{
+				"action":        "remove_repository",
+				"repository_id": "repo123",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return nil, fmt.Errorf("operation failed")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"HACS operation failed"},
+		},
+		{
+			name: "refresh_error",
+			args: map[string]any{
+				"action":        "refresh",
+				"repository_id": "repo123",
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.SendHACSCommandFn = func(context.Context, string, map[string]any) (any, error) {
+					return nil, fmt.Errorf("operation failed")
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"HACS operation failed"},
+		},
+	}
+
+	h := NewHACSHandlers()
+	runHandlerTestCases(t, tests, func(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
+		return h.HandleManageHACS(ctx, client, args)
+	})
 }
