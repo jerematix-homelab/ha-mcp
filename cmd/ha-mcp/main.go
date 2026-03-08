@@ -288,7 +288,7 @@ func (a *App) setupLogger(cfg *config.Config) *logging.Logger {
 
 // setupGracefulShutdown configures signal handling for graceful shutdown.
 func (a *App) setupGracefulShutdown(logger *logging.Logger) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // G118: cancel is called in goroutine on signal and returned to caller
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
