@@ -88,7 +88,7 @@ Actions:
 				},
 				"automation_id": {
 					Type:        "string",
-					Description: "Automation identifier. Accepts: entity_id (automation.xyz), config.id (UUID), or alias/friendly_name (case-insensitive partial match). Required for get/update/delete/toggle.",
+					Description: "Automation identifier. For create: optional bare ID (e.g. 'my_automation') to override the auto-generated ID — useful when alias contains non-ASCII characters that HA's slugifier would strip. For other actions: accepts entity_id (automation.xyz), config.id (UUID), or alias/friendly_name (case-insensitive partial match). Required for get/update/delete/toggle.",
 				},
 				"alias": {
 					Type:        "string",
@@ -329,7 +329,15 @@ func (h *AutomationHandlers) handleCreate(ctx context.Context, client homeassist
 		return errorResult("automation_action must contain at least one action"), nil
 	}
 
-	id := generateAutomationID(alias)
+	var id string
+	if explicitID, ok := args["automation_id"].(string); ok && explicitID != "" {
+		_, id = normalizeAutomationID(explicitID)
+		if !isValidSlugID(id) {
+			return errorResult("automation_id must contain only lowercase letters (a-z), digits, and underscores"), nil
+		}
+	} else {
+		id = generateAutomationID(alias)
+	}
 
 	config := homeassistant.AutomationConfig{
 		ID:          id,
@@ -947,4 +955,18 @@ func generateAutomationID(alias string) string {
 
 	s := result.String()
 	return strings.TrimSuffix(s, "_")
+}
+
+// isValidSlugID reports whether id consists only of lowercase ASCII letters,
+// digits, and underscores — the characters HA accepts in a bare automation ID.
+func isValidSlugID(id string) bool {
+	if id == "" {
+		return false
+	}
+	for _, r := range id {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_' {
+			return false
+		}
+	}
+	return true
 }

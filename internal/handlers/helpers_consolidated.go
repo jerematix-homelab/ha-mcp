@@ -843,7 +843,8 @@ func (h *ConsolidatedHelperHandlers) handleUpdate(ctx context.Context, client ho
 
 	if ok {
 		// Known WebSocket helper type - use metadata-driven config builder
-		config, err = buildHelperConfig(helperType, "", args)
+		updateName, _ := args["name"].(string)
+		config, err = buildHelperConfig(helperType, updateName, args)
 		if err != nil {
 			return errorResult(err.Error()), nil
 		}
