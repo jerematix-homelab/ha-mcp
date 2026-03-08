@@ -432,7 +432,7 @@ func TestServer_HandleHealth(t *testing.T) {
 
 	s := newTestServer(&mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
 
-	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 	w := httptest.NewRecorder()
 
 	s.handleHealth(w, req)
@@ -470,7 +470,7 @@ func TestServer_HandleMCP_InvalidMethod(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(method, "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), method, "/", nil)
 			w := httptest.NewRecorder()
 
 			s.handleMCP(w, req)
@@ -498,7 +498,7 @@ func TestServer_HandleMCP_InvalidJSON(t *testing.T) {
 
 	s := newTestServer(&mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
 
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("not valid json"))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader("not valid json"))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -525,7 +525,7 @@ func TestServer_HandleMCP_InvalidJSONRPCVersion(t *testing.T) {
 	s := newTestServer(&mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
 
 	reqBody := `{"jsonrpc":"1.0","id":1,"method":"ping"}`
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(reqBody))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", strings.NewReader(reqBody))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -568,7 +568,7 @@ func TestServer_HandleInitialize(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -615,7 +615,7 @@ func TestServer_HandleInitialize_InvalidParams(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -650,7 +650,7 @@ func TestServer_HandleInitialized(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -681,7 +681,7 @@ func TestServer_HandleInitialized(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -717,7 +717,7 @@ func TestServer_HandlePing(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -751,7 +751,7 @@ func TestServer_HandleToolsList(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -811,7 +811,7 @@ func TestServer_HandleToolsCall(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -845,7 +845,7 @@ func TestServer_HandleToolsCall(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -890,7 +890,7 @@ func TestServer_HandleToolsCall(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -924,7 +924,7 @@ func TestServer_HandleToolsCall(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -962,7 +962,7 @@ func TestServer_HandleResourcesList(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -1019,7 +1019,7 @@ func TestServer_HandleResourcesRead(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -1053,7 +1053,7 @@ func TestServer_HandleResourcesRead(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -1098,7 +1098,7 @@ func TestServer_HandleResourcesRead(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -1132,7 +1132,7 @@ func TestServer_HandleResourcesRead(t *testing.T) {
 		}
 		reqBodyJSON, _ := json.Marshal(reqBody)
 
-		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 		w := httptest.NewRecorder()
 
 		s.handleMCP(w, req)
@@ -1166,7 +1166,7 @@ func TestServer_UnknownMethod(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -1203,7 +1203,7 @@ func TestServer_IsInitialized(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 	s.handleMCP(w, req)
 
@@ -1363,7 +1363,7 @@ func TestServer_HandleInitialize_NilParams(t *testing.T) {
 	}
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -1426,7 +1426,7 @@ func TestExtractBearerToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			req := httptest.NewRequest(http.MethodPost, "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
 			if tt.authHdr != "" {
 				req.Header.Set("Authorization", tt.authHdr)
 			}
@@ -1468,7 +1468,7 @@ func TestServer_ToolsCall_NoAuth(t *testing.T) {
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
 	// Request without Authorization header
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -1518,7 +1518,7 @@ func TestServer_ToolsCall_WithDefaultClient(t *testing.T) {
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
 	// Request without Authorization header but with default client configured
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)
@@ -1565,7 +1565,7 @@ func TestServer_ResourcesRead_NoAuth(t *testing.T) {
 	reqBodyJSON, _ := json.Marshal(reqBody)
 
 	// Request without Authorization header
-	req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
 	w := httptest.NewRecorder()
 
 	s.handleMCP(w, req)

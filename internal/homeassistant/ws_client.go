@@ -315,7 +315,7 @@ func (c *WSClient) authenticate() error {
 		Type:        "auth",
 		AccessToken: c.token,
 	}
-	authData, err := json.Marshal(authMsg)
+	authData, err := json.Marshal(authMsg) //nolint:gosec // G117: AccessToken is intentionally marshaled for WebSocket authentication
 	if err != nil {
 		return fmt.Errorf("marshaling auth message: %w", err)
 	}
