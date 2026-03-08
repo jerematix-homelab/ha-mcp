@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
@@ -1044,6 +1045,94 @@ func TestManageHelper_Update(t *testing.T) {
 
 	h := NewConsolidatedHelperHandlers()
 	runHandlerTestCases(t, tests, h.handleManageHelper)
+}
+
+// TestManageHelper_Update_NameField verifies that the name passed to update is
+// forwarded to the API correctly, including unicode characters (umlauts etc.).
+func TestManageHelper_Update_NameField(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		args        map[string]any
+		wantHasName bool
+		wantName    string
+	}{
+		{
+			name: "update with ASCII name",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "input_number.test_number",
+				"name":      "New Name",
+				"min":       float64(0),
+				"max":       float64(100),
+			},
+			wantHasName: true,
+			wantName:    "New Name",
+		},
+		{
+			name: "update with unicode name (umlauts)",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "input_number.test_number",
+				"name":      "Wärme Büro",
+				"min":       float64(0),
+				"max":       float64(100),
+			},
+			wantHasName: true,
+			wantName:    "Wärme Büro",
+		},
+		{
+			name: "update without name omits name key",
+			args: map[string]any{
+				"action":    "update",
+				"entity_id": "input_number.test_number",
+				"min":       float64(0),
+				"max":       float64(100),
+			},
+			wantHasName: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var capturedConfig homeassistant.HelperConfig
+			client := &UniversalMockClient{}
+			client.UpdateHelperFn = func(_ context.Context, _ string, cfg homeassistant.HelperConfig) error {
+				capturedConfig = cfg
+				return nil
+			}
+
+			ctx := mcp.WithWaitConfig(context.Background(), mcp.WaitConfig{
+				Timeout:      50 * time.Millisecond,
+				PollInterval: 5 * time.Millisecond,
+			})
+
+			h := NewConsolidatedHelperHandlers()
+			result, err := h.handleManageHelper(ctx, client, tt.args)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result.IsError {
+				t.Fatalf("unexpected error result: %s", result.Content[0].Text)
+			}
+
+			if tt.wantHasName {
+				gotName, ok := capturedConfig.Config["name"].(string)
+				if !ok {
+					t.Errorf("Config[\"name\"] missing or wrong type; got: %v", capturedConfig.Config["name"])
+				} else if gotName != tt.wantName {
+					t.Errorf("Config[\"name\"] = %q, want %q", gotName, tt.wantName)
+				}
+			} else {
+				if _, hasName := capturedConfig.Config["name"]; hasName {
+					t.Errorf("Config[\"name\"] present but should be absent; got: %v", capturedConfig.Config["name"])
+				}
+			}
+		})
+	}
 }
 
 // =============================================================================

@@ -407,6 +407,54 @@ func TestManageAutomation_Create(t *testing.T) {
 			wantError:    true,
 			wantContains: []string{"at least one action"},
 		},
+		{
+			name: "create with explicit automation_id",
+			args: map[string]any{
+				"action":            "create",
+				"alias":             "Wärme Büro",
+				"automation_id":     "warme_buro",
+				"trigger":           []any{map[string]any{"platform": "state"}},
+				"automation_action": []any{map[string]any{"service": "light.turn_on"}},
+			},
+			client:       &mockAutomationClient{},
+			wantContains: []string{"created successfully", "warme_buro"},
+		},
+		{
+			name: "create with prefixed automation_id strips prefix",
+			args: map[string]any{
+				"action":            "create",
+				"alias":             "My Automation",
+				"automation_id":     "automation.my_id",
+				"trigger":           []any{map[string]any{"platform": "state"}},
+				"automation_action": []any{map[string]any{"service": "light.turn_on"}},
+			},
+			client:       &mockAutomationClient{},
+			wantContains: []string{"created successfully", "my_id"},
+		},
+		{
+			name: "error - invalid automation_id with spaces",
+			args: map[string]any{
+				"action":            "create",
+				"alias":             "My Automation",
+				"automation_id":     "Mein Ding",
+				"trigger":           []any{map[string]any{"platform": "state"}},
+				"automation_action": []any{map[string]any{"service": "light.turn_on"}},
+			},
+			client:       &mockAutomationClient{},
+			wantError:    true,
+			wantContains: []string{"automation_id must contain only"},
+		},
+		{
+			name: "create without automation_id falls back to alias",
+			args: map[string]any{
+				"action":            "create",
+				"alias":             "Turn Off All Lights",
+				"trigger":           []any{map[string]any{"platform": "state"}},
+				"automation_action": []any{map[string]any{"service": "light.turn_off"}},
+			},
+			client:       &mockAutomationClient{},
+			wantContains: []string{"created successfully", "turn_off_all_lights"},
+		},
 	}
 
 	for _, tt := range tests {
