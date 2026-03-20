@@ -24,17 +24,20 @@ A Model Context Protocol (MCP) server that provides AI assistants with access to
 - **Auto-Reconnect**: Automatic reconnection with exponential backoff
 - **Post-Mutation Confirmation**: Automatic state polling after create/update/delete confirms changes
 
-## vs. Official Home Assistant MCP Server
+## vs. Other MCP Servers for Home Assistant
 
-Home Assistant provides an [official MCP integration](https://www.home-assistant.io/integrations/mcp_server) starting with version 2025.1. Choose ha-mcp if you need:
+Two alternatives exist: the [official HA MCP integration](https://www.home-assistant.io/integrations/mcp_server) (built-in, ~10 intent-based tools) and the community [homeassistant-ai/ha-mcp](https://github.com/homeassistant-ai/ha-mcp) (Python/FastMCP, 95+ tools).
+
+Choose ha-mcp if you need:
 - Full automation/script/scene/helper lifecycle management (create, edit, delete)
 - Advanced analysis (dependencies, cross-references, automation coverage)
 - System administration (registry queries, config validation, logbook, history)
-- Media management (browser, camera streams) and dashboard access
+- Media management (browser, camera streams), HACS, and dashboard access
+- Reliable LLM tool selection — 38 consolidated tools reduce selection errors compared to 95+ fine-grained alternatives
 
 Choose the official integration if you need entity-level security or no external infrastructure.
 
-See [docs/feature-comparison.md](docs/feature-comparison.md) for detailed feature matrices.
+See [docs/feature-comparison.md](docs/feature-comparison.md) for a detailed three-way feature matrix.
 
 ## Installation
 
