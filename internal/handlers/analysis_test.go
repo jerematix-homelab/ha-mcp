@@ -2000,7 +2000,7 @@ func TestAnalysisHandlers_FormatReferences(t *testing.T) {
 	}
 
 	var parts []string
-	parts = h.formatReferences(parts, refs)
+	parts = h.formatReferences(parts, refs, false)
 
 	result := strings.Join(parts, "\n")
 
@@ -2042,7 +2042,7 @@ func TestAnalysisHandlers_FormatReferences_EmptyAlias(t *testing.T) {
 	}
 
 	var parts []string
-	parts = h.formatReferences(parts, refs)
+	parts = h.formatReferences(parts, refs, false)
 	result := strings.Join(parts, "\n")
 
 	// Should fall back to entity_id when alias/friendly_name is empty
@@ -2051,5 +2051,221 @@ func TestAnalysisHandlers_FormatReferences_EmptyAlias(t *testing.T) {
 	}
 	if !strings.Contains(result, "script.noname") {
 		t.Errorf("formatReferences should contain script entity_id as fallback, got: %s", result)
+	}
+}
+
+func TestAnalysisHandlers_collectEntityExcerpts(t *testing.T) {
+	t.Parallel()
+
+	entityID := "binary_sensor.door"
+	config := &homeassistant.AutomationConfig{
+		Triggers: []any{
+			map[string]any{
+				"platform":  "state",
+				"entity_id": entityID,
+				"to":        "on",
+				"id":        "door_open",
+			},
+		},
+		Conditions: []any{
+			map[string]any{
+				"condition": "state",
+				"entity_id": entityID,
+				"state":     "off",
+			},
+		},
+		Actions: []any{
+			map[string]any{
+				"action": "light.turn_on",
+				"target": map[string]any{"entity_id": "light.hall"},
+			},
+			// Entity in choose branch
+			map[string]any{
+				"choose": []any{
+					map[string]any{
+						"conditions": []any{
+							map[string]any{"condition": "state", "entity_id": entityID, "state": "on"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	excerpts := collectEntityExcerpts(config, entityID)
+
+	// Expect: 1 trigger + 1 condition + 1 choose action (direct action doesn't reference entity)
+	if len(excerpts) != 3 {
+		t.Errorf("expected 3 excerpts, got %d: %+v", len(excerpts), excerpts)
+	}
+
+	// Check sections
+	sections := make(map[string]int)
+	for _, ex := range excerpts {
+		sections[ex.Section]++
+	}
+	if sections["trigger"] != 1 {
+		t.Errorf("expected 1 trigger excerpt, got %d", sections["trigger"])
+	}
+	if sections["condition"] != 1 {
+		t.Errorf("expected 1 condition excerpt, got %d", sections["condition"])
+	}
+	if sections["action"] != 1 {
+		t.Errorf("expected 1 action excerpt, got %d", sections["action"])
+	}
+
+	// Check trigger summary contains key info
+	triggerExcerpt := excerpts[0]
+	if !strings.Contains(triggerExcerpt.Summary, "on") {
+		t.Errorf("trigger excerpt should contain 'on', got: %q", triggerExcerpt.Summary)
+	}
+	if !strings.Contains(triggerExcerpt.Summary, "door_open") {
+		t.Errorf("trigger excerpt should contain id 'door_open', got: %q", triggerExcerpt.Summary)
+	}
+}
+
+func TestSummarizeConfigNode(t *testing.T) {
+	t.Parallel()
+
+	entityID := "sensor.temp"
+
+	tests := []struct {
+		name    string
+		section string
+		node    map[string]any
+		want    string
+	}{
+		{
+			name:    "state trigger with to",
+			section: "trigger",
+			node:    map[string]any{"platform": "state", "entity_id": entityID, "to": "on"},
+			want:    "on",
+		},
+		{
+			name:    "state trigger with from and to",
+			section: "trigger",
+			node:    map[string]any{"platform": "state", "entity_id": entityID, "from": "off", "to": "on"},
+			want:    "from",
+		},
+		{
+			name:    "numeric_state trigger",
+			section: "trigger",
+			node:    map[string]any{"platform": "numeric_state", "entity_id": entityID, "above": float64(20)},
+			want:    "above",
+		},
+		{
+			name:    "state condition",
+			section: "condition",
+			node:    map[string]any{"condition": "state", "entity_id": entityID, "state": "off"},
+			want:    "\"off\"",
+		},
+		{
+			name:    "service action (new style)",
+			section: "action",
+			node:    map[string]any{"action": "light.turn_on", "target": map[string]any{"entity_id": entityID}},
+			want:    "light.turn_on",
+		},
+		{
+			name:    "service action (legacy style)",
+			section: "action",
+			node:    map[string]any{"service": "light.turn_off"},
+			want:    "light.turn_off",
+		},
+		{
+			name:    "choose action",
+			section: "action",
+			node:    map[string]any{"choose": []any{}},
+			want:    "choose",
+		},
+		{
+			name:    "if/then action",
+			section: "action",
+			node:    map[string]any{"if": []any{}, "then": []any{}},
+			want:    "if/then",
+		},
+		{
+			name:    "unknown trigger platform",
+			section: "trigger",
+			node:    map[string]any{"platform": "event", "event_type": "custom"},
+			want:    "event",
+		},
+		{
+			name:    "fallback action",
+			section: "action",
+			node:    map[string]any{"delay": "00:01:00"},
+			want:    entityID,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := summarizeConfigNode(tt.section, tt.node, entityID)
+			if !strings.Contains(got, tt.want) {
+				t.Errorf("summarizeConfigNode(%q) = %q, want to contain %q", tt.section, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAnalysisHandlers_verbose_mode(t *testing.T) {
+	t.Parallel()
+
+	entityID := "binary_sensor.motion"
+	autoEntityID := "automation.turn_on_lights"
+	autoConfig := &homeassistant.AutomationConfig{
+		Triggers: []any{
+			map[string]any{
+				"platform":  "state",
+				"entity_id": entityID,
+				"to":        "on",
+			},
+		},
+	}
+
+	h := NewAnalysisHandlers()
+
+	client := &mockAnalysisClient{
+		GetStateFn: func(_ context.Context, id string) (*homeassistant.Entity, error) {
+			return &homeassistant.Entity{
+				EntityID:   id,
+				State:      "off",
+				Attributes: map[string]any{},
+			}, nil
+		},
+		ListAutomationsFn: func(_ context.Context) ([]homeassistant.Automation, error) {
+			return []homeassistant.Automation{{EntityID: autoEntityID, FriendlyName: "Turn On Lights"}}, nil
+		},
+		GetAutomationFn: func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+			return &homeassistant.Automation{
+				EntityID: autoEntityID,
+				Config:   autoConfig,
+			}, nil
+		},
+	}
+
+	// Test verbose=true — should include excerpt
+	args := map[string]any{"entity_id": entityID, "format": "natural", "verbose": true}
+	result, err := h.handleAnalyzeEntity(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, "trigger:") {
+		t.Errorf("verbose=true should include trigger excerpt, got:\n%s", text)
+	}
+	if !strings.Contains(text, "on") {
+		t.Errorf("verbose=true should include 'on' in trigger excerpt, got:\n%s", text)
+	}
+
+	// Test verbose=false (default) — should NOT include excerpt lines
+	args2 := map[string]any{"entity_id": entityID, "format": "natural"}
+	result2, err := h.handleAnalyzeEntity(context.Background(), client, args2)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+	text2 := result2.Content[0].Text
+	if strings.Contains(text2, "trigger: state") {
+		t.Errorf("verbose=false should not include trigger excerpt, got:\n%s", text2)
 	}
 }
