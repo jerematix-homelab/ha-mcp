@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -374,8 +375,63 @@ func (s *Server) handleToolsCall(ctx context.Context, req *Request, r *http.Requ
 		return NewErrorResponse(req.ID, ToolExecutionErr, fmt.Sprintf("tool execution failed: %s", err.Error()), nil)
 	}
 
+	// Auto-fallback: if format=json response exceeds size threshold, re-run with format=natural
+	if format, _ := params.Arguments["format"].(string); format == formatJSON {
+		if size := resultContentSize(result); size > maxJSONResponseBytes {
+			s.logger.Info("Response too large for json format, falling back to natural",
+				"tool", params.Name, "size_bytes", size)
+			naturalArgs := copyArgsWithFormat(params.Arguments, formatNatural)
+			if naturalResult, naturalErr := handler(ctx, client, naturalArgs); naturalErr == nil {
+				result = prependSizeFallbackNote(naturalResult, size)
+			}
+		}
+	}
+
 	s.logger.Debug("Tool call successful", "tool", params.Name)
 	return NewSuccessResponse(req.ID, result)
+}
+
+const (
+	// maxJSONResponseBytes is the maximum allowed size for format=json responses.
+	// Responses exceeding this threshold are automatically re-fetched in format=natural.
+	maxJSONResponseBytes = 20 * 1024
+
+	formatJSON    = "json"
+	formatNatural = "natural"
+)
+
+// resultContentSize returns the total byte count of all text blocks in a result.
+func resultContentSize(result *ToolsCallResult) int {
+	if result == nil {
+		return 0
+	}
+	total := 0
+	for _, block := range result.Content {
+		total += len(block.Text)
+	}
+	return total
+}
+
+// copyArgsWithFormat returns a shallow copy of args with the format key overridden.
+func copyArgsWithFormat(args map[string]any, format string) map[string]any {
+	out := make(map[string]any, len(args))
+	maps.Copy(out, args)
+	out["format"] = format
+	return out
+}
+
+// prependSizeFallbackNote prepends a notice to the first text block of result.
+func prependSizeFallbackNote(result *ToolsCallResult, originalBytes int) *ToolsCallResult {
+	note := fmt.Sprintf("[Note: Response was too large for format=json (%d KB).\nFalling back to format=natural.]\n\n",
+		originalBytes/1024)
+	newContent := make([]ContentBlock, len(result.Content))
+	copy(newContent, result.Content)
+	if len(newContent) > 0 && newContent[0].Type == "text" {
+		newContent[0] = NewTextContent(note + newContent[0].Text)
+	} else {
+		newContent = append([]ContentBlock{NewTextContent(note)}, newContent...)
+	}
+	return &ToolsCallResult{Content: newContent, IsError: result.IsError}
 }
 
 // summarizeArguments creates a brief summary of tool arguments for DEBUG logging.
