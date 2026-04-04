@@ -2,6 +2,7 @@ package formatter
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -296,11 +297,9 @@ func TestNaturalFormatter_FormatHistory_Empty_EntityNotFound(t *testing.T) {
 }
 
 func TestNaturalFormatter_FormatHistory_WithEntries(t *testing.T) {
-	// Create a time that will give us a known "X hours ago" result
 	now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
 	f := NewNaturalFormatter().WithNow(now)
 
-	// HistoryEntry uses float64 Unix timestamps
 	entries := []homeassistant.HistoryEntry{
 		{
 			EntityID:    "light.living_room",
@@ -316,10 +315,7 @@ func TestNaturalFormatter_FormatHistory_WithEntries(t *testing.T) {
 		},
 	}
 
-	result, err := f.FormatHistory(context.Background(), "light.living_room", entries, HistoryOptions{
-		Verbose: true,
-		Limit:   10,
-	})
+	result, err := f.FormatHistory(context.Background(), "light.living_room", entries, HistoryOptions{Limit: 10})
 	if err != nil {
 		t.Fatalf("FormatHistory() error = %v", err)
 	}
@@ -329,6 +325,71 @@ func TestNaturalFormatter_FormatHistory_WithEntries(t *testing.T) {
 	}
 	if !strings.Contains(result, "2 state changes") {
 		t.Errorf("FormatHistory() should contain state change count, got %q", result)
+	}
+	// Entries always shown with absolute timestamps
+	if !strings.Contains(result, "→ on") {
+		t.Errorf("FormatHistory() should contain '→ on', got %q", result)
+	}
+	if !strings.Contains(result, "2024-01-15 11:00") {
+		t.Errorf("FormatHistory() should contain timestamp '2024-01-15 11:00', got %q", result)
+	}
+}
+
+func TestNaturalFormatter_FormatHistory_VerboseShowsAttributes(t *testing.T) {
+	now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	f := NewNaturalFormatter().WithNow(now)
+
+	entries := []homeassistant.HistoryEntry{
+		{
+			State: "on",
+			Attributes: map[string]any{
+				"friendly_name": "Kitchen Light",
+				"brightness":    float64(200),
+				"color_temp":    float64(350),
+			},
+			LastChanged: float64(now.Add(-30 * time.Minute).Unix()),
+		},
+	}
+
+	result, err := f.FormatHistory(context.Background(), "light.kitchen", entries, HistoryOptions{Verbose: true, Limit: 10})
+	if err != nil {
+		t.Fatalf("FormatHistory() error = %v", err)
+	}
+
+	if !strings.Contains(result, "brightness=200") {
+		t.Errorf("FormatHistory() verbose should contain 'brightness=200', got %q", result)
+	}
+	if !strings.Contains(result, "color_temp=350") {
+		t.Errorf("FormatHistory() verbose should contain 'color_temp=350', got %q", result)
+	}
+	// friendly_name should be in header but not as attribute
+	if !strings.Contains(result, "Kitchen Light") {
+		t.Errorf("FormatHistory() should contain friendly name in header, got %q", result)
+	}
+}
+
+func TestNaturalFormatter_FormatHistory_LimitTruncation(t *testing.T) {
+	now := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
+	f := NewNaturalFormatter().WithNow(now)
+
+	entries := make([]homeassistant.HistoryEntry, 5)
+	for i := range 5 {
+		entries[i] = homeassistant.HistoryEntry{
+			State:       fmt.Sprintf("state_%d", i),
+			LastChanged: float64(now.Add(-time.Duration(i) * time.Hour).Unix()),
+		}
+	}
+
+	result, err := f.FormatHistory(context.Background(), "sensor.test", entries, HistoryOptions{Limit: 3})
+	if err != nil {
+		t.Fatalf("FormatHistory() error = %v", err)
+	}
+
+	if !strings.Contains(result, "…and 2 more") {
+		t.Errorf("FormatHistory() should contain '…and 2 more', got %q", result)
+	}
+	if strings.Contains(result, "state_3") || strings.Contains(result, "state_4") {
+		t.Errorf("FormatHistory() should not show entries beyond limit, got %q", result)
 	}
 }
 

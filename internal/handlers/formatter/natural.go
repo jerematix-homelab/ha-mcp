@@ -71,6 +71,7 @@ func (f *NaturalFormatter) FormatEntities(_ context.Context, entities []homeassi
 
 // FormatHistory formats history entries in natural language.
 // entries is a flat list of HistoryEntry (already processed from [][]HistoryEntry).
+// Always shows entries with absolute timestamps; verbose adds attribute details.
 func (f *NaturalFormatter) FormatHistory(_ context.Context, entityID string, entries []homeassistant.HistoryEntry, opts HistoryOptions) (string, error) {
 	if len(entries) == 0 {
 		// Differentiate between "entity not found" vs "entity exists but no history"
@@ -108,25 +109,54 @@ Tips:
 
 	parts = append(parts, fmt.Sprintf("History for %s: %d state changes.", friendlyName, len(entries)))
 
-	// Format recent changes
-	if opts.Verbose {
-		limit := opts.Limit
-		if limit == 0 {
-			limit = 10
-		}
-		for i, entry := range entries {
-			if i >= limit {
-				break
+	limit := opts.Limit
+	if limit == 0 {
+		limit = 20
+	}
+	showCount := min(limit, len(entries))
+	for i := range showCount {
+		entry := entries[i]
+		ts := entry.LastChangedTime().Format("2006-01-02 15:04")
+		if opts.Verbose {
+			if attrs := formatHistoryAttributes(entry.Attributes); attrs != "" {
+				parts = append(parts, fmt.Sprintf("%s → %s (%s)", ts, entry.State, attrs))
+			} else {
+				parts = append(parts, fmt.Sprintf("%s → %s", ts, entry.State))
 			}
-			timeSince := FormatTimeSince(entry.LastChangedTime(), f.now)
-			parts = append(parts, fmt.Sprintf("- %s (%s)", entry.State, timeSince))
+		} else {
+			parts = append(parts, fmt.Sprintf("%s → %s", ts, entry.State))
 		}
-		if len(entries) > limit {
-			parts = append(parts, fmt.Sprintf("... and %d more", len(entries)-limit))
-		}
+	}
+	if len(entries) > showCount {
+		parts = append(parts, fmt.Sprintf("…and %d more", len(entries)-showCount))
 	}
 
 	return strings.Join(parts, "\n"), nil
+}
+
+// formatHistoryAttributes formats relevant attributes for verbose history output.
+// Skips noisy keys (friendly_name, entity_id). Returns at most 5 key=value pairs.
+func formatHistoryAttributes(attrs map[string]any) string {
+	if len(attrs) == 0 {
+		return ""
+	}
+	skipKeys := map[string]bool{"friendly_name": true, "entity_id": true}
+	keys := make([]string, 0, len(attrs))
+	for k := range attrs {
+		if !skipKeys[k] {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	const maxAttrs = 5
+	if len(keys) > maxAttrs {
+		keys = keys[:maxAttrs]
+	}
+	pairs := make([]string, 0, len(keys))
+	for _, k := range keys {
+		pairs = append(pairs, fmt.Sprintf("%s=%v", k, attrs[k]))
+	}
+	return strings.Join(pairs, ", ")
 }
 
 // FormatServiceSuccess formats a successful service call response.

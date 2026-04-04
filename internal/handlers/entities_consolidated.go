@@ -1065,7 +1065,7 @@ func (h *ConsolidatedEntityQueryHandlers) formatHistoryNatural(
 		EntityExists: params.entityExists,
 	}
 	if opts.Limit == 0 {
-		opts.Limit = 10 // Default limit for verbose natural language output
+		opts.Limit = 20 // Default limit for natural language history output
 	}
 
 	output, err := f.FormatHistory(ctx, entityID, result.entries, opts)
