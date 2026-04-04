@@ -946,6 +946,176 @@ func TestServer_HandleToolsCall(t *testing.T) {
 	})
 }
 
+func TestServer_HandleToolsCall_SizeFallback(t *testing.T) {
+	t.Parallel()
+
+	// largeJSON returns a string longer than maxJSONResponseBytes when format=json.
+	largeJSON := strings.Repeat("x", maxJSONResponseBytes+1)
+
+	registry := NewRegistry()
+	registry.RegisterTool(
+		Tool{Name: "big_tool"},
+		func(_ context.Context, _ homeassistant.Client, args map[string]any) (*ToolsCallResult, error) {
+			if args["format"] == formatJSON {
+				return &ToolsCallResult{Content: []ContentBlock{NewTextContent(largeJSON)}}, nil
+			}
+			return &ToolsCallResult{Content: []ContentBlock{NewTextContent("compact natural output")}}, nil
+		},
+	)
+
+	t.Run("falls back to natural when json response too large", func(t *testing.T) {
+		t.Parallel()
+
+		s := newTestServer(&mockHAClient{}, registry, 8080, logging.New(logging.LevelOff))
+
+		params := ToolsCallParams{
+			Name:      "big_tool",
+			Arguments: map[string]any{"format": "json"},
+		}
+		paramsJSON, _ := json.Marshal(params)
+
+		reqBody := Request{
+			JSONRPC: JSONRPCVersion,
+			ID:      json.RawMessage(`1`),
+			Method:  MethodToolsCall,
+			Params:  paramsJSON,
+		}
+		reqBodyJSON, _ := json.Marshal(reqBody)
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		w := httptest.NewRecorder()
+
+		s.handleMCP(w, req)
+
+		resp := w.Result()
+		defer resp.Body.Close()
+
+		var jsonResp Response
+		if err := json.NewDecoder(resp.Body).Decode(&jsonResp); err != nil {
+			t.Fatalf("json.Decode() error = %v", err)
+		}
+		if jsonResp.Error != nil {
+			t.Fatalf("Unexpected error: %+v", jsonResp.Error)
+		}
+
+		// Decode result
+		var result ToolsCallResult
+		resultJSON, _ := json.Marshal(jsonResp.Result)
+		if err := json.Unmarshal(resultJSON, &result); err != nil {
+			t.Fatalf("failed to decode result: %v", err)
+		}
+		if len(result.Content) == 0 {
+			t.Fatal("expected content in result")
+		}
+		text := result.Content[0].Text
+		if !strings.Contains(text, "too large for format=json") {
+			t.Errorf("expected fallback note in response, got: %q", text[:min(100, len(text))])
+		}
+		if !strings.Contains(text, "compact natural output") {
+			t.Errorf("expected natural content in response, got: %q", text[:min(100, len(text))])
+		}
+	})
+
+	t.Run("no fallback when format is natural", func(t *testing.T) {
+		t.Parallel()
+
+		s := newTestServer(&mockHAClient{}, registry, 8080, logging.New(logging.LevelOff))
+
+		params := ToolsCallParams{
+			Name:      "big_tool",
+			Arguments: map[string]any{"format": "natural"},
+		}
+		paramsJSON, _ := json.Marshal(params)
+
+		reqBody := Request{
+			JSONRPC: JSONRPCVersion,
+			ID:      json.RawMessage(`1`),
+			Method:  MethodToolsCall,
+			Params:  paramsJSON,
+		}
+		reqBodyJSON, _ := json.Marshal(reqBody)
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		w := httptest.NewRecorder()
+
+		s.handleMCP(w, req)
+
+		resp := w.Result()
+		defer resp.Body.Close()
+
+		var jsonResp Response
+		if err := json.NewDecoder(resp.Body).Decode(&jsonResp); err != nil {
+			t.Fatalf("json.Decode() error = %v", err)
+		}
+		if jsonResp.Error != nil {
+			t.Fatalf("Unexpected error: %+v", jsonResp.Error)
+		}
+
+		var result ToolsCallResult
+		resultJSON, _ := json.Marshal(jsonResp.Result)
+		_ = json.Unmarshal(resultJSON, &result)
+		if len(result.Content) == 0 {
+			t.Fatal("expected content")
+		}
+		if strings.Contains(result.Content[0].Text, "too large") {
+			t.Errorf("natural format should not trigger fallback, got: %q", result.Content[0].Text[:50])
+		}
+	})
+
+	t.Run("no fallback when json response is small", func(t *testing.T) {
+		t.Parallel()
+
+		smallRegistry := NewRegistry()
+		smallRegistry.RegisterTool(
+			Tool{Name: "small_tool"},
+			func(_ context.Context, _ homeassistant.Client, _ map[string]any) (*ToolsCallResult, error) {
+				return &ToolsCallResult{Content: []ContentBlock{NewTextContent("small json")}}, nil
+			},
+		)
+		s := newTestServer(&mockHAClient{}, smallRegistry, 8080, logging.New(logging.LevelOff))
+
+		params := ToolsCallParams{
+			Name:      "small_tool",
+			Arguments: map[string]any{"format": "json"},
+		}
+		paramsJSON, _ := json.Marshal(params)
+
+		reqBody := Request{
+			JSONRPC: JSONRPCVersion,
+			ID:      json.RawMessage(`1`),
+			Method:  MethodToolsCall,
+			Params:  paramsJSON,
+		}
+		reqBodyJSON, _ := json.Marshal(reqBody)
+
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader(reqBodyJSON))
+		w := httptest.NewRecorder()
+
+		s.handleMCP(w, req)
+
+		resp := w.Result()
+		defer resp.Body.Close()
+
+		var jsonResp Response
+		if err := json.NewDecoder(resp.Body).Decode(&jsonResp); err != nil {
+			t.Fatalf("json.Decode() error = %v", err)
+		}
+
+		var result ToolsCallResult
+		resultJSON, _ := json.Marshal(jsonResp.Result)
+		_ = json.Unmarshal(resultJSON, &result)
+		if len(result.Content) == 0 {
+			t.Fatal("expected content")
+		}
+		if strings.Contains(result.Content[0].Text, "too large") {
+			t.Errorf("small response should not trigger fallback")
+		}
+		if result.Content[0].Text != "small json" {
+			t.Errorf("small response content should be unchanged, got: %q", result.Content[0].Text)
+		}
+	})
+}
+
 func TestServer_HandleResourcesList(t *testing.T) {
 	t.Parallel()
 
