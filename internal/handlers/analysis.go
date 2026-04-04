@@ -54,6 +54,10 @@ func (h *AnalysisHandlers) analyzeEntityTool() mcp.Tool {
 					Enum:        []string{"natural", "json"},
 					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
 				},
+				"verbose": {
+					Type:        "boolean",
+					Description: "If true, include per-reference config excerpts showing how the entity is used (trigger state values, condition states, action services). Default: false",
+				},
 			},
 			Required: []string{"entity_id"},
 		},
@@ -133,20 +137,28 @@ type AreaReference struct {
 	UsedIn   []string `json:"used_in"` // "trigger", "condition", "action"
 }
 
+// UsageExcerpt describes how an entity is referenced in a specific config node.
+type UsageExcerpt struct {
+	Section string `json:"section"` // "trigger", "condition", "action"
+	Summary string `json:"summary"` // compact one-line description
+}
+
 // AutomationReference describes how an automation references an entity.
 type AutomationReference struct {
-	EntityID      string   `json:"entity_id"`
-	Alias         string   `json:"alias,omitempty"`
-	State         string   `json:"state"`
-	LastTriggered string   `json:"last_triggered,omitempty"`
-	UsedIn        []string `json:"used_in"` // "trigger", "condition", "action"
+	EntityID      string         `json:"entity_id"`
+	Alias         string         `json:"alias,omitempty"`
+	State         string         `json:"state"`
+	LastTriggered string         `json:"last_triggered,omitempty"`
+	UsedIn        []string       `json:"used_in"` // "trigger", "condition", "action"
+	Excerpts      []UsageExcerpt `json:"excerpts,omitempty"`
 }
 
 // ScriptReference describes how a script references an entity.
 type ScriptReference struct {
-	EntityID     string `json:"entity_id"`
-	FriendlyName string `json:"friendly_name,omitempty"`
-	UsedIn       string `json:"used_in"` // "action"
+	EntityID     string         `json:"entity_id"`
+	FriendlyName string         `json:"friendly_name,omitempty"`
+	UsedIn       string         `json:"used_in"` // "action"
+	Excerpts     []UsageExcerpt `json:"excerpts,omitempty"`
 }
 
 // SceneReference describes how a scene references an entity.
@@ -198,8 +210,9 @@ func (h *AnalysisHandlers) handleAnalyzeEntity(ctx context.Context, client homea
 	}
 
 	includeHistory, _ := args["include_history"].(bool)
+	verbose, _ := args["verbose"].(bool)
 
-	analysis, err := h.buildEntityAnalysis(ctx, client, entityID, includeHistory)
+	analysis, err := h.buildEntityAnalysis(ctx, client, entityID, includeHistory, verbose)
 	if err != nil {
 		return &mcp.ToolsCallResult{
 			Content: []mcp.ContentBlock{mcp.NewTextContent(err.Error())},
@@ -209,7 +222,7 @@ func (h *AnalysisHandlers) handleAnalyzeEntity(ctx context.Context, client homea
 
 	format := formatter.ParseFormat(getStringArg(args, "format"))
 	if format == formatter.FormatNatural {
-		return successResult(h.formatAnalysisNatural(analysis)), nil
+		return successResult(h.formatAnalysisNatural(analysis, verbose)), nil
 	}
 
 	// JSON format
@@ -237,7 +250,7 @@ func (h *AnalysisHandlers) getEntityState(ctx context.Context, snapshot *Analysi
 	return state, nil
 }
 
-func (h *AnalysisHandlers) buildEntityAnalysis(ctx context.Context, client homeassistant.Client, entityID string, includeHistory bool) (*EntityAnalysis, error) {
+func (h *AnalysisHandlers) buildEntityAnalysis(ctx context.Context, client homeassistant.Client, entityID string, includeHistory, verbose bool) (*EntityAnalysis, error) {
 	// Create snapshot of all required data in parallel for better performance
 	snapshot := CreateAnalysisSnapshot(ctx, client)
 
@@ -269,8 +282,8 @@ func (h *AnalysisHandlers) buildEntityAnalysis(ctx context.Context, client homea
 	analysis.Registry = h.extractRegistryInfo(snapshot, entityID)
 
 	// Find all references
-	h.findAutomationReferences(ctx, client, entityID, analysis.References)
-	h.findScriptReferences(ctx, client, entityID, analysis.References)
+	h.findAutomationReferences(ctx, client, entityID, analysis.References, verbose)
+	h.findScriptReferences(ctx, client, entityID, analysis.References, verbose)
 	h.findSceneReferences(ctx, client, entityID, analysis.References)
 	h.findGroupReferencesWithSnapshot(snapshot, entityID, analysis.References)
 
@@ -294,7 +307,7 @@ func (h *AnalysisHandlers) buildEntityAnalysis(ctx context.Context, client homea
 	return analysis, nil
 }
 
-func (h *AnalysisHandlers) findAutomationReferences(ctx context.Context, client homeassistant.Client, entityID string, refs *EntityReferences) {
+func (h *AnalysisHandlers) findAutomationReferences(ctx context.Context, client homeassistant.Client, entityID string, refs *EntityReferences, verbose bool) {
 	automations, err := client.ListAutomations(ctx)
 	if err != nil {
 		return
@@ -309,18 +322,22 @@ func (h *AnalysisHandlers) findAutomationReferences(ctx context.Context, client 
 
 		usedIn := h.findEntityUsageInAutomation(fullAuto.Config, entityID)
 		if len(usedIn) > 0 {
-			refs.Automations = append(refs.Automations, AutomationReference{
+			ref := AutomationReference{
 				EntityID:      auto.EntityID,
 				Alias:         auto.FriendlyName,
 				State:         auto.State,
 				LastTriggered: auto.LastTriggered,
 				UsedIn:        usedIn,
-			})
+			}
+			if verbose {
+				ref.Excerpts = collectEntityExcerpts(fullAuto.Config, entityID)
+			}
+			refs.Automations = append(refs.Automations, ref)
 		}
 	}
 }
 
-func (h *AnalysisHandlers) findScriptReferences(ctx context.Context, client homeassistant.Client, entityID string, refs *EntityReferences) {
+func (h *AnalysisHandlers) findScriptReferences(ctx context.Context, client homeassistant.Client, entityID string, refs *EntityReferences, verbose bool) {
 	scripts, err := client.ListScripts(ctx)
 	if err != nil {
 		return
@@ -336,11 +353,15 @@ func (h *AnalysisHandlers) findScriptReferences(ctx context.Context, client home
 		if name, ok := script.Attributes["friendly_name"].(string); ok {
 			fn = name
 		}
-		refs.Scripts = append(refs.Scripts, ScriptReference{
+		ref := ScriptReference{
 			EntityID:     script.EntityID,
 			FriendlyName: fn,
 			UsedIn:       usedInAction,
-		})
+		}
+		if verbose {
+			ref.Excerpts = collectSequenceExcerpts(sequence, entityID)
+		}
+		refs.Scripts = append(refs.Scripts, ref)
 	}
 }
 
@@ -1194,7 +1215,7 @@ func (h *AnalysisHandlers) generateDependencySummary(deps *EntityDependencies) s
 }
 
 // formatAnalysisNatural formats an EntityAnalysis in natural language.
-func (h *AnalysisHandlers) formatAnalysisNatural(analysis *EntityAnalysis) string {
+func (h *AnalysisHandlers) formatAnalysisNatural(analysis *EntityAnalysis, verbose bool) string {
 	var parts []string
 
 	// Entity info with friendly name
@@ -1216,7 +1237,7 @@ func (h *AnalysisHandlers) formatAnalysisNatural(analysis *EntityAnalysis) strin
 	if analysis.References.TotalReferences == 0 {
 		parts = append(parts, "\nNo references found.")
 	} else {
-		parts = h.formatReferences(parts, analysis.References)
+		parts = h.formatReferences(parts, analysis.References, verbose)
 	}
 
 	// History
@@ -1227,32 +1248,10 @@ func (h *AnalysisHandlers) formatAnalysisNatural(analysis *EntityAnalysis) strin
 	return strings.Join(parts, "\n")
 }
 
-func (h *AnalysisHandlers) formatReferences(parts []string, refs *EntityReferences) []string {
+func (h *AnalysisHandlers) formatReferences(parts []string, refs *EntityReferences, verbose bool) []string {
 	parts = append(parts, fmt.Sprintf("\nReferences (%d total):", refs.TotalReferences))
-
-	// Automations
-	if len(refs.Automations) > 0 {
-		parts = append(parts, fmt.Sprintf("- %d automations:", len(refs.Automations)))
-		for _, auto := range refs.Automations {
-			autoName := auto.Alias
-			if autoName == "" {
-				autoName = auto.EntityID
-			}
-			parts = append(parts, fmt.Sprintf("  • %s (%s, %s)", autoName, auto.State, strings.Join(auto.UsedIn, "+")))
-		}
-	}
-
-	// Scripts
-	if len(refs.Scripts) > 0 {
-		parts = append(parts, fmt.Sprintf("- %d scripts:", len(refs.Scripts)))
-		for _, script := range refs.Scripts {
-			scriptName := script.FriendlyName
-			if scriptName == "" {
-				scriptName = script.EntityID
-			}
-			parts = append(parts, fmt.Sprintf("  • %s (%s)", scriptName, script.UsedIn))
-		}
-	}
+	parts = h.formatAutomationRefs(parts, refs.Automations, verbose)
+	parts = h.formatScriptRefs(parts, refs.Scripts, verbose)
 
 	// Scenes
 	if len(refs.Scenes) > 0 {
@@ -1275,6 +1274,46 @@ func (h *AnalysisHandlers) formatReferences(parts []string, refs *EntityReferenc
 		parts = append(parts, fmt.Sprintf("- Area references: %d", len(refs.AreaReferences)))
 	}
 
+	return parts
+}
+
+func (h *AnalysisHandlers) formatAutomationRefs(parts []string, autos []AutomationReference, verbose bool) []string {
+	if len(autos) == 0 {
+		return parts
+	}
+	parts = append(parts, fmt.Sprintf("- %d automations:", len(autos)))
+	for _, auto := range autos {
+		name := auto.Alias
+		if name == "" {
+			name = auto.EntityID
+		}
+		parts = append(parts, fmt.Sprintf("  • %s (%s, %s)", name, auto.State, strings.Join(auto.UsedIn, "+")))
+		if verbose {
+			for _, ex := range auto.Excerpts {
+				parts = append(parts, fmt.Sprintf("    %s: %s", ex.Section, ex.Summary))
+			}
+		}
+	}
+	return parts
+}
+
+func (h *AnalysisHandlers) formatScriptRefs(parts []string, scripts []ScriptReference, verbose bool) []string {
+	if len(scripts) == 0 {
+		return parts
+	}
+	parts = append(parts, fmt.Sprintf("- %d scripts:", len(scripts)))
+	for _, script := range scripts {
+		name := script.FriendlyName
+		if name == "" {
+			name = script.EntityID
+		}
+		parts = append(parts, fmt.Sprintf("  • %s (%s)", name, script.UsedIn))
+		if verbose {
+			for _, ex := range script.Excerpts {
+				parts = append(parts, fmt.Sprintf("    %s: %s", ex.Section, ex.Summary))
+			}
+		}
+	}
 	return parts
 }
 
