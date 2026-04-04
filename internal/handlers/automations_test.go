@@ -943,6 +943,157 @@ func TestManageAutomation_Patch(t *testing.T) {
 	runHandlerTestCases(t, tests, h.handleManageAutomation)
 }
 
+func TestManageAutomation_SemanticPatch(t *testing.T) {
+	t.Parallel()
+
+	baseConfig := &homeassistant.AutomationConfig{
+		ID:    "morning_routine",
+		Alias: "Morning Routine",
+		Mode:  "single",
+		Triggers: []any{
+			map[string]any{"platform": "state", "entity_id": "binary_sensor.door", "to": "on"},
+			map[string]any{"platform": "time", "at": "07:00"},
+		},
+		Conditions: []any{
+			map[string]any{"condition": "state", "entity_id": "input_boolean.vacation", "state": "off"},
+		},
+		Actions: []any{
+			map[string]any{"action": "light.turn_on"},
+		},
+	}
+
+	h := &AutomationHandlers{}
+
+	tests := []handlerTestCase{
+		{
+			name: "semantic patch - add for to trigger by entity_id",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{
+						"op":      "add",
+						"match":   map[string]any{"entity_id": "binary_sensor.door"},
+						"section": "triggers",
+						"field":   "for",
+						"value":   "00:05:00",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+				m.UpdateAutomationFn = func(_ context.Context, _ string, _ homeassistant.AutomationConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "semantic patch - replace condition state",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{
+						"op":      "replace",
+						"match":   map[string]any{"entity_id": "input_boolean.vacation"},
+						"section": "conditions",
+						"field":   "state",
+						"value":   "on",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+				m.UpdateAutomationFn = func(_ context.Context, _ string, _ homeassistant.AutomationConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "semantic patch - no match returns error",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{
+						"op":      "add",
+						"match":   map[string]any{"entity_id": "binary_sensor.nonexistent"},
+						"section": "triggers",
+						"field":   "for",
+						"value":   "00:05:00",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error applying patch", "no elements"},
+		},
+		{
+			name: "semantic patch - move op rejected",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{
+						"op":      "move",
+						"match":   map[string]any{"entity_id": "binary_sensor.door"},
+						"section": "triggers",
+						"field":   "for",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"move/copy"},
+		},
+		{
+			name: "semantic patch - missing section rejected",
+			args: map[string]any{
+				"action":        "patch",
+				"automation_id": "morning_routine",
+				"operations": []any{
+					map[string]any{
+						"op":    "replace",
+						"match": map[string]any{"entity_id": "binary_sensor.door"},
+						"field": "for",
+						"value": "x",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetAutomationFn = func(_ context.Context, _ string) (*homeassistant.Automation, error) {
+					cfg := *baseConfig
+					return &homeassistant.Automation{EntityID: "automation.morning_routine", Config: &cfg}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"'section' is required"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageAutomation)
+}
+
 // Test helper functions
 
 func TestGetString(t *testing.T) {

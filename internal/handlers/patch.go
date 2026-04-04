@@ -15,10 +15,10 @@ const patchAction = "patch"
 func patchOperationsSchema() mcp.JSONSchema {
 	return mcp.JSONSchema{
 		Type:        "array",
-		Description: "RFC 6902 JSON Patch operations to apply",
+		Description: "RFC 6902 JSON Patch operations to apply. Supports standard path-based addressing (path) and semantic property-based addressing (match + section + field).",
 		Items: &mcp.JSONSchema{
 			Type:        "object",
-			Description: "A single JSON Patch operation",
+			Description: "A single JSON Patch operation. Use 'path' for standard RFC 6902 addressing or 'match'+'section'+'field' for semantic addressing by element properties.",
 			Properties: map[string]mcp.JSONSchema{
 				"op": {
 					Type:        "string",
@@ -27,7 +27,7 @@ func patchOperationsSchema() mcp.JSONSchema {
 				},
 				"path": {
 					Type:        "string",
-					Description: "RFC 6901 JSON Pointer target path (e.g., '/triggers/2/entity_id')",
+					Description: "RFC 6901 JSON Pointer target path (e.g., '/triggers/2/entity_id'). Mutually exclusive with 'match'.",
 				},
 				"value": {
 					Description: "Value to use for add, replace, or test operations",
@@ -36,15 +36,31 @@ func patchOperationsSchema() mcp.JSONSchema {
 					Type:        "string",
 					Description: "Source path for move and copy operations",
 				},
+				"match": {
+					Type:        "object",
+					Description: "Semantic match criteria: key-value pairs to find target element(s) in a section by their properties. Mutually exclusive with 'path'.",
+				},
+				"section": {
+					Type:        "string",
+					Description: "Array section to search when using 'match'. For automations: 'triggers', 'conditions', 'actions'. For scripts: 'sequence'. For scenes: 'entities'. For dashboards: 'views'.",
+				},
+				"field": {
+					Type:        "string",
+					Description: "Field within matched element(s) to target (e.g., 'for', 'entity_id'). Required for replace/add/test with 'match'. Omit for remove to remove the whole element.",
+				},
+				"match_index": {
+					Type:        "integer",
+					Description: "0-based index to select a specific match when multiple elements satisfy 'match'. If omitted, all matching elements are updated.",
+				},
 			},
-			Required: []string{"op", "path"},
+			Required: []string{"op"},
 		},
 	}
 }
 
 // parseOperations extracts and validates operations from MCP args.
 // Returns nil result on success; returns an error result on validation failure.
-func parseOperations(args map[string]any) ([]jsonpatch.Operation, *mcp.ToolsCallResult) {
+func parseOperations(args map[string]any) ([]SemanticOperation, *mcp.ToolsCallResult) {
 	raw, ok := args["operations"]
 	if !ok {
 		return nil, errorResult("operations is required for patch action")
@@ -58,7 +74,7 @@ func parseOperations(args map[string]any) ([]jsonpatch.Operation, *mcp.ToolsCall
 		return nil, errorResult("operations must contain at least one operation")
 	}
 
-	ops := make([]jsonpatch.Operation, 0, len(rawSlice))
+	ops := make([]SemanticOperation, 0, len(rawSlice))
 	for i, rawOp := range rawSlice {
 		op, err := parseOneOperation(rawOp, i)
 		if err != nil {
@@ -67,24 +83,37 @@ func parseOperations(args map[string]any) ([]jsonpatch.Operation, *mcp.ToolsCall
 		ops = append(ops, op)
 	}
 
-	if err := jsonpatch.Validate(ops); err != nil {
-		return nil, errorResult(err.Error())
+	// Validate standard ops (semantic ops are validated during resolution)
+	var standardOps []jsonpatch.Operation
+	for _, op := range ops {
+		if op.Match == nil {
+			standardOps = append(standardOps, op.Operation)
+		}
+	}
+	if len(standardOps) > 0 {
+		if err := jsonpatch.Validate(standardOps); err != nil {
+			return nil, errorResult(err.Error())
+		}
 	}
 
 	return ops, nil
 }
 
-// parseOneOperation converts a raw map[string]any to an Operation.
-func parseOneOperation(raw any, idx int) (jsonpatch.Operation, error) {
+// parseOneOperation converts a raw map[string]any to a SemanticOperation.
+func parseOneOperation(raw any, idx int) (SemanticOperation, error) {
 	opMap, ok := raw.(map[string]any)
 	if !ok {
-		return jsonpatch.Operation{}, fmt.Errorf("operation at index %d must be an object", idx)
+		return SemanticOperation{}, fmt.Errorf("operation at index %d must be an object", idx)
 	}
 
-	op := jsonpatch.Operation{
-		Op:   getString(opMap, "op"),
-		Path: getString(opMap, "path"),
-		From: getString(opMap, "from"),
+	op := SemanticOperation{
+		Operation: jsonpatch.Operation{
+			Op:   getString(opMap, "op"),
+			Path: getString(opMap, "path"),
+			From: getString(opMap, "from"),
+		},
+		Section: getString(opMap, "section"),
+		Field:   getString(opMap, "field"),
 	}
 
 	// Preserve Value even if nil (null is valid JSON Patch value)
@@ -92,7 +121,46 @@ func parseOneOperation(raw any, idx int) (jsonpatch.Operation, error) {
 		op.Value = v
 	}
 
+	if rawMatch, hasMatch := opMap["match"]; hasMatch {
+		matchMap, ok := rawMatch.(map[string]any)
+		if !ok {
+			return SemanticOperation{}, fmt.Errorf("'match' at operation %d must be an object", idx)
+		}
+		op.Match = matchMap
+	}
+
+	if rawIdx, hasIdx := opMap["match_index"]; hasIdx {
+		switch v := rawIdx.(type) {
+		case float64:
+			i := int(v)
+			op.MatchIndex = &i
+		case int:
+			op.MatchIndex = &v
+		}
+	}
+
 	return op, nil
+}
+
+// applyPatchWithSemantics resolves semantic operations and applies all operations
+// to the config map atomically. Returns the patched map on success.
+func applyPatchWithSemantics(configMap map[string]any, ops []SemanticOperation) (map[string]any, error) {
+	resolved, err := resolveSemanticOps(configMap, ops)
+	if err != nil {
+		return nil, err
+	}
+
+	patchedAny, err := jsonpatch.Apply(configMap, resolved)
+	if err != nil {
+		return nil, err
+	}
+
+	patchedMap, ok := patchedAny.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("patch result must be an object")
+	}
+
+	return patchedMap, nil
 }
 
 // configToMap converts a typed config struct to map[string]any via JSON round-trip.

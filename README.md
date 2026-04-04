@@ -132,13 +132,13 @@ See [docs/configuration.md](docs/configuration.md) for Cline, opencode, and othe
 | ----------------- | ----- | --------------------------------------------------------------------------- |
 | Entity            | 5     | `query_entities` (history/stats/health), `get_state`, `analyze_entity`      |
 | Registry          | 10    | `get_registry`, `manage_area/label/floor/zone/person/tag/entity/device`     |
-| Automation        | 1     | `manage_automation` (CRUD, toggle, coverage, JSON Patch)                    |
+| Automation        | 1     | `manage_automation` (CRUD, toggle, coverage, JSON Patch + semantic patch)   |
 | Helpers           | 2     | `manage_helper` (26 types), `helper_action`                                 |
-| Scripts & Scenes  | 2     | `manage_script`, `manage_scene` (CRUD + execute/activate + JSON Patch)      |
+| Scripts & Scenes  | 2     | `manage_script`, `manage_scene` (CRUD + execute/activate + JSON Patch + semantic patch) |
 | Analysis          | 3     | `analyze_entity`, `get_entity_dependencies`, `analyze_target`               |
 | Services          | 2     | `call_service`, `list_services`                                             |
 | History/Logbook   | 2     | `query_entities` modes, `get_logbook` (entries + correlation)               |
-| Dashboards/Media  | 4     | `manage_dashboard`, `browse_media`, `manage_camera`, `sign_media_path`      |
+| Dashboards/Media  | 4     | `manage_dashboard` (JSON Patch + semantic patch), `browse_media`, `manage_camera`, `sign_media_path` |
 | Calendars & Todos | 2     | `manage_calendar`, `manage_todo`                                            |
 | System/Admin      | 7     | `get_system_info`, `validate_config`, `manage_update`, `manage_blueprint`   |
 | HACS              | 1     | `manage_hacs` (list, download, install, custom repos)                       |

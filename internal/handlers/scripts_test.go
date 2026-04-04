@@ -935,6 +935,78 @@ func TestManageScript_Patch(t *testing.T) {
 	runHandlerTestCases(t, tests, h.handleManageScript)
 }
 
+func TestManageScript_SemanticPatch(t *testing.T) {
+	t.Parallel()
+
+	baseConfig := &homeassistant.ScriptConfig{
+		Alias: "Morning Routine",
+		Mode:  "single",
+		Sequence: []any{
+			map[string]any{"action": "light.turn_on", "target": map[string]any{"entity_id": "light.kitchen"}},
+			map[string]any{"delay": map[string]any{"seconds": float64(5)}},
+			map[string]any{"action": "light.turn_off", "target": map[string]any{"entity_id": "light.kitchen"}},
+		},
+	}
+
+	h := &ScriptHandlers{}
+
+	tests := []handlerTestCase{
+		{
+			name: "semantic patch - replace action target",
+			args: map[string]any{
+				"action":    "patch",
+				"script_id": "morning_routine",
+				"operations": []any{
+					map[string]any{
+						"op":      "replace",
+						"match":   map[string]any{"action": "light.turn_on"},
+						"section": "sequence",
+						"field":   "action",
+						"value":   "light.toggle",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetScriptFn = func(_ context.Context, _ string) (*homeassistant.Script, error) {
+					cfg := *baseConfig
+					return &homeassistant.Script{EntityID: "script.morning_routine", Config: &cfg}, nil
+				}
+				m.UpdateScriptFn = func(_ context.Context, _ string, _ homeassistant.ScriptConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "semantic patch - no match in sequence",
+			args: map[string]any{
+				"action":    "patch",
+				"script_id": "morning_routine",
+				"operations": []any{
+					map[string]any{
+						"op":      "replace",
+						"match":   map[string]any{"action": "nonexistent.action"},
+						"section": "sequence",
+						"field":   "action",
+						"value":   "x",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetScriptFn = func(_ context.Context, _ string) (*homeassistant.Script, error) {
+					cfg := *baseConfig
+					return &homeassistant.Script{EntityID: "script.morning_routine", Config: &cfg}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error applying patch", "no elements"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageScript)
+}
+
 func TestScriptHandlers_CallService(t *testing.T) {
 	t.Parallel()
 
