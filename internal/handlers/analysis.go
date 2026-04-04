@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	usedInAction = "action"
+	usedInAction    = "action"
+	triggerTypeTime = "time"
 )
 
 // AnalysisHandlers provides MCP tool handlers for entity analysis operations.
@@ -878,7 +879,7 @@ func (h *AnalysisHandlers) generateTriggerDescription(m map[string]any, triggerT
 			return fmt.Sprintf("Numeric state below %v", below)
 		}
 		return "Numeric state trigger"
-	case "time":
+	case triggerTypeTime:
 		if at, ok := m["at"].(string); ok {
 			return fmt.Sprintf("At time %s", at)
 		}
