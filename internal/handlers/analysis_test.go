@@ -2190,9 +2190,45 @@ func TestSummarizeConfigNode(t *testing.T) {
 			want:    "event",
 		},
 		{
+			name:    "trigger without platform",
+			section: "trigger",
+			node:    map[string]any{"entity_id": entityID},
+			want:    entityID,
+		},
+		{
 			name:    "fallback action",
 			section: "action",
 			node:    map[string]any{"delay": "00:01:00"},
+			want:    entityID,
+		},
+		{
+			name:    "numeric_state condition with above",
+			section: "condition",
+			node:    map[string]any{"condition": "numeric_state", "entity_id": entityID, "above": float64(20)},
+			want:    "above",
+		},
+		{
+			name:    "numeric_state condition with below",
+			section: "condition",
+			node:    map[string]any{"condition": "numeric_state", "entity_id": entityID, "below": float64(10)},
+			want:    "below",
+		},
+		{
+			name:    "unknown condition type",
+			section: "condition",
+			node:    map[string]any{"condition": "template", "value_template": "{{ true }}"},
+			want:    "template",
+		},
+		{
+			name:    "condition no type",
+			section: "condition",
+			node:    map[string]any{"entity_id": entityID},
+			want:    entityID,
+		},
+		{
+			name:    "unknown section fallback",
+			section: "variables",
+			node:    map[string]any{"entity_id": entityID},
 			want:    entityID,
 		},
 	}
@@ -2205,6 +2241,48 @@ func TestSummarizeConfigNode(t *testing.T) {
 				t.Errorf("summarizeConfigNode(%q) = %q, want to contain %q", tt.section, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCollectSequenceExcerpts(t *testing.T) {
+	t.Parallel()
+
+	entityID := "light.kitchen"
+	sequence := []any{
+		// This action references the entity
+		map[string]any{"action": "light.turn_on", "target": map[string]any{"entity_id": entityID}},
+		// This action does NOT reference the entity
+		map[string]any{"delay": "00:00:05"},
+		// Choose block containing the entity
+		map[string]any{
+			"choose": []any{
+				map[string]any{
+					"conditions": []any{
+						map[string]any{"condition": "state", "entity_id": entityID, "state": "on"},
+					},
+					"sequence": []any{
+						map[string]any{"action": "notify.mobile", "data": map[string]any{"message": "kitchen on"}},
+					},
+				},
+			},
+		},
+	}
+
+	excerpts := collectSequenceExcerpts(sequence, entityID)
+
+	if len(excerpts) != 2 {
+		t.Errorf("expected 2 excerpts (service + choose), got %d: %+v", len(excerpts), excerpts)
+	}
+	for _, ex := range excerpts {
+		if ex.Section != "action" {
+			t.Errorf("all sequence excerpts should have section 'action', got %q", ex.Section)
+		}
+	}
+	if !strings.Contains(excerpts[0].Summary, "light.turn_on") {
+		t.Errorf("first excerpt should contain service name, got: %q", excerpts[0].Summary)
+	}
+	if !strings.Contains(excerpts[1].Summary, "choose") {
+		t.Errorf("second excerpt should mention choose, got: %q", excerpts[1].Summary)
 	}
 }
 
