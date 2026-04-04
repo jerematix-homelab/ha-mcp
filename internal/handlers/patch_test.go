@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
-	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 )
 
 func TestParseOperations(t *testing.T) {
@@ -313,12 +312,10 @@ func TestParseOperations_RoundTrip(t *testing.T) {
 		"conditions": []any{map[string]any{"condition": "time"}},
 	}
 
-	result, applyErr := jsonpatch.Apply(doc, ops)
+	resultMap, applyErr := applyPatchWithSemantics(doc, ops)
 	if applyErr != nil {
-		t.Fatalf("Apply() error = %v", applyErr)
+		t.Fatalf("applyPatchWithSemantics() error = %v", applyErr)
 	}
-
-	resultMap := result.(map[string]any)
 	actions := resultMap["actions"].([]any)
 	if len(actions) != 1 {
 		t.Errorf("len(actions) = %d, want 1", len(actions))

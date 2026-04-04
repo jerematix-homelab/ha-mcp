@@ -41,12 +41,27 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool                | Description                                                                                                                                   |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle, coverage, patch (RFC 6902 JSON Patch); format: natural/json for list/get/coverage) |
+| `manage_automation` | Consolidated automation management (actions: list, get, create, update, delete, toggle, coverage, patch (RFC 6902 JSON Patch + semantic patch); format: natural/json for list/get/coverage) |
 
 **Flexible ID Lookup**: The `automation_id` parameter accepts multiple formats:
 - Entity ID: `automation.morning_lights`
 - Config ID (UUID): `abc123-def456-...`
 - Alias or friendly name: `morning lights` (case-insensitive partial match)
+
+**Semantic Patch**: The `patch` action supports property-based addressing instead of numeric JSON Pointer indices. Use `match` + `section` + `field` to target elements by their properties:
+```json
+{
+  "op": "add",
+  "match": {"entity_id": "binary_sensor.door", "to": "off"},
+  "section": "triggers",
+  "field": "for",
+  "value": "00:05:00"
+}
+```
+- `match`: key-value pairs identifying the target element(s)
+- `section`: array to search — `triggers`, `conditions`, `actions`
+- `field`: field within matched element(s) to modify (omit for `remove` to delete the whole element)
+- `match_index`: optional 0-based index to select a specific match when multiple elements match
 
 ### Helper Tools
 
@@ -112,7 +127,7 @@ Universal tool for runtime helper operations:
 
 | Tool            | Description                                                                                                             |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute, patch; format: natural/json for list/get) |
+| `manage_script` | Consolidated script management (actions: list, get, create, update, delete, execute, patch (RFC 6902 JSON Patch + semantic patch); format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `script_id` parameter accepts multiple formats:
 - Entity ID: `script.morning_routine`
@@ -122,7 +137,7 @@ Universal tool for runtime helper operations:
 
 | Tool           | Description                                                                                                             |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate, patch (RFC 6902 JSON Patch); format: natural/json for list/get) |
+| `manage_scene` | Consolidated scene management (actions: list, get, create, update, delete, activate, patch (RFC 6902 JSON Patch + semantic patch); format: natural/json for list/get) |
 
 **Flexible ID Lookup**: The `scene_id` parameter accepts multiple formats:
 - Entity ID: `scene.movie_time`
@@ -139,7 +154,7 @@ Universal tool for runtime helper operations:
 
 | Tool               | Description                                                                        |
 | ------------------ | ---------------------------------------------------------------------------------- |
-| `manage_dashboard` | Manage Lovelace dashboards - list, get, create, update, delete, save configuration, patch (JSON Patch) |
+| `manage_dashboard` | Manage Lovelace dashboards - list, get, create, update, delete, save configuration, patch (JSON Patch + semantic patch, e.g. match views by `title`) |
 
 ### Template Tools
 

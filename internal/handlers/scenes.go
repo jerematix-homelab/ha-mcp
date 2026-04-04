@@ -8,7 +8,6 @@ import (
 
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
-	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
@@ -547,14 +546,9 @@ func (h *SceneHandlers) handlePatch(ctx context.Context, client homeassistant.Cl
 		return errorResult(fmt.Sprintf("error processing scene config: %v", err)), nil
 	}
 
-	patchedAny, patchErr := jsonpatch.Apply(configMap, ops)
+	patchedMap, patchErr := applyPatchWithSemantics(configMap, ops)
 	if patchErr != nil {
 		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
-	}
-
-	patchedMap, ok := patchedAny.(map[string]any)
-	if !ok {
-		return errorResult("patch result must be an object"), nil
 	}
 
 	var newConfig homeassistant.SceneConfig

@@ -737,6 +737,79 @@ func TestHandleManageDashboard_Patch(t *testing.T) {
 	runHandlerTestCases(t, tests, h.handleManageDashboard)
 }
 
+func TestHandleManageDashboard_SemanticPatch(t *testing.T) {
+	t.Parallel()
+
+	baseConfig := map[string]any{
+		"views": []any{
+			map[string]any{"title": "Overview", "path": "overview", "type": "sections"},
+			map[string]any{"title": "Lights", "path": "lights", "type": "sections"},
+		},
+	}
+
+	h := &DashboardHandlers{}
+
+	tests := []handlerTestCase{
+		{
+			name: "semantic patch - replace view type by title",
+			args: map[string]any{
+				"action": "patch",
+				"operations": []any{
+					map[string]any{
+						"op":      "replace",
+						"match":   map[string]any{"title": "Lights"},
+						"section": "views",
+						"field":   "path",
+						"value":   "lights-updated",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(_ context.Context, _ string) (map[string]any, error) {
+					cfg := make(map[string]any)
+					for k, v := range baseConfig {
+						cfg[k] = v
+					}
+					return cfg, nil
+				}
+				m.SaveLovelaceConfigFn = func(_ context.Context, _ string, _ map[string]any) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "semantic patch - no matching view",
+			args: map[string]any{
+				"action": "patch",
+				"operations": []any{
+					map[string]any{
+						"op":      "replace",
+						"match":   map[string]any{"title": "Nonexistent View"},
+						"section": "views",
+						"field":   "path",
+						"value":   "x",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetLovelaceConfigFn = func(_ context.Context, _ string) (map[string]any, error) {
+					cfg := make(map[string]any)
+					for k, v := range baseConfig {
+						cfg[k] = v
+					}
+					return cfg, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error applying patch", "no elements"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageDashboard)
+}
+
 // deepCopyMap creates a shallow copy of a map to avoid test interference.
 func deepCopyMap(m map[string]any) map[string]any {
 	result := make(map[string]any, len(m))

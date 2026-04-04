@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
-	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
 )
 
@@ -329,14 +328,9 @@ func (h *DashboardHandlers) handlePatch(ctx context.Context, client homeassistan
 		return errorResult(fmt.Sprintf("error getting dashboard configuration: %v", err)), nil
 	}
 
-	patchedAny, patchErr := jsonpatch.Apply(config, ops)
+	patchedMap, patchErr := applyPatchWithSemantics(config, ops)
 	if patchErr != nil {
 		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
-	}
-
-	patchedMap, ok := patchedAny.(map[string]any)
-	if !ok {
-		return errorResult("patch result must be an object"), nil
 	}
 
 	if err := client.SaveLovelaceConfig(ctx, urlPath, patchedMap); err != nil {

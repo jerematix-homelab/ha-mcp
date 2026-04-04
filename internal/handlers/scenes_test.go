@@ -1251,3 +1251,69 @@ func TestManageScene_Patch(t *testing.T) {
 
 	runHandlerTestCases(t, tests, h.handleManageScene)
 }
+
+func TestManageScene_SemanticPatch(t *testing.T) {
+	t.Parallel()
+
+	// Scene entities are stored as a map[string]SceneState, not an array.
+	// Standard JSON Pointer ops work directly: /entities/light.living_room/brightness.
+	// Semantic match with 'section' still fails gracefully since entities is not an array.
+	baseConfig := &homeassistant.SceneConfig{
+		Name: "Movie Night",
+		Entities: map[string]homeassistant.SceneState{
+			"light.living_room": {State: "on", Attributes: map[string]any{"brightness": float64(200)}},
+		},
+	}
+
+	h := &SceneHandlers{}
+
+	tests := []handlerTestCase{
+		{
+			name: "standard patch still works - backward compat",
+			args: map[string]any{
+				"action":   "patch",
+				"scene_id": "movie_night",
+				"operations": []any{
+					map[string]any{"op": "replace", "path": "/name", "value": "Cinema Night"},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetSceneFn = func(_ context.Context, _ string) (*homeassistant.Scene, error) {
+					cfg := *baseConfig
+					return &homeassistant.Scene{EntityID: "scene.movie_night", Config: &cfg}, nil
+				}
+				m.UpdateSceneFn = func(_ context.Context, _ string, _ homeassistant.SceneConfig) error {
+					return nil
+				}
+			},
+			wantError:    false,
+			wantContains: []string{"patched successfully"},
+		},
+		{
+			name: "semantic patch on map section returns clear error",
+			args: map[string]any{
+				"action":   "patch",
+				"scene_id": "movie_night",
+				"operations": []any{
+					map[string]any{
+						"op":      "replace",
+						"match":   map[string]any{"state": "on"},
+						"section": "entities",
+						"field":   "state",
+						"value":   "off",
+					},
+				},
+			},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetSceneFn = func(_ context.Context, _ string) (*homeassistant.Scene, error) {
+					cfg := *baseConfig
+					return &homeassistant.Scene{EntityID: "scene.movie_night", Config: &cfg}, nil
+				}
+			},
+			wantError:    true,
+			wantContains: []string{"error applying patch", "is not an array"},
+		},
+	}
+
+	runHandlerTestCases(t, tests, h.handleManageScene)
+}
