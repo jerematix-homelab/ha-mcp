@@ -25,6 +25,7 @@ const (
 	automationActionToggle   = "toggle"
 	automationActionCoverage = "coverage"
 	automationActionPatch    = "patch"
+	automationActionSchema   = "schema"
 )
 
 // manualOnlyTrigger is a placeholder trigger for manual-only automations.
@@ -76,15 +77,16 @@ Actions:
 - delete: Delete an automation (requires automation_id)
 - toggle: Enable or disable an automation (requires automation_id, enabled)
 - coverage: Analyze which areas/entities lack automation coverage
-- patch: Apply RFC 6902 JSON Patch operations (requires automation_id, operations)`,
+- patch: Apply RFC 6902 JSON Patch operations (requires automation_id, operations)
+- schema: Return reference for all valid trigger, condition, and action types with required/optional fields`,
 		InputSchema: mcp.JSONSchema{
 			Type:        "object",
 			Description: "Automation management operation",
 			Properties: map[string]mcp.JSONSchema{
 				"action": {
 					Type:        "string",
-					Description: "Operation to perform: list, get, create, update, delete, toggle, coverage, patch",
-					Enum:        []string{"list", "get", "create", "update", "delete", "toggle", "coverage", "patch"},
+					Description: "Operation to perform: list, get, create, update, delete, toggle, coverage, patch, schema",
+					Enum:        []string{"list", "get", "create", "update", "delete", "toggle", "coverage", "patch", "schema"},
 				},
 				"automation_id": {
 					Type:        "string",
@@ -99,32 +101,19 @@ Actions:
 					Description: "Description of what the automation does",
 				},
 				"trigger": {
-					Type: "array",
-					Description: `List of triggers that start the automation (required for create; pass empty array [] for manual-only).
-Common types: {"trigger": "state", "entity_id": "binary_sensor.motion", "to": "on"},
-{"trigger": "time", "at": "07:00:00"}, {"trigger": "sun", "event": "sunset", "offset": "-01:00:00"},
-{"trigger": "numeric_state", "entity_id": "sensor.temp", "above": 25},
-{"trigger": "homeassistant", "event": "start"}, {"trigger": "event", "event_type": "my_event"}`,
-					Items: &mcp.JSONSchema{Type: "object"},
+					Type:        "array",
+					Description: "Triggers that start the automation (required for create; pass empty array [] for manual-only). Use action=schema to see all trigger types with required/optional fields.",
+					Items:       &mcp.JSONSchema{Type: "object"},
 				},
 				"condition": {
-					Type: "array",
-					Description: `Optional conditions that must be met before actions execute.
-Common types: {"condition": "state", "entity_id": "sun.sun", "state": "above_horizon"},
-{"condition": "numeric_state", "entity_id": "sensor.temp", "above": 20},
-{"condition": "time", "after": "08:00:00", "before": "22:00:00"},
-{"condition": "template", "value_template": "{{ is_state('device_tracker.phone', 'home') }}"},
-{"condition": "and"/"or"/"not", "conditions": [...]}.
-Note: there is no 'sun' condition type — use state condition on sun.sun entity instead`,
-					Items: &mcp.JSONSchema{Type: "object"},
+					Type:        "array",
+					Description: "Optional conditions that must be met before actions execute. Use action=schema to see all condition types with required/optional fields.",
+					Items:       &mcp.JSONSchema{Type: "object"},
 				},
 				"automation_action": {
-					Type: "array",
-					Description: `Actions to perform when triggered (required for create).
-Common types: {"action": "light.turn_on", "target": {"entity_id": "light.living"}, "data": {"brightness": 255}},
-{"action": "notify.mobile_app", "data": {"message": "Alert!"}},
-{"delay": "00:05:00"}, {"condition": "state", ...} (inline condition as guard)`,
-					Items: &mcp.JSONSchema{Type: "object"},
+					Type:        "array",
+					Description: "Actions to perform when triggered (required for create). Use action=schema to see all action types with required/optional fields.",
+					Items:       &mcp.JSONSchema{Type: "object"},
 				},
 				"mode": {
 					Type:        "string",
@@ -161,6 +150,7 @@ Common types: {"action": "light.turn_on", "target": {"entity_id": "light.living"
 					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
 				},
 				"operations": patchOperationsSchema(),
+				"dry_run":    dryRunSchema(),
 			},
 			Required: []string{"action"},
 		},
@@ -198,8 +188,10 @@ func (h *AutomationHandlers) handleManageAutomation(
 		return h.handleCoverage(ctx, client, args)
 	case automationActionPatch:
 		return h.handlePatch(ctx, client, args)
+	case automationActionSchema:
+		return h.handleSchema()
 	default:
-		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, toggle, coverage, or patch)", action)), nil
+		return errorResult(fmt.Sprintf("invalid action: %s (must be list, get, create, update, delete, toggle, coverage, patch, or schema)", action)), nil
 	}
 }
 
@@ -512,6 +504,10 @@ func (h *AutomationHandlers) handlePatch(ctx context.Context, client homeassista
 	patchedMap, patchErr := applyPatchWithSemantics(configMap, ops)
 	if patchErr != nil {
 		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	if dryRun, _ := args["dry_run"].(bool); dryRun {
+		return dryRunPatchResult(patchedMap, "automation", automationID, len(ops))
 	}
 
 	var newConfig homeassistant.AutomationConfig

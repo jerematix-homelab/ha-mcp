@@ -90,6 +90,7 @@ Actions:
 					Description: "Transition time in seconds (for activate action)",
 				},
 				"operations": patchOperationsSchema(),
+				"dry_run":    dryRunSchema(),
 				"format": {
 					Type:        "string",
 					Enum:        []string{"natural", "json"},
@@ -549,6 +550,10 @@ func (h *SceneHandlers) handlePatch(ctx context.Context, client homeassistant.Cl
 	patchedMap, patchErr := applyPatchWithSemantics(configMap, ops)
 	if patchErr != nil {
 		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	if dryRun, _ := args["dry_run"].(bool); dryRun {
+		return dryRunPatchResult(patchedMap, "scene", sceneID, len(ops))
 	}
 
 	var newConfig homeassistant.SceneConfig

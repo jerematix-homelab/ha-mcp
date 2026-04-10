@@ -108,6 +108,7 @@ Actions:
 					Description: "Output format: 'natural' (default) for LLM-optimized text, 'json' for structured data",
 				},
 				"operations": patchOperationsSchema(),
+				"dry_run":    dryRunSchema(),
 			},
 			Required: []string{"action"},
 		},
@@ -491,6 +492,10 @@ func (h *ScriptHandlers) handlePatch(ctx context.Context, client homeassistant.C
 	patchedMap, patchErr := applyPatchWithSemantics(configMap, ops)
 	if patchErr != nil {
 		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	if dryRun, _ := args["dry_run"].(bool); dryRun {
+		return dryRunPatchResult(patchedMap, "script", scriptID, len(ops))
 	}
 
 	var newConfig homeassistant.ScriptConfig

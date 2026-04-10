@@ -471,3 +471,46 @@ func TestNewAutomationFormatter(t *testing.T) {
 		t.Errorf("expected NaturalAutomationFormatter for empty format")
 	}
 }
+
+func TestFormatRepeatAction(t *testing.T) {
+	tests := []struct {
+		name        string
+		repeat      any
+		wantContain string
+	}{
+		{
+			name:        "while loop with conditions and sequence",
+			repeat:      map[string]any{"while": []any{"cond1", "cond2"}, "sequence": []any{"action1", "action2", "action3"}},
+			wantContain: "while [2 condition(s)]: 3 action(s)",
+		},
+		{
+			name:        "until loop",
+			repeat:      map[string]any{"until": []any{"cond1"}, "sequence": []any{"action1"}},
+			wantContain: "until [1 condition(s)]: 1 action(s)",
+		},
+		{
+			name:        "count loop",
+			repeat:      map[string]any{"count": 5, "sequence": []any{"action1", "action2"}},
+			wantContain: "repeat 5 times: 2 action(s)",
+		},
+		{
+			name:        "no type specified",
+			repeat:      map[string]any{"sequence": []any{"action1"}},
+			wantContain: "repeat: 1 action(s)",
+		},
+		{
+			name:        "invalid repeat value falls back",
+			repeat:      "not a map",
+			wantContain: "repeat action",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatRepeatAction(tt.repeat)
+			if !strings.Contains(result, tt.wantContain) {
+				t.Errorf("expected %q to contain %q", result, tt.wantContain)
+			}
+		})
+	}
+}

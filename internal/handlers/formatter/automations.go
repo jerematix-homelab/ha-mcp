@@ -550,13 +550,37 @@ func (f *NaturalAutomationFormatter) formatComplexAction(actionMap map[string]an
 	if _, hasIf := actionMap["if"]; hasIf {
 		return "conditional: if/then/else"
 	}
-	if _, hasRepeat := actionMap["repeat"]; hasRepeat {
-		return "repeat action"
+	if repeatVal, hasRepeat := actionMap["repeat"]; hasRepeat {
+		return formatRepeatAction(repeatVal)
 	}
 	if _, hasParallel := actionMap["parallel"]; hasParallel {
 		return "parallel actions"
 	}
 	return ""
+}
+
+// formatRepeatAction formats a repeat action with while/count and sequence summary.
+func formatRepeatAction(repeatVal any) string {
+	repeatMap, ok := repeatVal.(map[string]any)
+	if !ok {
+		return "repeat action"
+	}
+
+	seq, _ := repeatMap["sequence"].([]any)
+	seqLen := len(seq)
+
+	if whileVal, hasWhile := repeatMap["while"]; hasWhile {
+		conditions, _ := whileVal.([]any)
+		return fmt.Sprintf("repeat while [%d condition(s)]: %d action(s) in sequence", len(conditions), seqLen)
+	}
+	if untilVal, hasUntil := repeatMap["until"]; hasUntil {
+		conditions, _ := untilVal.([]any)
+		return fmt.Sprintf("repeat until [%d condition(s)]: %d action(s) in sequence", len(conditions), seqLen)
+	}
+	if count, hasCount := repeatMap["count"]; hasCount {
+		return fmt.Sprintf("repeat %v times: %d action(s) in sequence", count, seqLen)
+	}
+	return fmt.Sprintf("repeat: %d action(s) in sequence", seqLen)
 }
 
 func (f *NaturalAutomationFormatter) formatServiceAction(service string, actionMap map[string]any) string {
