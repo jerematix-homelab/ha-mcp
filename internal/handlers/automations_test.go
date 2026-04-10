@@ -2350,9 +2350,9 @@ func TestEnrichAutomationError(t *testing.T) {
 			wantExact: "Error creating automation: connection refused",
 		},
 		{
-			name: "API error with non-400 status unchanged",
-			msg:  "Error creating automation: server error",
-			err:  &homeassistant.APIError{StatusCode: 500, Message: "internal server error"},
+			name:      "API error with non-400 status unchanged",
+			msg:       "Error creating automation: server error",
+			err:       &homeassistant.APIError{StatusCode: 500, Message: "internal server error"},
 			wantExact: "Error creating automation: server error",
 		},
 		{
