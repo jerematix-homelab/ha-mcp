@@ -3,6 +3,7 @@ package jsonpatch
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -55,7 +56,7 @@ func getAtSegs(doc any, segs []string, origPath string) (any, error) {
 	case map[string]any:
 		val, ok := d[seg]
 		if !ok {
-			return nil, fmt.Errorf("key %q not found at path %q", seg, origPath)
+			return nil, fmt.Errorf("key %q not found at path %q (available keys: %v)", seg, origPath, sortedMapKeys(d))
 		}
 		return getAtSegs(val, rest, origPath)
 	case []any:
@@ -92,4 +93,14 @@ func parseInsertIndex(seg string, length int, path string) (int, error) {
 		return 0, fmt.Errorf("array index %d out of bounds (length %d) at path %q", idx, length, path)
 	}
 	return idx, nil
+}
+
+// sortedMapKeys returns the keys of a map in sorted order for deterministic error messages.
+func sortedMapKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

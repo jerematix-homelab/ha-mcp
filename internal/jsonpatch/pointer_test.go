@@ -2,6 +2,7 @@ package jsonpatch
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -110,10 +111,11 @@ func TestGet(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		path    string
-		want    any
-		wantErr bool
+		name       string
+		path       string
+		want       any
+		wantErr    bool
+		wantErrMsg string
 	}{
 		{
 			name: "root returns whole doc",
@@ -141,9 +143,10 @@ func TestGet(t *testing.T) {
 			want: "value",
 		},
 		{
-			name:    "missing key",
-			path:    "/notexist",
-			wantErr: true,
+			name:       "missing key",
+			path:       "/notexist",
+			wantErr:    true,
+			wantErrMsg: "available keys: [mode nested triggers]",
 		},
 		{
 			name:    "index out of bounds",
@@ -171,6 +174,9 @@ func TestGet(t *testing.T) {
 				t.Fatalf("Get(%q) error = %v, wantErr %v", tt.path, err, tt.wantErr)
 			}
 			if tt.wantErr {
+				if tt.wantErrMsg != "" && !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("expected error to contain %q, got %q", tt.wantErrMsg, err.Error())
+				}
 				return
 			}
 
