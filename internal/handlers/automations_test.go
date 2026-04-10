@@ -2330,3 +2330,97 @@ func TestFetchAutomationConfigs(t *testing.T) {
 		}
 	})
 }
+
+func TestEnrichAutomationError(t *testing.T) {
+	tests := []struct {
+		name        string
+		msg         string
+		err         error
+		wantContain string
+		wantExact   string
+	}{
+		{
+			name:      "non-API error unchanged",
+			msg:       "Error creating automation: connection refused",
+			err:       errors.New("connection refused"),
+			wantExact: "Error creating automation: connection refused",
+		},
+		{
+			name: "API error with non-400 status unchanged",
+			msg:  "Error creating automation: server error",
+			err:  &homeassistant.APIError{StatusCode: 500, Message: "internal server error"},
+			wantExact: "Error creating automation: server error",
+		},
+		{
+			name: "extra keys not allowed triggers hint",
+			msg:  "error saving patched automation: Home Assistant API error (status 400): invalid automation config: {\"message\":\"Message malformed: extra keys not allowed @ data['which']\"}",
+			err: &homeassistant.APIError{
+				StatusCode: 400,
+				Message:    "invalid automation config: {\"message\":\"Message malformed: extra keys not allowed @ data['which']\"}",
+			},
+			wantContain: "sun' condition does not exist",
+		},
+		{
+			name: "required key not provided triggers hint",
+			msg:  "Error creating automation: HA error",
+			err: &homeassistant.APIError{
+				StatusCode: 400,
+				Message:    "invalid automation config: {\"message\":\"required key not provided @ data['trigger']\"}",
+			},
+			wantContain: "required field is missing",
+		},
+		{
+			name: "expected a list triggers hint",
+			msg:  "Error creating automation: HA error",
+			err: &homeassistant.APIError{
+				StatusCode: 400,
+				Message:    "invalid automation config: {\"message\":\"expected a list for trigger\"}",
+			},
+			wantContain: "must be an array",
+		},
+		{
+			name: "unable to find action triggers hint",
+			msg:  "Error creating automation: HA error",
+			err: &homeassistant.APIError{
+				StatusCode: 400,
+				Message:    "invalid automation config: {\"message\":\"Unable to find action light.trun_on\"}",
+			},
+			wantContain: "domain.service",
+		},
+		{
+			name: "invalid template triggers hint",
+			msg:  "Error updating automation: HA error",
+			err: &homeassistant.APIError{
+				StatusCode: 400,
+				Message:    "invalid automation config: {\"message\":\"invalid template\"}",
+			},
+			wantContain: "Jinja2",
+		},
+		{
+			name: "unrecognized 400 error unchanged",
+			msg:  "Error creating automation: HA error",
+			err: &homeassistant.APIError{
+				StatusCode: 400,
+				Message:    "invalid automation config: {\"message\":\"some unknown error\"}",
+			},
+			wantExact: "Error creating automation: HA error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := enrichAutomationError(tt.msg, tt.err)
+
+			if tt.wantExact != "" {
+				if result != tt.wantExact {
+					t.Errorf("expected exact %q, got %q", tt.wantExact, result)
+				}
+			}
+			if tt.wantContain != "" {
+				if !strings.Contains(result, tt.wantContain) {
+					t.Errorf("expected result to contain %q, got %q", tt.wantContain, result)
+				}
+			}
+		})
+	}
+}

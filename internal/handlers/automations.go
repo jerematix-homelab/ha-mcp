@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -98,19 +99,32 @@ Actions:
 					Description: "Description of what the automation does",
 				},
 				"trigger": {
-					Type:        "array",
-					Description: "List of triggers that start the automation (required for create; pass empty array [] for manual-only automations)",
-					Items:       &mcp.JSONSchema{Type: "object"},
+					Type: "array",
+					Description: `List of triggers that start the automation (required for create; pass empty array [] for manual-only).
+Common types: {"trigger": "state", "entity_id": "binary_sensor.motion", "to": "on"},
+{"trigger": "time", "at": "07:00:00"}, {"trigger": "sun", "event": "sunset", "offset": "-01:00:00"},
+{"trigger": "numeric_state", "entity_id": "sensor.temp", "above": 25},
+{"trigger": "homeassistant", "event": "start"}, {"trigger": "event", "event_type": "my_event"}`,
+					Items: &mcp.JSONSchema{Type: "object"},
 				},
 				"condition": {
-					Type:        "array",
-					Description: "Optional conditions that must be met",
-					Items:       &mcp.JSONSchema{Type: "object"},
+					Type: "array",
+					Description: `Optional conditions that must be met before actions execute.
+Common types: {"condition": "state", "entity_id": "sun.sun", "state": "above_horizon"},
+{"condition": "numeric_state", "entity_id": "sensor.temp", "above": 20},
+{"condition": "time", "after": "08:00:00", "before": "22:00:00"},
+{"condition": "template", "value_template": "{{ is_state('device_tracker.phone', 'home') }}"},
+{"condition": "and"/"or"/"not", "conditions": [...]}.
+Note: there is no 'sun' condition type — use state condition on sun.sun entity instead`,
+					Items: &mcp.JSONSchema{Type: "object"},
 				},
 				"automation_action": {
-					Type:        "array",
-					Description: "Actions to perform when triggered (required for create)",
-					Items:       &mcp.JSONSchema{Type: "object"},
+					Type: "array",
+					Description: `Actions to perform when triggered (required for create).
+Common types: {"action": "light.turn_on", "target": {"entity_id": "light.living"}, "data": {"brightness": 255}},
+{"action": "notify.mobile_app", "data": {"message": "Alert!"}},
+{"delay": "00:05:00"}, {"condition": "state", ...} (inline condition as guard)`,
+					Items: &mcp.JSONSchema{Type: "object"},
 				},
 				"mode": {
 					Type:        "string",
@@ -349,7 +363,7 @@ func (h *AutomationHandlers) handleCreate(ctx context.Context, client homeassist
 	}
 
 	if err := client.CreateAutomation(ctx, config); err != nil {
-		return errorResult(fmt.Sprintf("Error creating automation: %v", err)), nil
+		return errorResult(enrichAutomationError(fmt.Sprintf("Error creating automation: %v", err), err)), nil
 	}
 
 	entityID := "automation." + id
@@ -395,7 +409,7 @@ func (h *AutomationHandlers) handleUpdate(ctx context.Context, client homeassist
 	}
 
 	if err := client.UpdateAutomation(ctx, actualConfigID, *current.Config); err != nil {
-		return errorResult(fmt.Sprintf("Error updating automation: %v", err)), nil
+		return errorResult(enrichAutomationError(fmt.Sprintf("Error updating automation: %v", err), err)), nil
 	}
 
 	return successResult(fmt.Sprintf("Automation '%s' updated successfully", automationID)), nil
@@ -511,7 +525,7 @@ func (h *AutomationHandlers) handlePatch(ctx context.Context, client homeassista
 	}
 
 	if err := client.UpdateAutomation(ctx, actualConfigID, newConfig); err != nil {
-		return errorResult(fmt.Sprintf("error saving patched automation: %v", err)), nil
+		return errorResult(enrichAutomationError(fmt.Sprintf("error saving patched automation: %v", err), err)), nil
 	}
 
 	return successResult(fmt.Sprintf("Automation '%s' patched successfully (%d operations applied)", automationID, len(ops))), nil
@@ -963,4 +977,54 @@ func isValidSlugID(id string) bool {
 		}
 	}
 	return true
+}
+
+// enrichAutomationError appends actionable hints when HA returns a 400 validation
+// error for automation create/update/patch operations. Returns the original message
+// unchanged when no matching hint is found.
+func enrichAutomationError(msg string, err error) string {
+	var apiErr *homeassistant.APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 400 {
+		return msg
+	}
+
+	body := strings.ToLower(apiErr.Message)
+
+	for _, hint := range automationErrorHints {
+		if strings.Contains(body, hint.pattern) {
+			return msg + "\n\nHint: " + hint.suggestion
+		}
+	}
+
+	return msg
+}
+
+// automationErrorHint maps a pattern found in HA 400-error bodies to an actionable suggestion.
+type automationErrorHint struct {
+	pattern    string
+	suggestion string
+}
+
+//nolint:gochecknoglobals // static lookup table for error enrichment
+var automationErrorHints = []automationErrorHint{
+	{
+		pattern:    "extra keys not allowed",
+		suggestion: "The config contains an unrecognized key. Common mistakes: (1) 'sun' condition does not exist — use {\"condition\": \"state\", \"entity_id\": \"sun.sun\", \"state\": \"above_horizon\"} instead. (2) Check that trigger/condition/action keys match the HA schema for that type.",
+	},
+	{
+		pattern:    "required key not provided",
+		suggestion: "A required field is missing. Triggers need 'trigger' (type) key; conditions need 'condition' key; actions need 'action' (service) key.",
+	},
+	{
+		pattern:    "expected a list",
+		suggestion: "The 'trigger', 'condition', or 'automation_action' field must be an array (list), not a single object.",
+	},
+	{
+		pattern:    "unable to find action",
+		suggestion: "The service name in 'action' may be wrong. Use 'domain.service' format, e.g. 'light.turn_on', 'notify.mobile_app'. Check available services with call_service tool.",
+	},
+	{
+		pattern:    "invalid template",
+		suggestion: "Template syntax error. HA uses Jinja2: {{ states('sensor.x') }}, {{ is_state('entity', 'on') }}, etc.",
+	},
 }
