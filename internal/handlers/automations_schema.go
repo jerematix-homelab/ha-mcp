@@ -1,3 +1,4 @@
+// coverage-exempt: static data structure with unreachable json.Marshal error path
 package handlers
 
 import (
