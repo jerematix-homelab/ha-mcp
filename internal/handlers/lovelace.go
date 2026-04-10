@@ -117,6 +117,7 @@ func (h *DashboardHandlers) buildDashboardSchema() mcp.JSONSchema {
 				Enum:        []string{"natural", "json"},
 			},
 			"operations": patchOperationsSchema(),
+			"dry_run":    dryRunSchema(),
 		},
 		Required: []string{"action"},
 	}
@@ -331,6 +332,14 @@ func (h *DashboardHandlers) handlePatch(ctx context.Context, client homeassistan
 	patchedMap, patchErr := applyPatchWithSemantics(config, ops)
 	if patchErr != nil {
 		return errorResult(fmt.Sprintf("error applying patch: %v", patchErr)), nil
+	}
+
+	if dryRun, _ := args["dry_run"].(bool); dryRun {
+		dashboardID := urlPath
+		if dashboardID == "" {
+			dashboardID = "default"
+		}
+		return dryRunPatchResult(patchedMap, "dashboard", dashboardID, len(ops))
 	}
 
 	if err := client.SaveLovelaceConfig(ctx, urlPath, patchedMap); err != nil {

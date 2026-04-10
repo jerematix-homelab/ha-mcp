@@ -176,6 +176,24 @@ func configToMap(config any) (map[string]any, error) {
 	return m, nil
 }
 
+// dryRunPatchResult returns a preview of the patched config without saving.
+func dryRunPatchResult(patchedMap map[string]any, entityType, entityID string, opCount int) (*mcp.ToolsCallResult, error) {
+	result, err := json.MarshalIndent(patchedMap, "", "  ")
+	if err != nil {
+		return errorResult(fmt.Sprintf("error formatting dry-run result: %v", err)), nil
+	}
+	return successResult(fmt.Sprintf("Dry-run result for %s '%s' (%d operations, NOT saved):\n%s",
+		entityType, entityID, opCount, string(result))), nil
+}
+
+// dryRunSchema returns the MCP JSONSchema for the dry_run parameter.
+func dryRunSchema() mcp.JSONSchema {
+	return mcp.JSONSchema{
+		Type:        "boolean",
+		Description: "If true, preview the patched result without saving (for patch action)",
+	}
+}
+
 // mapToStruct converts map[string]any back to a typed struct via JSON round-trip.
 func mapToStruct(data map[string]any, target any) error {
 	b, err := json.Marshal(data)

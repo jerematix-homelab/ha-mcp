@@ -275,8 +275,8 @@ func (f *NaturalScriptFormatter) formatSequenceStep(step any) string {
 	}
 
 	// Check for repeat
-	if _, ok := stepMap["repeat"]; ok {
-		return "repeat (loop)"
+	if repeatVal, ok := stepMap["repeat"]; ok {
+		return formatRepeatAction(repeatVal)
 	}
 
 	// Check for event

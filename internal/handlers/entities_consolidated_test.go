@@ -221,6 +221,18 @@ func TestQueryEntities_Current(t *testing.T) {
 			wantNotContains: []string{"light.bedroom", "switch.kitchen"},
 		},
 		{
+			name: "name_contains comma-separated multi-keyword (OR)",
+			args: map[string]any{"mode": modeCurrent, "name_contains": "living,kitchen", "format": "json"},
+			setupMock: func(m *UniversalMockClient) {
+				m.GetStatesFn = func(_ context.Context) ([]homeassistant.Entity, error) {
+					return testStates, nil
+				}
+			},
+			wantError:       false,
+			wantContains:    []string{"light.living_room", "switch.kitchen"},
+			wantNotContains: []string{"light.bedroom"},
+		},
+		{
 			name: "device_class filter - motion",
 			args: map[string]any{"mode": modeCurrent, "domain": "binary_sensor", "device_class": "motion", "format": "json"},
 			setupMock: func(m *UniversalMockClient) {

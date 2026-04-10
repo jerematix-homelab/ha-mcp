@@ -44,6 +44,9 @@ type mockAutomationClient struct {
 	// entityExists tracks whether the mock entity is currently "visible".
 	// Set to true after successful CreateAutomation, false after successful DeleteAutomation.
 	entityExists bool
+
+	// updateCalled tracks whether UpdateAutomation was invoked (used by dry-run tests).
+	updateCalled bool
 }
 
 func (m *mockAutomationClient) ListAutomations(_ context.Context) ([]homeassistant.Automation, error) {
@@ -79,6 +82,7 @@ func (m *mockAutomationClient) CreateAutomation(_ context.Context, config homeas
 
 func (m *mockAutomationClient) UpdateAutomation(_ context.Context, automationID string, _ homeassistant.AutomationConfig) error {
 	m.lastUpdateID = automationID
+	m.updateCalled = true
 	return m.updateErr
 }
 
@@ -2422,5 +2426,74 @@ func TestEnrichAutomationError(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestManageAutomation_Schema(t *testing.T) {
+	h := &AutomationHandlers{}
+	result, err := h.handleManageAutomation(context.Background(), nil, map[string]any{"action": "schema"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", result.Content[0].Text)
+	}
+	text := result.Content[0].Text
+	for _, want := range []string{"triggers", "conditions", "actions", "notes", "state", "numeric_state", "time", "sun", "template"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("schema missing expected field/type %q", want)
+		}
+	}
+}
+
+func TestManageAutomation_PatchDryRun(t *testing.T) {
+	h := &AutomationHandlers{}
+
+	automation := &homeassistant.Automation{
+		EntityID: "automation.test",
+		State:    "on",
+		Config: &homeassistant.AutomationConfig{
+			ID:    "test",
+			Alias: "Test Automation",
+			Mode:  "single",
+			Triggers: []any{
+				map[string]any{"trigger": "state", "entity_id": "binary_sensor.motion"},
+			},
+			Actions: []any{
+				map[string]any{"action": "light.turn_on"},
+			},
+		},
+	}
+
+	client := &mockAutomationClient{
+		automationMap: map[string]*homeassistant.Automation{
+			"test": automation,
+		},
+	}
+
+	result, err := h.handleManageAutomation(context.Background(), client, map[string]any{
+		"action":        "patch",
+		"automation_id": "test",
+		"dry_run":       true,
+		"operations": []any{
+			map[string]any{"op": "replace", "path": "/mode", "value": "queued"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("expected success, got error: %s", result.Content[0].Text)
+	}
+	text := result.Content[0].Text
+	if !strings.Contains(text, "NOT saved") {
+		t.Errorf("dry-run result should indicate NOT saved, got: %s", text)
+	}
+	if !strings.Contains(text, "queued") {
+		t.Errorf("dry-run result should show patched value 'queued', got: %s", text)
+	}
+	// Must NOT have called UpdateAutomation
+	if client.updateCalled {
+		t.Error("UpdateAutomation should NOT be called during dry-run")
 	}
 }

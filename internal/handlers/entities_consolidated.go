@@ -282,12 +282,22 @@ func matchesStateFilters(state homeassistant.Entity, params stateFilterParams, n
 }
 
 // matchesNameFilter checks if entity matches the name filter.
+// Supports comma-separated keywords (OR semantics): "twingo,zappi,solar" matches any keyword.
 func matchesNameFilter(state homeassistant.Entity, nameContainsLower string) bool {
-	if strings.Contains(strings.ToLower(state.EntityID), nameContainsLower) {
-		return true
-	}
+	entityIDLower := strings.ToLower(state.EntityID)
 	friendlyName, _ := state.Attributes["friendly_name"].(string)
-	return strings.Contains(strings.ToLower(friendlyName), nameContainsLower)
+	friendlyNameLower := strings.ToLower(friendlyName)
+
+	for _, keyword := range strings.Split(nameContainsLower, ",") {
+		kw := strings.TrimSpace(keyword)
+		if kw == "" {
+			continue
+		}
+		if strings.Contains(entityIDLower, kw) || strings.Contains(friendlyNameLower, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // formatStatesOutput formats entity states based on verbose flag.
@@ -554,7 +564,7 @@ func queryEntitiesProperties() map[string]mcp.JSONSchema {
 		},
 		"name_contains": {
 			Type:        "string",
-			Description: "Filter by entity_id or friendly_name containing string. Only for mode=current",
+			Description: "Filter by entity_id or friendly_name. Supports comma-separated keywords (OR): \"twingo,zappi,solar\" matches any keyword. Only for mode=current",
 		},
 		"device_class": {
 			Type:        "string",
