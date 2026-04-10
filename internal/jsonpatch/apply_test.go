@@ -448,6 +448,11 @@ func TestApply_ErrorMessages(t *testing.T) {
 			errMsg: "operation 0",
 		},
 		{
+			name:   "missing key shows available keys",
+			ops:    []Operation{{Op: "replace", Path: "/notexist", Value: "x"}},
+			errMsg: "available keys: [items mode]",
+		},
+		{
 			name:   "test failure includes expected and actual",
 			ops:    []Operation{{Op: "test", Path: "/mode", Value: "queued"}},
 			errMsg: "test failed",
