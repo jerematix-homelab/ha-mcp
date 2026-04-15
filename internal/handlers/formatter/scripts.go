@@ -284,8 +284,12 @@ func (f *NaturalScriptFormatter) formatSequenceStep(step any) string {
 		return fmt.Sprintf("event: %s", event)
 	}
 
-	// Generic action type
+	// Modern HA uses "action" key instead of legacy "service" — extract target too.
 	if action, ok := stepMap["action"].(string); ok {
+		target := f.extractTarget(stepMap)
+		if target != "" {
+			return fmt.Sprintf("%s: %s", action, target)
+		}
 		return action
 	}
 
