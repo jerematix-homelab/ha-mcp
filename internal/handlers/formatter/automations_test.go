@@ -286,6 +286,54 @@ func TestNaturalAutomationFormatter_ImprovedTriggerFormatting(t *testing.T) {
 			},
 			wantText: []string{"template:", "..."},
 		},
+		{
+			name: "numeric_state trigger with negative below threshold",
+			trigger: map[string]any{
+				"platform":  "numeric_state",
+				"entity_id": "sensor.calc_netzleistung",
+				"below":     float64(-1500),
+			},
+			wantText: []string{"numeric_state: sensor.calc_netzleistung", "below -1500"},
+		},
+		{
+			name: "numeric_state trigger with for duration",
+			trigger: map[string]any{
+				"platform":  "numeric_state",
+				"entity_id": "sensor.power",
+				"below":     float64(-1500),
+				"for":       "0:05:00",
+			},
+			wantText: []string{"below -1500", "for 0:05:00"},
+		},
+		{
+			name: "numeric_state trigger with for as map",
+			trigger: map[string]any{
+				"platform":  "numeric_state",
+				"entity_id": "sensor.power",
+				"below":     float64(100),
+				"for":       map[string]any{"hours": float64(0), "minutes": float64(5), "seconds": float64(0)},
+			},
+			wantText: []string{"below 100", "for 0:05:00"},
+		},
+		{
+			name: "numeric_state trigger with template threshold",
+			trigger: map[string]any{
+				"platform":  "numeric_state",
+				"entity_id": "sensor.power",
+				"below":     "{{ states('input_number.threshold') }}",
+			},
+			wantText: []string{"below {{ states('input_number.threshold') }}"},
+		},
+		{
+			name: "state trigger with for as map",
+			trigger: map[string]any{
+				"platform":  "state",
+				"entity_id": "binary_sensor.motion",
+				"to":        "off",
+				"for":       map[string]any{"hours": float64(0), "minutes": float64(10), "seconds": float64(0)},
+			},
+			wantText: []string{"state: binary_sensor.motion", "to: off", "for: 0:10:00"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -353,6 +401,23 @@ func TestNaturalAutomationFormatter_ImprovedActionFormatting(t *testing.T) {
 			},
 			wantText: []string{"conditional:", "if/then"},
 		},
+		{
+			name: "modern action key with target entity_id",
+			action: map[string]any{
+				"action": "script.turn_on",
+				"target": map[string]any{
+					"entity_id": "script.kitchen_dishwasher_on",
+				},
+			},
+			wantText: []string{"script.turn_on", "script.kitchen_dishwasher_on"},
+		},
+		{
+			name: "modern action key without target",
+			action: map[string]any{
+				"action": "homeassistant.reload_config_entry",
+			},
+			wantText: []string{"homeassistant.reload_config_entry"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -366,6 +431,69 @@ func TestNaturalAutomationFormatter_ImprovedActionFormatting(t *testing.T) {
 					Alias:    "Test",
 					Triggers: []any{},
 					Actions:  []any{tt.action},
+				},
+			}
+
+			result, err := f.FormatDetail(ctx, automation)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			for _, want := range tt.wantText {
+				if !strings.Contains(result, want) {
+					t.Errorf("expected %q in output, got: %s", want, result)
+				}
+			}
+		})
+	}
+}
+
+func TestNaturalAutomationFormatter_NumericStateCondition(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	f := NewNaturalAutomationFormatter()
+
+	tests := []struct {
+		name      string
+		condition map[string]any
+		wantText  []string
+	}{
+		{
+			name: "numeric_state condition with negative below",
+			condition: map[string]any{
+				"condition": "numeric_state",
+				"entity_id": "sensor.power",
+				"below":     float64(-500),
+			},
+			wantText: []string{"numeric_state: sensor.power", "below -500"},
+		},
+		{
+			name: "numeric_state condition with above and below",
+			condition: map[string]any{
+				"condition": "numeric_state",
+				"entity_id": "sensor.humidity",
+				"above":     float64(30),
+				"below":     float64(70),
+			},
+			wantText: []string{"numeric_state: sensor.humidity", "above 30", "below 70"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			automation := homeassistant.Automation{
+				EntityID:     "automation.test",
+				State:        "on",
+				FriendlyName: "Test",
+				Config: &homeassistant.AutomationConfig{
+					ID:         "test",
+					Alias:      "Test",
+					Triggers:   []any{},
+					Conditions: []any{tt.condition},
+					Actions:    []any{},
 				},
 			}
 

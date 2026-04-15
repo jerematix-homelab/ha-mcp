@@ -385,7 +385,6 @@ func (f *NaturalAutomationFormatter) formatKnownTrigger(platform, entityID strin
 func (f *NaturalAutomationFormatter) formatStateTrigger(entityID string, triggerMap map[string]any) string {
 	from, _ := triggerMap["from"].(string)
 	to, _ := triggerMap["to"].(string)
-	forDuration, _ := triggerMap["for"].(string)
 
 	var parts []string
 	parts = append(parts, entityID)
@@ -396,20 +395,40 @@ func (f *NaturalAutomationFormatter) formatStateTrigger(entityID string, trigger
 	if to != "" {
 		parts = append(parts, "to: "+to)
 	}
-	if forDuration != "" {
-		parts = append(parts, "for: "+forDuration)
+	if forDur := formatForDuration(triggerMap); forDur != "" {
+		parts = append(parts, "for: "+forDur)
 	}
 
 	return fmt.Sprintf("state: %s", strings.Join(parts, ", "))
 }
 
 func (f *NaturalAutomationFormatter) formatNumericStateTrigger(entityID string, triggerMap map[string]any) string {
-	above, _ := triggerMap["above"].(float64)
-	below, _ := triggerMap["below"].(float64)
-	if above > 0 || below > 0 {
-		return fmt.Sprintf("numeric_state: %s (above: %.1f, below: %.1f)", entityID, above, below)
+	parts := []string{entityID}
+	if v, ok := triggerMap["above"]; ok {
+		parts = append(parts, fmt.Sprintf("above %v", v))
 	}
-	return fmt.Sprintf("numeric_state: %s", entityID)
+	if v, ok := triggerMap["below"]; ok {
+		parts = append(parts, fmt.Sprintf("below %v", v))
+	}
+	if forDur := formatForDuration(triggerMap); forDur != "" {
+		parts = append(parts, "for "+forDur)
+	}
+	return "numeric_state: " + strings.Join(parts, " ")
+}
+
+// formatForDuration extracts a "for" duration from a trigger/condition map.
+// HA supports both string form ("00:05:00") and map form ({hours, minutes, seconds}).
+func formatForDuration(m map[string]any) string {
+	if s, ok := m["for"].(string); ok {
+		return s
+	}
+	if dm, ok := m["for"].(map[string]any); ok {
+		h, _ := dm["hours"].(float64)
+		mins, _ := dm["minutes"].(float64)
+		sec, _ := dm["seconds"].(float64)
+		return fmt.Sprintf("%d:%02d:%02d", int(h), int(mins), int(sec))
+	}
+	return ""
 }
 
 func (f *NaturalAutomationFormatter) formatZoneTrigger(entityID string, triggerMap map[string]any) string {
@@ -490,7 +509,14 @@ func (f *NaturalAutomationFormatter) formatCondition(condition any) string {
 		}
 		return "time condition"
 	case "numeric_state":
-		return fmt.Sprintf("numeric_state: %s", entityID)
+		parts := []string{entityID}
+		if v, ok := condMap["above"]; ok {
+			parts = append(parts, fmt.Sprintf("above %v", v))
+		}
+		if v, ok := condMap["below"]; ok {
+			parts = append(parts, fmt.Sprintf("below %v", v))
+		}
+		return "numeric_state: " + strings.Join(parts, " ")
 	default:
 		if entityID != "" {
 			return fmt.Sprintf("%s: %s", condType, entityID)
@@ -528,9 +554,9 @@ func (f *NaturalAutomationFormatter) formatAction(action any) string {
 }
 
 func (f *NaturalAutomationFormatter) formatNonServiceAction(actionMap map[string]any) string {
-	// Check for action key
+	// Modern HA uses "action" key instead of legacy "service" — same target/data extraction applies.
 	if actionType, ok := actionMap["action"].(string); ok && actionType != "" {
-		return actionType
+		return f.formatServiceAction(actionType, actionMap)
 	}
 
 	// Check for complex action types

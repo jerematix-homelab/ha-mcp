@@ -156,6 +156,46 @@ func TestNaturalScriptFormatter_FormatDetail(t *testing.T) {
 	}
 }
 
+func TestNaturalScriptFormatter_ModernActionKey(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	f := NewNaturalScriptFormatter()
+
+	script := homeassistant.Script{
+		EntityID:     "script.dishwasher_on",
+		State:        "off",
+		FriendlyName: "Dishwasher On",
+		Config: &homeassistant.ScriptConfig{
+			Alias: "Dishwasher On",
+			Sequence: []any{
+				map[string]any{
+					"action": "script.turn_on",
+					"target": map[string]any{"entity_id": "script.kitchen_dishwasher_on"},
+				},
+				map[string]any{
+					"action": "homeassistant.reload_config_entry",
+				},
+			},
+		},
+	}
+
+	result, err := f.FormatDetail(ctx, script)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !strings.Contains(result, "script.turn_on") {
+		t.Errorf("expected 'script.turn_on' in output, got: %s", result)
+	}
+	if !strings.Contains(result, "script.kitchen_dishwasher_on") {
+		t.Errorf("expected target 'script.kitchen_dishwasher_on' in output, got: %s", result)
+	}
+	if !strings.Contains(result, "homeassistant.reload_config_entry") {
+		t.Errorf("expected 'homeassistant.reload_config_entry' in output, got: %s", result)
+	}
+}
+
 func TestJSONScriptFormatter_FormatList(t *testing.T) {
 	ctx := context.Background()
 	f := NewJSONScriptFormatter()
