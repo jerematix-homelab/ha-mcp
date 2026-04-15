@@ -499,6 +499,19 @@ func TestSceneHandlers_ManageScene_Create(t *testing.T) {
 			wantError:      true,
 			wantContains:   "Error creating scene",
 		},
+		{
+			name: "mismatched scene_id and name shows both ids",
+			args: map[string]any{
+				"action":   "create",
+				"scene_id": "cozy_evening",
+				"name":     "Gemütlicher Abend",
+				"entities": map[string]any{
+					"light.living_room": "on",
+				},
+			},
+			wantError:    false,
+			wantContains: "entity_id: scene.gemutlicher_abend",
+		},
 	}
 
 	for _, tt := range tests {
