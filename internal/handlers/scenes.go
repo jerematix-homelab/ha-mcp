@@ -275,8 +275,10 @@ func (h *SceneHandlers) handleCreate(ctx context.Context, client homeassistant.C
 		return errorResult(fmt.Sprintf("Error creating scene: %v", err)), nil
 	}
 
-	entityID, _ := normalizeSceneID(sceneID)
-	successMsg := fmt.Sprintf("Scene '%s' created successfully", sceneID)
+	// HA derives entity_id from name (slugified), not from scene_id (config key).
+	nameSlug := slugifyName(name)
+	entityID := "scene." + nameSlug
+	successMsg := fmt.Sprintf("Scene '%s' created successfully (entity_id: %s, config_id: %s)", name, entityID, sceneID)
 	if _, appeared := reloadAndWaitForEntity(ctx, client, "scene", entityID); !appeared {
 		successMsg += " (note: scene may require Home Assistant restart to become visible)"
 	}
