@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode"
 
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 	"github.com/zorak1103/ha-mcp/internal/mcp"
@@ -90,7 +92,7 @@ Actions:
 				},
 				"automation_id": {
 					Type:        "string",
-					Description: "Automation identifier. For create: optional bare ID (e.g. 'my_automation') to override the auto-generated ID — useful when alias contains non-ASCII characters that HA's slugifier would strip. For other actions: accepts entity_id (automation.xyz), config.id (UUID), or alias/friendly_name (case-insensitive partial match). Required for get/update/delete/toggle.",
+					Description: "Automation identifier. For create: optional config/storage ID (e.g. 'my_automation') — controls the REST API key, not the entity_id (HA always derives entity_id from the slugified alias). Useful when you need a stable config ID independent of the display name. For other actions: accepts entity_id (automation.xyz), config.id (UUID), or alias/friendly_name (case-insensitive partial match). Required for get/update/delete/toggle.",
 				},
 				"alias": {
 					Type:        "string",
@@ -358,8 +360,10 @@ func (h *AutomationHandlers) handleCreate(ctx context.Context, client homeassist
 		return errorResult(enrichAutomationError(fmt.Sprintf("Error creating automation: %v", err), err)), nil
 	}
 
-	entityID := "automation." + id
-	successMsg := fmt.Sprintf("Automation '%s' created successfully with ID '%s'", alias, id)
+	// HA derives entity_id from alias (slugified), not from config ID.
+	aliasSlug := generateAutomationID(alias)
+	entityID := "automation." + aliasSlug
+	successMsg := fmt.Sprintf("Automation '%s' created successfully (entity_id: %s, config_id: %s)", alias, entityID, id)
 	if autoFilled {
 		successMsg += " (manual-only: placeholder trigger inserted)"
 	}
@@ -940,13 +944,22 @@ func normalizeAutomationID(automationID string) (entityID, configID string) {
 	return "automation." + automationID, automationID
 }
 
-// generateAutomationID converts an alias to a valid automation ID.
+// generateAutomationID converts an alias to a valid automation ID that matches
+// the entity_id Home Assistant will derive from the alias. HA slugifies the alias
+// using python-slugify with text-unidecode, which transliterates accented chars to
+// their ASCII base (e.g. u->u, o->o). We replicate this with NFD decomposition:
+// decompose accented runes into base letter + combining mark, then drop combining marks.
 func generateAutomationID(alias string) string {
+	// NFD decomposes e.g. u (U+00FC) into u (U+0075) + combining umlaut (U+0308)
+	normalized := norm.NFD.String(alias)
 	var result strings.Builder
 	prevUnderscore := false
 
-	for _, r := range alias {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+	for _, r := range normalized {
+		if unicode.Is(unicode.Mn, r) {
+			continue // skip combining marks (accents, umlauts, etc.)
+		}
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
 			result.WriteRune(unicode.ToLower(r))
 			prevUnderscore = false
 		} else if unicode.IsSpace(r) || r == '-' || r == '_' {

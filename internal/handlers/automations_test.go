@@ -421,7 +421,7 @@ func TestManageAutomation_Create(t *testing.T) {
 				"automation_action": []any{map[string]any{"service": "light.turn_on"}},
 			},
 			client:       &mockAutomationClient{},
-			wantContains: []string{"created successfully", "warme_buro"},
+			wantContains: []string{"created successfully", "entity_id: automation.warme_buro", "config_id: warme_buro"},
 		},
 		{
 			name: "create with prefixed automation_id strips prefix",
@@ -433,7 +433,7 @@ func TestManageAutomation_Create(t *testing.T) {
 				"automation_action": []any{map[string]any{"service": "light.turn_on"}},
 			},
 			client:       &mockAutomationClient{},
-			wantContains: []string{"created successfully", "my_id"},
+			wantContains: []string{"created successfully", "entity_id: automation.my_automation", "config_id: my_id"},
 		},
 		{
 			name: "error - invalid automation_id with spaces",
@@ -457,7 +457,19 @@ func TestManageAutomation_Create(t *testing.T) {
 				"automation_action": []any{map[string]any{"service": "light.turn_off"}},
 			},
 			client:       &mockAutomationClient{},
-			wantContains: []string{"created successfully", "turn_off_all_lights"},
+			wantContains: []string{"created successfully", "entity_id: automation.turn_off_all_lights", "config_id: turn_off_all_lights"},
+		},
+		{
+			name: "create with mismatched automation_id and alias shows both ids",
+			args: map[string]any{
+				"action":            "create",
+				"alias":             "Spülmaschine bei Solarüberschuss einschalten",
+				"automation_id":     "dishwasher_solar_surplus",
+				"trigger":           []any{map[string]any{"platform": "state"}},
+				"automation_action": []any{map[string]any{"service": "switch.turn_on"}},
+			},
+			client:       &mockAutomationClient{},
+			wantContains: []string{"entity_id: automation.spulmaschine_bei_solaruberschuss_einschalten", "config_id: dishwasher_solar_surplus"},
 		},
 	}
 
@@ -1329,6 +1341,9 @@ func TestGenerateAutomationID(t *testing.T) {
 		{"multiple spaces collapsed", "test   spaces", "test_spaces"},
 		{"empty string", "", ""},
 		{"only special characters", "!@#$%", ""},
+		{"german umlauts transliterated", "Wärme Büro", "warme_buro"},
+		{"issue 58 alias", "Spülmaschine bei Solarüberschuss einschalten", "spulmaschine_bei_solaruberschuss_einschalten"},
+		{"accented latin", "Café résumé", "cafe_resume"},
 	}
 
 	for _, tt := range tests {
