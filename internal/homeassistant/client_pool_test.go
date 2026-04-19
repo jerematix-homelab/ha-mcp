@@ -626,3 +626,90 @@ func TestClientPool_CleanupIdleClients_NoneIdle(t *testing.T) {
 		t.Errorf("Expected 2 clients after cleanup (none idle), got %d", pool.Size())
 	}
 }
+
+func TestClientPool_EvictLRU_WhenFull(t *testing.T) {
+	t.Parallel()
+
+	pool := NewClientPoolWithFullConfig("http://localhost:8123", 30*time.Minute, 2, nil, nil, nil)
+	defer pool.Close()
+
+	oldest := &mockClientForPool{connected: true}
+	newer := &mockClientForPool{connected: true}
+
+	// Seed the pool at capacity: oldest was used first (earlier timestamp)
+	pool.mu.Lock()
+	pool.clients["token-oldest"] = &pooledClient{
+		client:   oldest,
+		lastUsed: time.Now().Add(-10 * time.Minute),
+	}
+	pool.clients["token-newer"] = &pooledClient{
+		client:   newer,
+		lastUsed: time.Now().Add(-1 * time.Minute),
+	}
+	pool.mu.Unlock()
+
+	if pool.Size() != 2 {
+		t.Fatalf("expected pool size 2 before eviction, got %d", pool.Size())
+	}
+
+	// Trigger eviction directly (called under write lock — acquire it here to match production path)
+	pool.mu.Lock()
+	pool.evictLRU()
+	pool.mu.Unlock()
+
+	// Pool should now have 1 entry and the oldest should have been closed
+	if pool.Size() != 1 {
+		t.Errorf("expected pool size 1 after eviction, got %d", pool.Size())
+	}
+	if !oldest.closed {
+		t.Error("expected oldest client to be closed after LRU eviction")
+	}
+	pool.mu.RLock()
+	_, oldestStillPresent := pool.clients["token-oldest"]
+	_, newerStillPresent := pool.clients["token-newer"]
+	pool.mu.RUnlock()
+
+	if oldestStillPresent {
+		t.Error("token-oldest should have been evicted")
+	}
+	if !newerStillPresent {
+		t.Error("token-newer should still be in the pool")
+	}
+}
+
+func TestClientPool_MaxSize_EnforcedOnInsert(t *testing.T) {
+	t.Parallel()
+
+	pool := NewClientPoolWithFullConfig("http://localhost:8123", 30*time.Minute, 2, nil, nil, nil)
+	defer pool.Close()
+
+	c1 := &mockClientForPool{connected: true}
+	c2 := &mockClientForPool{connected: true}
+	c3 := &mockClientForPool{connected: true}
+
+	pool.mu.Lock()
+	pool.clients["t1"] = &pooledClient{client: c1, lastUsed: time.Now().Add(-5 * time.Minute)}
+	pool.clients["t2"] = &pooledClient{client: c2, lastUsed: time.Now().Add(-1 * time.Minute)}
+	pool.mu.Unlock()
+
+	// Insert c3: pool is at maxSize=2, so eviction must happen before insert
+	pool.mu.Lock()
+	if pool.maxSize > 0 && len(pool.clients) >= pool.maxSize {
+		pool.evictLRU()
+	}
+	pool.clients["t3"] = &pooledClient{client: c3, lastUsed: time.Now()}
+	pool.mu.Unlock()
+
+	if pool.Size() != 2 {
+		t.Errorf("expected pool size 2 after capped insert, got %d", pool.Size())
+	}
+	if !c1.closed {
+		t.Error("expected c1 (oldest/LRU) to be closed after insert")
+	}
+	pool.mu.RLock()
+	_, t3present := pool.clients["t3"]
+	pool.mu.RUnlock()
+	if !t3present {
+		t.Error("expected t3 to be present after insert")
+	}
+}

@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
 	"github.com/zorak1103/ha-mcp/internal/logging"
@@ -51,6 +54,21 @@ const (
 	httpIdleTimeout       = 60 * time.Second
 )
 
+// Rate limiting constants.
+const (
+	mcpRateLimitPerIP          = 10.0            // sustained req/s per client IP
+	mcpRateBurstPerIP          = 30              // burst capacity per client IP
+	mcpRateLimiterMaxAge       = 5 * time.Minute // prune stale IP limiter entries
+	mcpRateLimiterCleanupEvery = time.Minute     // how often to prune stale entries
+	tokenMinLength             = 10             // minimum Bearer token length
+)
+
+// ipLimiterEntry holds a per-IP rate limiter and its last-seen time for cleanup.
+type ipLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
 // Server represents the MCP server.
 type Server struct {
 	clientPool    *homeassistant.ClientPool // Pool of HA clients per token
@@ -63,6 +81,8 @@ type Server struct {
 	waitConfig    WaitConfig        // Polling config injected into handler contexts
 	mu            sync.RWMutex
 	initialized   bool
+	ipLimiters    map[string]*ipLimiterEntry
+	ipLimitersMu  sync.Mutex
 }
 
 // NewServer creates a new MCP server instance.
@@ -78,14 +98,17 @@ func NewServer(
 	if logger == nil {
 		logger = logging.New(logging.LevelInfo)
 	}
-	return &Server{
+	s := &Server{
 		clientPool:    clientPool,
 		defaultClient: defaultClient,
 		registry:      registry,
 		port:          port,
 		logger:        logger,
 		waitConfig:    DefaultWaitConfig(),
+		ipLimiters:    make(map[string]*ipLimiterEntry),
 	}
+	go s.cleanupIPLimiters()
+	return s
 }
 
 // Start starts the MCP HTTP server.
@@ -96,7 +119,7 @@ func (s *Server) Start() error {
 
 	s.httpServer = &http.Server{
 		Addr:              fmt.Sprintf(":%d", s.port),
-		Handler:           mux,
+		Handler:           s.rateLimitMiddleware(mux),
 		ReadHeaderTimeout: httpReadHeaderTimeout,
 		ReadTimeout:       httpReadTimeout,
 		WriteTimeout:      httpWriteTimeout,
@@ -117,6 +140,61 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	s.logger.Info("MCP server shutting down...")
 	return s.httpServer.Shutdown(ctx)
+}
+
+// getLimiter returns the per-IP rate limiter, creating one on first access.
+func (s *Server) getLimiter(ip string) *rate.Limiter {
+	s.ipLimitersMu.Lock()
+	defer s.ipLimitersMu.Unlock()
+	entry, ok := s.ipLimiters[ip]
+	if !ok {
+		entry = &ipLimiterEntry{
+			limiter: rate.NewLimiter(mcpRateLimitPerIP, mcpRateBurstPerIP),
+		}
+		s.ipLimiters[ip] = entry
+	}
+	entry.lastSeen = time.Now()
+	return entry.limiter
+}
+
+// cleanupIPLimiters periodically removes stale per-IP limiter entries.
+func (s *Server) cleanupIPLimiters() {
+	ticker := time.NewTicker(mcpRateLimiterCleanupEvery)
+	defer ticker.Stop()
+	for range ticker.C {
+		s.ipLimitersMu.Lock()
+		cutoff := time.Now().Add(-mcpRateLimiterMaxAge)
+		for ip, entry := range s.ipLimiters {
+			if entry.lastSeen.Before(cutoff) {
+				delete(s.ipLimiters, ip)
+			}
+		}
+		s.ipLimitersMu.Unlock()
+	}
+}
+
+// rateLimitMiddleware enforces per-IP request rate limiting.
+// The /health endpoint is exempt to allow liveness probes.
+// Clients behind shared NAT share one IP bucket — this is a known trade-off.
+func (s *Server) rateLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		host, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			host = r.RemoteAddr
+		}
+		if !s.getLimiter(host).Allow() {
+			s.logger.Warn("Rate limit exceeded", "remoteAddr", r.RemoteAddr)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"jsonrpc":"2.0","error":{"code":-32429,"message":"rate limit exceeded"},"id":null}`))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // handleHealth handles health check requests.
@@ -542,6 +620,9 @@ func (s *Server) getClientForRequest(ctx context.Context, r *http.Request) (home
 	token := extractBearerToken(r)
 
 	if token != "" {
+		if len(token) < tokenMinLength {
+			return nil, fmt.Errorf("authorization token too short")
+		}
 		// Use token from header
 		client, err := s.clientPool.GetOrCreate(ctx, token)
 		if err != nil {

@@ -1813,3 +1813,160 @@ func TestServer_SetToolFilter(t *testing.T) {
 	engine := NewToolFilterEngine(ToolFilterConfig{Blacklist: []string{}}, false)
 	s.SetToolFilter(engine)
 }
+
+func TestRateLimitMiddleware_AllowsNormalRequests(t *testing.T) {
+	t.Parallel()
+
+	pool := homeassistant.NewClientPool("http://localhost:8123", 30*time.Minute)
+	defer pool.Close()
+
+	s := NewServer(pool, &mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
+
+	// Wrap a simple OK handler with the rate limiter
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := s.rateLimitMiddleware(inner)
+
+	// A small number of requests well within burst should all pass
+	for i := range 5 {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+		req.RemoteAddr = "10.0.0.1:1234"
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("request %d: got status %d, want 200", i, w.Code)
+		}
+	}
+}
+
+func TestRateLimitMiddleware_Returns429WhenExhausted(t *testing.T) {
+	t.Parallel()
+
+	pool := homeassistant.NewClientPool("http://localhost:8123", 30*time.Minute)
+	defer pool.Close()
+
+	s := NewServer(pool, &mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := s.rateLimitMiddleware(inner)
+
+	// Drain the burst by firing more than mcpRateBurstPerIP (30) requests instantly
+	const totalRequests = mcpRateBurstPerIP + 10
+	got429 := false
+	for range totalRequests {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+		req.RemoteAddr = "192.168.1.99:5000"
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		if w.Code == http.StatusTooManyRequests {
+			got429 = true
+			break
+		}
+	}
+	if !got429 {
+		t.Errorf("expected at least one 429 after %d instant requests, but none received", totalRequests)
+	}
+}
+
+func TestRateLimitMiddleware_PerIPIsolation(t *testing.T) {
+	t.Parallel()
+
+	pool := homeassistant.NewClientPool("http://localhost:8123", 30*time.Minute)
+	defer pool.Close()
+
+	s := NewServer(pool, &mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := s.rateLimitMiddleware(inner)
+
+	// Exhaust bucket for IP A
+	for range mcpRateBurstPerIP + 5 {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+		req.RemoteAddr = "10.0.0.1:1000"
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+	}
+
+	// IP B should still get through with its own fresh bucket
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+	req.RemoteAddr = "10.0.0.2:2000"
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("IP B got status %d, expected 200 (separate bucket)", w.Code)
+	}
+}
+
+func TestRateLimitMiddleware_HealthExempt(t *testing.T) {
+	t.Parallel()
+
+	pool := homeassistant.NewClientPool("http://localhost:8123", 30*time.Minute)
+	defer pool.Close()
+
+	s := NewServer(pool, &mockHAClient{}, NewRegistry(), 8080, logging.New(logging.LevelOff))
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := s.rateLimitMiddleware(inner)
+
+	// Exhaust this IP's bucket first
+	for range mcpRateBurstPerIP + 5 {
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", nil)
+		req.RemoteAddr = "10.1.2.3:9999"
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+	}
+
+	// Health requests from same IP must still pass (exempt from rate limiting)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
+	req.RemoteAddr = "10.1.2.3:9999"
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("/health got status %d after bucket exhaustion, expected 200", w.Code)
+	}
+}
+
+func TestTokenMinLength_RejectsShortTokens(t *testing.T) {
+	t.Parallel()
+
+	pool := homeassistant.NewClientPool("http://localhost:8123", 30*time.Minute)
+	defer pool.Close()
+
+	// No defaultClient — short token must not reach pool.GetOrCreate
+	s := NewServer(pool, nil, NewRegistry(), 8080, logging.New(logging.LevelOff))
+
+	shortToken := strings.Repeat("x", tokenMinLength-1)
+	// tools/call requires a client — triggers getClientForRequest
+	body := `{"jsonrpc":"2.0","method":"tools/call","params":{"name":"get_state","arguments":{}},"id":1}`
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/", bytes.NewReader([]byte(body)))
+	req.Header.Set("Authorization", "Bearer "+shortToken)
+	w := httptest.NewRecorder()
+
+	s.handleMCP(w, req)
+
+	var result map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&result); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	errObj, hasErr := result["error"]
+	if !hasErr {
+		t.Errorf("expected JSON-RPC error for short token, got result: %v", result)
+		return
+	}
+	errMap, ok := errObj.(map[string]any)
+	if !ok {
+		t.Errorf("unexpected error shape: %v", errObj)
+		return
+	}
+	msg, _ := errMap["message"].(string)
+	if !strings.Contains(msg, "token") && !strings.Contains(msg, "Home Assistant") {
+		t.Errorf("unexpected error message for short token: %q", msg)
+	}
+}
