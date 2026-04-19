@@ -283,6 +283,10 @@ func (a *App) setupLogger(cfg *config.Config) *logging.Logger {
 	logger.Info("Home Assistant URL", "url", cfg.HomeAssistant.URL)
 	logger.Info("Log level", "level", logging.LevelString(logLevel))
 
+	if logLevel <= logging.LevelTrace {
+		logger.Warn("TRACE log level active: payload summaries only (method, keys, size); not intended for production use")
+	}
+
 	return logger
 }
 
