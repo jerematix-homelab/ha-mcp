@@ -324,6 +324,15 @@ The server enforces per-IP rate limiting to prevent connection pool exhaustion.
 
 Clients behind shared NAT share one rate-limit bucket. The per-IP limits are currently fixed constants; configurable env vars are planned for a future release.
 
+## Logging
+
+The server log level is controlled by `HA_MCP_LOG_LEVEL` (`trace`, `debug`, `info` (default), `warn`, `error`).
+
+**Payload redaction at TRACE:** At `trace` level, the server logs only payload summaries — request method, top-level parameter keys, and byte size — never parameter values, tool arguments, response content, or error data. This protects automation configs, template content, entity details, and any embedded credentials from leaking into log files or aggregators even when tracing is enabled.
+
+- Example TRACE output: `Request received remote_addr=… summary="method=tools/call id=1 param_keys=[name arguments]" size=247`
+- A startup `WARN` is emitted when TRACE is active to make its use explicit.
+
 ## Health Check
 
 The server provides a health check endpoint (no authentication required, not rate-limited):

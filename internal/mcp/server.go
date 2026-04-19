@@ -224,8 +224,10 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TRACE: Log full request body
-	s.logger.Trace("Request received", "remote_addr", r.RemoteAddr, "body", string(body))
+	// TRACE: Log redacted request summary (method + param keys only; never values)
+	if s.logger.IsTraceEnabled() {
+		s.logger.Trace("Request received", "remote_addr", r.RemoteAddr, "summary", summarizeBody(body), "size", len(body))
+	}
 
 	var req Request
 	if err := json.Unmarshal(body, &req); err != nil {
@@ -268,9 +270,9 @@ func (s *Server) logResponse(req *Request, resp *Response, duration time.Duratio
 			"error_message", resp.Error.Message,
 			"duration", duration)
 
-		// TRACE: Log full error details
-		if resp.Error.Data != nil {
-			s.logger.Trace("Error details", "data", resp.Error.Data)
+		// TRACE: Log redacted error detail shape (type only; never values)
+		if resp.Error.Data != nil && s.logger.IsTraceEnabled() {
+			s.logger.Trace("Error details", "shape", summarizeResult(resp.Error.Data))
 		}
 		return
 	}
@@ -278,12 +280,14 @@ func (s *Server) logResponse(req *Request, resp *Response, duration time.Duratio
 	// Success response
 	s.logger.Info("Request completed", "method", req.Method, "id", formatID(req.ID), "duration", duration)
 
-	// TRACE: Log full response
+	// TRACE: Log redacted response summary (shape + size; never values)
 	if s.logger.IsTraceEnabled() {
-		respJSON, err := json.MarshalIndent(resp.Result, "", "  ")
+		respJSON, err := json.Marshal(resp.Result)
+		size := 0
 		if err == nil {
-			s.logger.Trace("Response result", "result", string(respJSON))
+			size = len(respJSON)
 		}
+		s.logger.Trace("Response result", "summary", summarizeResult(resp.Result), "size", size)
 	}
 }
 
@@ -423,12 +427,14 @@ func (s *Server) handleToolsCall(ctx context.Context, req *Request, r *http.Requ
 		s.logger.Debug("Tool arguments", "summary", argSummary)
 	}
 
-	// TRACE: Log full arguments
+	// TRACE: Log redacted tool-call argument summary (keys + size; never values)
 	if s.logger.IsTraceEnabled() {
-		argsJSON, marshalErr := json.MarshalIndent(params.Arguments, "", "  ")
+		argsJSON, marshalErr := json.Marshal(params.Arguments)
+		size := 0
 		if marshalErr == nil {
-			s.logger.Trace("Tool call arguments", "arguments", string(argsJSON))
+			size = len(argsJSON)
 		}
+		s.logger.Trace("Tool call arguments", "summary", summarizeArguments(params.Arguments), "size", size)
 	}
 
 	handler, exists := s.registry.GetHandler(params.Name)
@@ -529,6 +535,49 @@ func summarizeArguments(args map[string]any) string {
 	return fmt.Sprintf("keys=%v... (%d total)", keys[:3], len(keys))
 }
 
+// summarizeBody returns a redacted summary of a JSON-RPC request body for TRACE logging.
+// Reports method, id, and top-level param keys — never param values.
+func summarizeBody(body []byte) string {
+	var envelope struct {
+		Method string         `json:"method"`
+		ID     any            `json:"id"`
+		Params map[string]any `json:"params"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return fmt.Sprintf("(unparseable, %d bytes)", len(body))
+	}
+	if len(envelope.Params) == 0 {
+		return fmt.Sprintf("method=%s id=%v (no params)", envelope.Method, envelope.ID)
+	}
+	keys := make([]string, 0, len(envelope.Params))
+	for k := range envelope.Params {
+		keys = append(keys, k)
+	}
+	return fmt.Sprintf("method=%s id=%v param_keys=%v", envelope.Method, envelope.ID, keys)
+}
+
+// summarizeResult returns a redacted summary of a result payload for TRACE logging.
+// Reports shape and top-level keys for maps — never values.
+func summarizeResult(v any) string {
+	if v == nil {
+		return "(nil)"
+	}
+	switch typed := v.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(typed))
+		for k := range typed {
+			keys = append(keys, k)
+		}
+		return fmt.Sprintf("map keys=%v", keys)
+	case []any:
+		return fmt.Sprintf("array len=%d", len(typed))
+	case string:
+		return fmt.Sprintf("string len=%d", len(typed))
+	default:
+		return fmt.Sprintf("type=%T", v)
+	}
+}
+
 // handleResourcesList handles resources/list requests.
 func (s *Server) handleResourcesList(req *Request) *Response {
 	resources := s.registry.ListResources()
@@ -579,12 +628,14 @@ func (s *Server) writeResponse(w http.ResponseWriter, resp *Response) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 
-	// TRACE: Log full response
+	// TRACE: Log redacted HTTP response summary (shape + size; never values)
 	if s.logger.IsTraceEnabled() {
-		respJSON, err := json.MarshalIndent(resp, "", "  ")
+		respJSON, err := json.Marshal(resp)
+		size := 0
 		if err == nil {
-			s.logger.Trace("HTTP Response", "response", string(respJSON))
+			size = len(respJSON)
 		}
+		s.logger.Trace("HTTP Response", "summary", summarizeResult(resp.Result), "size", size)
 	}
 
 	if err := json.NewEncoder(w).Encode(resp); err != nil {

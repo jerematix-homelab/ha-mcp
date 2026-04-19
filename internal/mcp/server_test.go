@@ -1814,6 +1814,110 @@ func TestServer_SetToolFilter(t *testing.T) {
 	s.SetToolFilter(engine)
 }
 
+func TestSummarizeBody(t *testing.T) {
+	t.Parallel()
+
+	secretValue := "sk-very-secret-token-abc123"
+	validWithParams := []byte(`{"jsonrpc":"2.0","method":"tools/call","id":1,"params":{"name":"get_state","arguments":{"entity_id":"light.kitchen","token":"` + secretValue + `"}}}`)
+	validNoParams := []byte(`{"jsonrpc":"2.0","method":"tools/list","id":2}`)
+	invalid := []byte(`{not json`)
+
+	tests := []struct {
+		name           string
+		body           []byte
+		wantContains   []string
+		wantExcludes   []string
+	}{
+		{
+			name:         "valid with params",
+			body:         validWithParams,
+			wantContains: []string{"method=tools/call", "param_keys="},
+			wantExcludes: []string{secretValue, "light.kitchen", "get_state"},
+		},
+		{
+			name:         "valid without params",
+			body:         validNoParams,
+			wantContains: []string{"method=tools/list", "no params"},
+			wantExcludes: []string{secretValue},
+		},
+		{
+			name:         "invalid json",
+			body:         invalid,
+			wantContains: []string{"unparseable"},
+			wantExcludes: []string{"{not json"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := summarizeBody(tt.body)
+			for _, s := range tt.wantContains {
+				if !strings.Contains(got, s) {
+					t.Errorf("summarizeBody output %q missing expected substring %q", got, s)
+				}
+			}
+			for _, s := range tt.wantExcludes {
+				if strings.Contains(got, s) {
+					t.Errorf("summarizeBody output leaked sensitive substring %q: full output: %q", s, got)
+				}
+			}
+		})
+	}
+}
+
+func TestSummarizeResult(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		value        any
+		wantContains []string
+		wantExcludes []string
+	}{
+		{
+			name:         "nil",
+			value:        nil,
+			wantContains: []string{"nil"},
+		},
+		{
+			name:         "map",
+			value:        map[string]any{"alias": "Secret Automation", "sequence": "dangerous-template"},
+			wantContains: []string{"map", "alias", "sequence"},
+			wantExcludes: []string{"Secret Automation", "dangerous-template"},
+		},
+		{
+			name:         "array",
+			value:        []any{"element-one", "element-two", "element-three"},
+			wantContains: []string{"array", "len=3"},
+			wantExcludes: []string{"element-one", "element-two", "element-three"},
+		},
+		{
+			name:         "string",
+			value:        "super-secret-password",
+			wantContains: []string{"string", "len=21"},
+			wantExcludes: []string{"super-secret-password"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := summarizeResult(tt.value)
+			for _, s := range tt.wantContains {
+				if !strings.Contains(got, s) {
+					t.Errorf("summarizeResult output %q missing expected substring %q", got, s)
+				}
+			}
+			for _, s := range tt.wantExcludes {
+				if strings.Contains(got, s) {
+					t.Errorf("summarizeResult output leaked sensitive substring %q: full output: %q", s, got)
+				}
+			}
+		})
+	}
+}
+
 func TestRateLimitMiddleware_AllowsNormalRequests(t *testing.T) {
 	t.Parallel()
 
