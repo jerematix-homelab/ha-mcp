@@ -234,7 +234,7 @@ func (a *App) run(_ *cobra.Command, _ []string) error {
 		RateLimit: cfg.HomeAssistant.REST.RateLimit,
 		RateBurst: cfg.HomeAssistant.REST.RateBurst,
 	}
-	clientPool := homeassistant.NewClientPoolWithConfig(cfg.HomeAssistant.URL, 30*time.Minute, restConfig, logger)
+	clientPool := homeassistant.NewClientPoolWithFullConfig(cfg.HomeAssistant.URL, 30*time.Minute, 100, restConfig, nil, logger)
 	defer func() {
 		logger.Info("Closing client pool...")
 		if closeErr := clientPool.Close(); closeErr != nil {

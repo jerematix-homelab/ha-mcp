@@ -19,6 +19,7 @@ type ClientPool struct {
 	clients     map[string]*pooledClient
 	mu          sync.RWMutex
 	maxIdle     time.Duration
+	maxSize     int // 0 = unlimited
 	stopCh      chan struct{}
 	wg          sync.WaitGroup
 	logger      *logging.Logger
@@ -38,11 +39,12 @@ func NewClientPool(baseURL string, maxIdle time.Duration) *ClientPool {
 
 // NewClientPoolWithConfig creates a new client pool with REST configuration.
 func NewClientPoolWithConfig(baseURL string, maxIdle time.Duration, restConfig *RESTClientConfig, logger *logging.Logger) *ClientPool {
-	return NewClientPoolWithFullConfig(baseURL, maxIdle, restConfig, nil, logger)
+	return NewClientPoolWithFullConfig(baseURL, maxIdle, 0, restConfig, nil, logger)
 }
 
-// NewClientPoolWithFullConfig creates a new client pool with REST and cache configuration.
-func NewClientPoolWithFullConfig(baseURL string, maxIdle time.Duration, restConfig *RESTClientConfig, cacheConfig *config.CacheConfig, logger *logging.Logger) *ClientPool {
+// NewClientPoolWithFullConfig creates a new client pool with REST, cache, and size configuration.
+// maxSize limits the number of pooled clients; 0 means unlimited.
+func NewClientPoolWithFullConfig(baseURL string, maxIdle time.Duration, maxSize int, restConfig *RESTClientConfig, cacheConfig *config.CacheConfig, logger *logging.Logger) *ClientPool {
 	if logger == nil {
 		logger = logging.New(logging.LevelInfo)
 	}
@@ -53,6 +55,7 @@ func NewClientPoolWithFullConfig(baseURL string, maxIdle time.Duration, restConf
 		cacheConfig: cacheConfig,
 		clients:     make(map[string]*pooledClient),
 		maxIdle:     maxIdle,
+		maxSize:     maxSize,
 		stopCh:      make(chan struct{}),
 		logger:      logger,
 	}
@@ -123,6 +126,10 @@ func (p *ClientPool) GetOrCreate(ctx context.Context, token string) (Client, err
 		return nil, err
 	}
 
+	if p.maxSize > 0 && len(p.clients) >= p.maxSize {
+		p.evictLRU()
+	}
+
 	p.clients[token] = &pooledClient{
 		client:   client,
 		lastUsed: time.Now(),
@@ -130,6 +137,23 @@ func (p *ClientPool) GetOrCreate(ctx context.Context, token string) (Client, err
 
 	p.logger.Debug("Client added to pool", "tokenHash", tokenHash, "poolSize", len(p.clients))
 	return client, nil
+}
+
+// evictLRU removes the least-recently-used client from the pool.
+// Must be called with p.mu write lock held.
+func (p *ClientPool) evictLRU() {
+	var oldestToken string
+	var oldestTime time.Time
+	for token, pc := range p.clients {
+		if oldestToken == "" || pc.lastUsed.Before(oldestTime) {
+			oldestToken, oldestTime = token, pc.lastUsed
+		}
+	}
+	if oldestToken != "" {
+		p.logger.Info("Evicting LRU client from pool", "tokenHash", hashToken(oldestToken), "idleFor", time.Since(oldestTime))
+		_ = CloseClient(p.clients[oldestToken].client)
+		delete(p.clients, oldestToken)
+	}
 }
 
 // Close closes all pooled clients and stops the cleanup goroutine.
