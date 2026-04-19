@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/url"
 	"strings"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
@@ -14,7 +16,53 @@ import (
 const (
 	blueprintActionList   = "list"
 	blueprintActionImport = "import"
+
+	blueprintURLMaxLength = 2048
 )
+
+// loopbackHostnames are hostname literals that resolve to loopback and must be blocked.
+var loopbackHostnames = map[string]bool{
+	"localhost":     true,
+	"ip6-localhost": true,
+	"ip6-loopback":  true,
+}
+
+// validateBlueprintURL rejects URLs that could enable SSRF when forwarded to HA's blueprint/import.
+// It enforces https-only and blocks literal private/loopback/link-local IP addresses.
+// Note: hostname-based DNS rebinding is not prevented here because HA performs the actual fetch.
+func validateBlueprintURL(rawURL string) error {
+	if len(rawURL) > blueprintURLMaxLength {
+		return fmt.Errorf("url too long (max %d characters)", blueprintURLMaxLength)
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || !u.IsAbs() || u.Host == "" {
+		return fmt.Errorf("invalid url: must be an absolute https:// URL")
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("url must use https scheme, got %q", u.Scheme)
+	}
+	hostname := u.Hostname()
+	if loopbackHostnames[strings.ToLower(hostname)] {
+		return fmt.Errorf("url targets a loopback address")
+	}
+	ip := net.ParseIP(hostname)
+	if ip == nil {
+		return nil
+	}
+	switch {
+	case ip.IsLoopback():
+		return fmt.Errorf("url targets a loopback address")
+	case ip.IsPrivate():
+		return fmt.Errorf("url targets a private network address")
+	case ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast():
+		return fmt.Errorf("url targets a link-local address")
+	case ip.IsUnspecified():
+		return fmt.Errorf("url targets an unspecified address")
+	case ip.IsMulticast():
+		return fmt.Errorf("url targets a multicast address")
+	}
+	return nil
+}
 
 // BlueprintHandlers provides handlers for blueprint operations.
 type BlueprintHandlers struct{}
@@ -46,7 +94,7 @@ func RegisterBlueprintTools(registry *mcp.Registry) {
 				},
 				"url": {
 					Type:        "string",
-					Description: "Blueprint URL (required for 'import' action, e.g., GitHub raw URL to .yaml file).",
+					Description: "Blueprint URL (required for 'import' action). Must use https:// and point to a publicly reachable host. Example: https://raw.githubusercontent.com/<user>/<repo>/main/blueprint.yaml",
 				},
 				"format": {
 					Type:        "string",
@@ -120,14 +168,17 @@ func (h *BlueprintHandlers) handleListBlueprints(ctx context.Context, client hom
 // handleImportBlueprint imports a blueprint from a URL.
 func (h *BlueprintHandlers) handleImportBlueprint(ctx context.Context, client homeassistant.Client, args map[string]any, format string) (*mcp.ToolsCallResult, error) {
 	// Validate required parameters
-	url, _ := args["url"].(string)
-	if url == "" {
+	blueprintURL, _ := args["url"].(string)
+	if blueprintURL == "" {
 		return errorResult("url is required for import action"), nil
+	}
+	if err := validateBlueprintURL(blueprintURL); err != nil {
+		return errorResult(fmt.Sprintf("invalid blueprint url: %v", err)), nil
 	}
 
 	// Build command data
 	data := map[string]any{
-		"url": url,
+		"url": blueprintURL,
 	}
 
 	// Call blueprint/import WebSocket command
@@ -146,7 +197,7 @@ func (h *BlueprintHandlers) handleImportBlueprint(ctx context.Context, client ho
 	}
 
 	// Natural format
-	return successResult(fmt.Sprintf("Blueprint successfully imported from: %s", url)), nil
+	return successResult(fmt.Sprintf("Blueprint successfully imported from: %s", blueprintURL)), nil
 }
 
 // formatBlueprintsNatural formats blueprints in natural language.
