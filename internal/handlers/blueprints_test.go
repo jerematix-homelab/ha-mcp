@@ -249,11 +249,11 @@ func TestManageBlueprint_Import(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		args            map[string]any
-		wantErr         bool
-		wantContain     string
-		expectWSCall    bool
+		name         string
+		args         map[string]any
+		wantErr      bool
+		wantContain  string
+		expectWSCall bool
 	}{
 		{
 			name: "successful import",

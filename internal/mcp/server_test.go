@@ -1823,10 +1823,10 @@ func TestSummarizeBody(t *testing.T) {
 	invalid := []byte(`{not json`)
 
 	tests := []struct {
-		name           string
-		body           []byte
-		wantContains   []string
-		wantExcludes   []string
+		name         string
+		body         []byte
+		wantContains []string
+		wantExcludes []string
 	}{
 		{
 			name:         "valid with params",
