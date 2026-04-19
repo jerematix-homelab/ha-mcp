@@ -300,9 +300,33 @@ When no token is provided and no default is configured:
 }
 ```
 
+Tokens shorter than 10 characters are rejected before any connection is attempted:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32603,
+    "message": "authorization token too short"
+  }
+}
+```
+
+## Rate Limiting
+
+The server enforces per-IP rate limiting to prevent connection pool exhaustion.
+
+- **Sustained rate**: 10 requests/second per client IP
+- **Burst capacity**: 30 requests per client IP
+- **Response when exceeded**: HTTP `429 Too Many Requests` with body `{"jsonrpc":"2.0","error":{"code":-32429,"message":"rate limit exceeded"},"id":null}`
+- **Health endpoint exempt**: `/health` is never rate-limited (safe for liveness probes)
+
+Clients behind shared NAT share one rate-limit bucket. The per-IP limits are currently fixed constants; configurable env vars are planned for a future release.
+
 ## Health Check
 
-The server provides a health check endpoint (no authentication required):
+The server provides a health check endpoint (no authentication required, not rate-limited):
 
 ```bash
 curl http://localhost:8080/health

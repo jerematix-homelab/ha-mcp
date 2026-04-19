@@ -70,9 +70,10 @@ ha-mcp/
 │   │   ├── ws_messages.go       # WebSocket message types
 │   │   ├── ws_reconnect.go      # Reconnection logic
 │   │   ├── entity_poller.go     # Entity state polling for post-mutation confirmation
+│   │   ├── client_pool.go       # Per-token client pool with LRU eviction (max 100 entries)
 │   │   └── types.go             # Data types
 │   ├── mcp/
-│   │   ├── server.go            # MCP HTTP server
+│   │   ├── server.go            # MCP HTTP server; per-IP rate limiting middleware
 │   │   ├── registry.go          # Tool registry
 │   │   └── types.go             # MCP protocol types
 │   ├── handlers/

@@ -214,7 +214,7 @@ Universal tool for runtime helper operations:
 | Tool               | Description                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
 | `manage_trace`     | View automation and script execution traces (actions: list, get, debug; format: natural/json)       |
-| `manage_blueprint` | Manage blueprints for automations and scripts (actions: list, import; format: natural/json)         |
+| `manage_blueprint` | Manage blueprints for automations and scripts (actions: list, import; format: natural/json). `import` requires an `https://` URL pointing to a public host — non-https schemes, private/loopback IPs, and link-local addresses (e.g. `169.254.x.x`) are rejected. |
 
 ### Update Tools
 
