@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/zorak1103/ha-mcp/internal/mcp"
@@ -193,15 +194,66 @@ func TestManageBlueprint_List(t *testing.T) {
 	}
 }
 
+// TestValidateBlueprintURL tests the URL validator in isolation.
+func TestValidateBlueprintURL(t *testing.T) {
+	t.Parallel()
+
+	longURL := "https://example.com/" + strings.Repeat("a", blueprintURLMaxLength)
+
+	tests := []struct {
+		name        string
+		url         string
+		wantErr     bool
+		wantContain string
+	}{
+		{name: "valid https public", url: "https://example.com/bp.yaml", wantErr: false},
+		{name: "valid github raw", url: "https://raw.githubusercontent.com/user/repo/main/bp.yaml", wantErr: false},
+		{name: "http rejected", url: "http://example.com/bp.yaml", wantErr: true, wantContain: "https"},
+		{name: "file scheme rejected", url: "file:///etc/passwd", wantErr: true, wantContain: "https"},
+		{name: "no scheme rejected", url: "example.com/bp.yaml", wantErr: true, wantContain: "invalid url"},
+		{name: "invalid url rejected", url: "::::", wantErr: true, wantContain: "invalid url"},
+		{name: "too long rejected", url: longURL, wantErr: true, wantContain: "too long"},
+		{name: "loopback IPv4 rejected", url: "https://127.0.0.1/bp.yaml", wantErr: true, wantContain: "loopback"},
+		{name: "loopback IPv6 rejected", url: "https://[::1]/bp.yaml", wantErr: true, wantContain: "loopback"},
+		{name: "localhost rejected", url: "https://localhost/bp.yaml", wantErr: true, wantContain: "loopback"},
+		{name: "link-local cloud metadata rejected", url: "https://169.254.169.254/latest/meta-data/", wantErr: true, wantContain: "link-local"},
+		{name: "RFC1918 10/8 rejected", url: "https://10.0.0.5/bp.yaml", wantErr: true, wantContain: "private"},
+		{name: "RFC1918 172.16/12 rejected", url: "https://172.16.0.1/bp.yaml", wantErr: true, wantContain: "private"},
+		{name: "RFC1918 192.168/16 rejected", url: "https://192.168.1.1/bp.yaml", wantErr: true, wantContain: "private"},
+		{name: "unspecified 0.0.0.0 rejected", url: "https://0.0.0.0/bp.yaml", wantErr: true, wantContain: "unspecified"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateBlueprintURL(tt.url)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("validateBlueprintURL(%q) = nil, want error containing %q", tt.url, tt.wantContain)
+					return
+				}
+				if tt.wantContain != "" && !contains(err.Error(), tt.wantContain) {
+					t.Errorf("error %q does not contain %q", err.Error(), tt.wantContain)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("validateBlueprintURL(%q) = %v, want nil", tt.url, err)
+				}
+			}
+		})
+	}
+}
+
 // TestManageBlueprint_Import verifies import action.
 func TestManageBlueprint_Import(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		args        map[string]any
-		wantErr     bool
-		wantContain string
+		name            string
+		args            map[string]any
+		wantErr         bool
+		wantContain     string
+		expectWSCall    bool
 	}{
 		{
 			name: "successful import",
@@ -209,16 +261,46 @@ func TestManageBlueprint_Import(t *testing.T) {
 				"action": "import",
 				"url":    "https://example.com/blueprint.yaml",
 			},
-			wantErr:     false,
-			wantContain: "successfully imported",
+			wantErr:      false,
+			wantContain:  "successfully imported",
+			expectWSCall: true,
 		},
 		{
 			name: "missing url",
 			args: map[string]any{
 				"action": "import",
 			},
-			wantErr:     true,
-			wantContain: "url is required",
+			wantErr:      true,
+			wantContain:  "url is required",
+			expectWSCall: false,
+		},
+		{
+			name:         "http url rejected",
+			args:         map[string]any{"action": "import", "url": "http://example.com/bp.yaml"},
+			wantErr:      true,
+			wantContain:  "invalid blueprint url",
+			expectWSCall: false,
+		},
+		{
+			name:         "cloud metadata endpoint rejected",
+			args:         map[string]any{"action": "import", "url": "https://169.254.169.254/latest/meta-data/"},
+			wantErr:      true,
+			wantContain:  "invalid blueprint url",
+			expectWSCall: false,
+		},
+		{
+			name:         "loopback rejected",
+			args:         map[string]any{"action": "import", "url": "https://127.0.0.1/bp.yaml"},
+			wantErr:      true,
+			wantContain:  "invalid blueprint url",
+			expectWSCall: false,
+		},
+		{
+			name:         "private network rejected",
+			args:         map[string]any{"action": "import", "url": "https://192.168.1.1/bp.yaml"},
+			wantErr:      true,
+			wantContain:  "invalid blueprint url",
+			expectWSCall: false,
 		},
 	}
 
@@ -226,8 +308,13 @@ func TestManageBlueprint_Import(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			wsCalled := false
 			client := &UniversalMockClient{
 				SendHACSCommandFn: func(_ context.Context, cmd string, data map[string]any) (any, error) {
+					wsCalled = true
+					if !tt.expectWSCall {
+						t.Errorf("SendHACSCommand must not be called for rejected url, but was called with cmd=%q data=%v", cmd, data)
+					}
 					if cmd != "blueprint/import" {
 						return nil, fmt.Errorf("wrong command: %s", cmd)
 					}
@@ -247,14 +334,15 @@ func TestManageBlueprint_Import(t *testing.T) {
 			if result == nil || len(result.Content) == 0 {
 				t.Fatal("expected result content")
 			}
-
 			if result.IsError != tt.wantErr {
 				t.Errorf("IsError = %v, want %v", result.IsError, tt.wantErr)
 			}
-
 			text := result.Content[0].Text
 			if !contains(text, tt.wantContain) {
 				t.Errorf("result text does not contain %q: %s", tt.wantContain, text)
+			}
+			if tt.expectWSCall && !wsCalled {
+				t.Error("expected SendHACSCommand to be called but it was not")
 			}
 		})
 	}
