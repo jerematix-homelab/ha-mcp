@@ -60,7 +60,7 @@ const (
 	mcpRateBurstPerIP          = 30              // burst capacity per client IP
 	mcpRateLimiterMaxAge       = 5 * time.Minute // prune stale IP limiter entries
 	mcpRateLimiterCleanupEvery = time.Minute     // how often to prune stale entries
-	tokenMinLength             = 10             // minimum Bearer token length
+	tokenMinLength             = 10              // minimum Bearer token length
 )
 
 // ipLimiterEntry holds a per-IP rate limiter and its last-seen time for cleanup.
