@@ -2206,23 +2206,27 @@ func TestFindAutomationByID_Alias(t *testing.T) {
 		{EntityID: "automation.morning", State: "on", FriendlyName: "Morning Routine"},
 	}
 
-	client := &mockAutomationClient{
-		automations: testAutomations,
-		automationMap: map[string]*homeassistant.Automation{
-			"morning": {
-				EntityID:     "automation.morning",
-				State:        "on",
-				FriendlyName: "Morning Routine",
-				Config:       &homeassistant.AutomationConfig{Alias: "Morning Routine", ID: "uuid-abc"},
+	// newClient returns a fresh mock per subtest — prevents concurrent writes
+	// to lastGetID when parallel subtests share a single *mockAutomationClient.
+	newClient := func() *mockAutomationClient {
+		return &mockAutomationClient{
+			automations: testAutomations,
+			automationMap: map[string]*homeassistant.Automation{
+				"morning": {
+					EntityID:     "automation.morning",
+					State:        "on",
+					FriendlyName: "Morning Routine",
+					Config:       &homeassistant.AutomationConfig{Alias: "Morning Routine", ID: "uuid-abc"},
+				},
 			},
-		},
+		}
 	}
 
 	h := &AutomationHandlers{}
 
 	t.Run("find by alias", func(t *testing.T) {
 		t.Parallel()
-		auto, err := h.findAutomationByID(context.Background(), client, "morning routine")
+		auto, err := h.findAutomationByID(context.Background(), newClient(), "morning routine")
 		if err != nil {
 			t.Fatalf("findAutomationByID() error = %v", err)
 		}
@@ -2250,7 +2254,7 @@ func TestFindAutomationByID_Alias(t *testing.T) {
 
 	t.Run("not found returns error", func(t *testing.T) {
 		t.Parallel()
-		_, err := h.findAutomationByID(context.Background(), client, "nonexistent")
+		_, err := h.findAutomationByID(context.Background(), newClient(), "nonexistent")
 		if err == nil {
 			t.Fatal("expected error for not found")
 		}
