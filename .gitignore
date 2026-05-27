@@ -83,3 +83,6 @@ tmp/
 AGENTS.md
 .mcp.json
 .reports/
+
+# Superpowers plans/specs (local-only)
+docs/superpowers/
