@@ -40,6 +40,12 @@ linters:
       # Exclude deprecation warnings in tests
       - path: '(.+)_test\.go'
         text: "SA1019:"
+
+      # SA5011: false positive in tests — t.Fatal/t.FailNow call runtime.Goexit
+      # (stops the goroutine) but staticcheck doesn't always model this as a
+      # nil-safe terminator on Windows, flagging "if ptr==nil { t.Fatal } / ptr.X".
+      - path: '(.+)_test\.go'
+        text: "SA5011:"
       
       # Exclude long lines with go:generate
       - linters:
