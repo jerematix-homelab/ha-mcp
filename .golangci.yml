@@ -64,6 +64,10 @@ linters:
     # Warn if exclusion rule is never used
     warn-unused: true
 
+    # Exclude git worktrees and local tooling directories from analysis
+    paths:
+      - '\.claude'
+
   enable:
     # Enabled by default
     - errcheck      # Check for unchecked errors
