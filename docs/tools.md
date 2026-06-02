@@ -16,7 +16,7 @@ Authorization: Bearer <your-ha-access-token>
 
 | Tool                      | Description                                                                                                                                                                                                                              |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `query_entities`          | Consolidated entity queries (mode: current, history, statistics, domains, presence, health; format: natural/json; group_by: domain, area_id, device_class, integration; health: multi-category filter for unavailable/unknown/disabled/orphaned/stale entities) |
+| `query_entities`          | Consolidated entity queries (mode: current, history, statistics, domains, presence, health; format: natural/json; group_by: domain, area_id, device_class, integration; health: multi-category filter for unavailable/unknown/disabled/orphaned/stale entities). Non-verbose `mode=current` returns a compact list of entity_id + friendly name + state (capped at 50; use `verbose=true` or pagination for more). |
 | `query_devices`           | Device health check (mode: health; format: natural/json; categories: disabled, orphaned_config_entry, config_entry_error, no_entities, no_config_entries; manufacturer filter)                                                                                |
 | `get_state`               | Get state of a specific entity (format: natural/json)                                                                                                                                                                                    |
 | `analyze_entity`          | Analyze entity usage in automations, scripts, and scenes; includes registry metadata (platform, area, device, labels, aliases) and RFC 6901 JSON Pointer paths to each reference location (e.g. `/sequence/0/target/entity_id  (action: automation.turn_off)`) at zero extra API cost (format: natural/json) |
@@ -33,7 +33,7 @@ Authorization: Bearer <your-ha-access-token>
 | `manage_zone`         | Consolidated zone management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                            |
 | `manage_person`       | Consolidated person management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                          |
 | `manage_tag`          | Consolidated tag management (actions: list, get, create, update, delete; format: natural/json for list/get)                                                             |
-| `manage_entity`       | Entity registry management (actions: get, update, delete; update fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases, new_entity_id; update supports label_mode/alias_mode: add/remove/replace; format: natural/json) |
+| `manage_entity`       | Entity registry management (actions: get, update, delete; update fields: name, icon, area_id, disabled_by, hidden_by, labels, aliases, new_entity_id; update supports label_mode/alias_mode: add/remove/replace; format: natural/json). **Friendly-name hierarchy:** registry `name` > automation `alias` > auto-slug. `name=""` clears the registry override and falls back to the auto-slug (not the alias). |
 | `manage_device`       | Device registry management (actions: get, update, delete; update fields: name_by_user, area_id, disabled_by, labels; update supports label_mode: add/remove/replace; format: natural/json)                                              |
 | `manage_config_entry` | Consolidated config entry management (actions: list, get; list: optional domain filter; get: requires entry_id; format: natural/json) |
 
@@ -229,7 +229,7 @@ Universal tool for runtime helper operations:
 
 | Tool               | Description                                                                                          |
 | ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `manage_trace`     | View automation and script execution traces (actions: list, get, debug; format: natural/json)       |
+| `manage_trace`     | View automation and script execution traces (actions: list, get, debug; format: natural/json). `list` supports optional `wait=true` to poll until traces appear — useful immediately after triggering an automation (HA records traces asynchronously). |
 | `manage_blueprint` | Manage blueprints for automations and scripts (actions: list, import; format: natural/json). `import` requires an `https://` URL pointing to a public host — non-https schemes, private/loopback IPs, and link-local addresses (e.g. `169.254.x.x`) are rejected. |
 
 ### Update Tools
