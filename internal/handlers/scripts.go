@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/zorak1103/ha-mcp/internal/handlers/formatter"
@@ -21,6 +22,13 @@ const (
 	scriptActionExecute = "execute"
 	scriptActionPatch   = "patch"
 )
+
+// scriptReloadFailedWarning is appended to update/patch success messages when the post-write
+// script.reload service call itself fails. The config write to REST already succeeded, so the
+// change is not lost — but until a reload succeeds (manual or automatic retry), get() may keep
+// returning the pre-change config (#126).
+const scriptReloadFailedWarning = " (warning: reload after save failed; changes may not be " +
+	"visible or active until a manual script.reload)"
 
 // ScriptHandlers provides handlers for script-related MCP tools.
 type ScriptHandlers struct{}
@@ -388,6 +396,10 @@ func (h *ScriptHandlers) handleUpdate(ctx context.Context, client homeassistant.
 		config.Alias = current.FriendlyName
 	}
 
+	// Snapshot config before mutation so we can detect no-op updates.
+	// No-op writes cause a needless script.reload.
+	beforeMap, _ := configToMap(config)
+
 	// Override with new values from args
 	if alias, ok := args["alias"].(string); ok {
 		config.Alias = alias
@@ -411,13 +423,22 @@ func (h *ScriptHandlers) handleUpdate(ctx context.Context, client homeassistant.
 		config.Fields = fields
 	}
 
+	afterMap, _ := configToMap(config)
+	if reflect.DeepEqual(beforeMap, afterMap) {
+		return successResult(fmt.Sprintf("Script '%s': no changes detected, skipping write (reload avoided)", scriptID)), nil
+	}
+
 	// Use configID (without prefix) for REST API
 	if err := client.UpdateScript(ctx, configID, config); err != nil {
 		msg := fmt.Sprintf("Error updating script: %v", err)
 		return errorResult(enrichConfigError(msg, err, scriptErrorHints)), nil
 	}
 
-	return successResult(fmt.Sprintf("Script '%s' updated successfully", scriptID)), nil
+	successMsg := fmt.Sprintf("Script '%s' updated successfully", scriptID)
+	if !reloadDomain(ctx, client, "script") {
+		successMsg += scriptReloadFailedWarning
+	}
+	return successResult(successMsg), nil
 }
 
 func (h *ScriptHandlers) handleDelete(ctx context.Context, client homeassistant.Client, args map[string]any) (*mcp.ToolsCallResult, error) {
@@ -509,6 +530,12 @@ func (h *ScriptHandlers) handlePatch(ctx context.Context, client homeassistant.C
 		return dryRunPatchResult(patchedMap, "script", scriptID, len(ops))
 	}
 
+	// A patch that resolves to the same config must skip the write (and reload) entirely —
+	// otherwise every no-op patch would trigger a needless script.reload.
+	if reflect.DeepEqual(configMap, patchedMap) {
+		return successResult(fmt.Sprintf("Script '%s': no changes detected, skipping write (reload avoided)", scriptID)), nil
+	}
+
 	var newConfig homeassistant.ScriptConfig
 	if err := mapToStruct(patchedMap, &newConfig); err != nil {
 		return errorResult(fmt.Sprintf("error parsing patched config: %v", err)), nil
@@ -519,7 +546,11 @@ func (h *ScriptHandlers) handlePatch(ctx context.Context, client homeassistant.C
 		return errorResult(enrichConfigError(msg, err, scriptErrorHints)), nil
 	}
 
-	return successResult(fmt.Sprintf("Script '%s' patched successfully (%d operations applied)", scriptID, len(ops))), nil
+	successMsg := fmt.Sprintf("Script '%s' patched successfully (%d operations applied)", scriptID, len(ops))
+	if !reloadDomain(ctx, client, "script") {
+		successMsg += scriptReloadFailedWarning
+	}
+	return successResult(successMsg), nil
 }
 
 // =============================================================================
