@@ -217,6 +217,7 @@ The server supports flexible tool/action filtering for security and capability c
 - `call_service`: snapshots target entities before, polls for state changes after, appends "\nState changes: entity: old → new" or warning
 - **Config**: Env vars `HA_WAIT_TIMEOUT_MS` (default: 5000), `HA_WAIT_POLL_INTERVAL_MS` (default: 100). Injected via `mcp.WithWaitConfig(ctx, cfg)` → `mcp.WaitConfigFromContext(ctx)` in handlers
 - **Reads are WebSocket, writes are REST** (`GetAutomation`/`GetScript` via `automation/config`/`script/config` WS commands; `Update*` via REST `/api/config/...`) — a REST config write does not refresh HA's running config until a domain reload runs. `manage_automation`/`manage_script` `update` and `patch` call `reloadDomain(ctx, client, domain)` (`internal/handlers/waiter.go`) after every successful write for this reason — without it, an immediate `get` after `update`/`patch` returns stale pre-write config (issue #126). Reload failure (rare) appends a warning to the success message rather than failing the call, since the config write itself already succeeded.
+- **`manage_script` delete registry fallback**: The storage-config `DELETE /api/config/script/config/{id}` endpoint only knows storage-managed scripts. YAML-defined scripts and orphan `_2`-suffixed duplicates (HA appends `_2` on a `unique_id` collision) have a storage key that differs from the entity's `object_id`, so the delete 404s/400s with "Resource not found" even though the entity is readable via `get`/`list` (issue #123). `handleDelete` (`scripts.go`) detects this via `isNotFoundError()` and falls back to `deleteScriptViaRegistry()` — the same entity-registry `RemoveEntityRegistryEntry()` path `manage_entity delete` uses — rather than surfacing the raw HA error.
 
 ### Configuration Priority
 
@@ -362,6 +363,8 @@ set -a && source .env.integration && set +a && go test -tags=integration -v ./in
 **Markdown Table Formatting**: All Markdown tables MUST be human-readable with properly aligned columns. Use consistent spacing and alignment to ensure tables are easy to read in their raw form, not just when rendered.
 
 **TDD Required**: Tests MUST be written BEFORE writing or modifying code. Run `golangci-lint run --timeout=5m ./...` after implementation.
+
+**Roborev Review Gate**: This repo has a roborev post-commit hook (`.git/hooks/post-commit`) that asynchronously enqueues an AI review after every commit — the hook only enqueues, it does NOT block. After committing changes destined for push or a PR, run `roborev wait` (blocks on HEAD's review; exit 0 = pass, exit 1 = fail/no job found) before pushing. If it exits non-zero, run `/roborev-fix` to address the findings, then re-commit and `roborev wait` again before proceeding. Do not push or open a PR while a roborev review for the pushed commit is still outstanding.
 
 **File Editing Tool Priority**: Always use the dedicated file tools (Write, Edit) to create or modify files. Never use Bash with Python or shell commands to manipulate file content — the Write tool rewrites a complete file cleanly, the Edit tool makes surgical replacements. Python byte-level manipulation is error-prone, harder to read, and the wrong tool for the job.
 
