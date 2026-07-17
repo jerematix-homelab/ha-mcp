@@ -68,37 +68,40 @@ func getAtSegs(doc any, segs []string, origPath string) (any, error) {
 		}
 		return getAtSegs(val, rest, origPath)
 	case []any:
-		idx, err := parseIndex(seg, len(d), origPath)
+		idx, err := parseIndex(seg, len(d), origPath, rest)
 		if err != nil {
 			return nil, err
 		}
 		return getAtSegs(d[idx], rest, origPath)
 	default:
-		return nil, fmt.Errorf("cannot index into %T with %q at path %q", doc, seg, origPath)
+		return nil, fmt.Errorf("cannot index into %T with %q at %s", doc, seg, describeLocation(origPath, rest))
 	}
 }
 
 // parseIndex parses a numeric array index segment and checks bounds [0, length).
-func parseIndex(seg string, length int, path string) (int, error) {
+// rest is the tail of segments remaining after seg, used to report the JSON Pointer
+// prefix actually navigated when the index is invalid or out of bounds.
+func parseIndex(seg string, length int, path string, rest []string) (int, error) {
 	idx, err := strconv.Atoi(seg)
 	if err != nil {
-		return 0, fmt.Errorf("invalid array index %q at path %q", seg, path)
+		return 0, fmt.Errorf("invalid array index %q at %s", seg, describeLocation(path, rest))
 	}
 	if idx < 0 || idx >= length {
-		return 0, fmt.Errorf("array index %d out of bounds (length %d) at path %q", idx, length, path)
+		return 0, fmt.Errorf("array index %d out of bounds (length %d) at %s", idx, length, describeLocation(path, rest))
 	}
 	return idx, nil
 }
 
 // parseInsertIndex parses an array index for insert operations.
-// Allows idx == length (append to end). Returns the index.
-func parseInsertIndex(seg string, length int, path string) (int, error) {
+// Allows idx == length (append to end). Returns the index. rest is the tail of
+// segments remaining after seg, used to report the navigated prefix (see parseIndex).
+func parseInsertIndex(seg string, length int, path string, rest []string) (int, error) {
 	idx, err := strconv.Atoi(seg)
 	if err != nil {
-		return 0, fmt.Errorf("invalid array index %q at path %q", seg, path)
+		return 0, fmt.Errorf("invalid array index %q at %s", seg, describeLocation(path, rest))
 	}
 	if idx < 0 || idx > length {
-		return 0, fmt.Errorf("array index %d out of bounds (length %d) at path %q", idx, length, path)
+		return 0, fmt.Errorf("array index %d out of bounds (length %d) at %s", idx, length, describeLocation(path, rest))
 	}
 	return idx, nil
 }
@@ -153,17 +156,24 @@ func actionBlockKeyHint(key string) string {
 	}
 }
 
+// describeLocation renders a navigation-failure location: the JSON Pointer prefix
+// successfully navigated before the failing segment, or a "document root" descriptor
+// when the failure occurred on the first segment. Shared by all navigation-failure
+// errors (key-not-found, array-index, type-mismatch) so the engine reports one
+// consistent location format regardless of failure kind (issue #124 / W1).
+func describeLocation(fullPath string, rest []string) string {
+	if loc := navigatedPrefix(fullPath, rest); loc != "" {
+		return fmt.Sprintf("%q", loc)
+	}
+	return fmt.Sprintf("document root (requested %q)", fullPath)
+}
+
 // keyNotFoundError builds the "key not found" error for map navigation failures,
 // reporting the prefix actually navigated (not the full submitted path) and
 // appending a structural hint when the missing key is a commonly-confused
 // Home Assistant action-block keyword (see actionBlockKeyHint).
 func keyNotFoundError(seg, fullPath string, rest, available []string) error {
-	loc := navigatedPrefix(fullPath, rest)
-	locDesc := fmt.Sprintf("document root (requested %q)", fullPath)
-	if loc != "" {
-		locDesc = fmt.Sprintf("%q", loc)
-	}
-	err := fmt.Errorf("key %q not found at %s (available keys: %v)", seg, locDesc, available)
+	err := fmt.Errorf("key %q not found at %s (available keys: %v)", seg, describeLocation(fullPath, rest), available)
 	if hint := actionBlockKeyHint(seg); hint != "" {
 		err = fmt.Errorf("%w; %s", err, hint)
 	}

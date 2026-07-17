@@ -668,6 +668,77 @@ func TestApply_NestedErrorMessages(t *testing.T) {
 	}
 }
 
+// TestApply_NavigationLocation covers W1 from the adversarial review of #131/#124:
+// array-index and type-mismatch navigation failures should report the prefix
+// actually navigated, consistent with how key-not-found errors already report
+// location (see TestApply_NestedErrorMessages).
+func TestApply_NavigationLocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		docJSON string
+		op      Operation
+		wantMsg string
+	}{
+		{
+			name:    "replace: nested array out of bounds reports parent prefix",
+			docJSON: `{"actions":[{"if":["a","b"]}]}`,
+			op:      Operation{Op: "replace", Path: "/actions/0/if/5", Value: "x"},
+			wantMsg: `at "/actions/0/if"`,
+		},
+		{
+			name:    "remove: array out of bounds reports parent prefix",
+			docJSON: `{"items":["a","b"]}`,
+			op:      Operation{Op: "remove", Path: "/items/5"},
+			wantMsg: `at "/items"`,
+		},
+		{
+			name:    "add: insert index out of bounds reports parent prefix",
+			docJSON: `{"items":["a","b"]}`,
+			op:      Operation{Op: "add", Path: "/items/5", Value: "x"},
+			wantMsg: `at "/items"`,
+		},
+		{
+			name:    "root-level array index reports document root",
+			docJSON: `["a","b"]`,
+			op:      Operation{Op: "replace", Path: "/5", Value: "x"},
+			wantMsg: `document root (requested "/5")`,
+		},
+		{
+			name:    "add: cannot navigate into scalar reports parent prefix",
+			docJSON: `{"a":"scalar"}`,
+			op:      Operation{Op: "add", Path: "/a/b", Value: 1},
+			wantMsg: `at "/a"`,
+		},
+		{
+			name:    "remove: cannot navigate into scalar reports parent prefix",
+			docJSON: `{"a":"scalar"}`,
+			op:      Operation{Op: "remove", Path: "/a/b"},
+			wantMsg: `at "/a"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var doc any
+			if err := json.Unmarshal([]byte(tt.docJSON), &doc); err != nil {
+				t.Fatalf("invalid test doc JSON: %v", err)
+			}
+
+			_, err := Apply(doc, []Operation{tt.op})
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !containsStr(err.Error(), tt.wantMsg) {
+				t.Errorf("error = %q, want to contain %q", err.Error(), tt.wantMsg)
+			}
+		})
+	}
+}
+
 func TestApply_EdgeCases(t *testing.T) {
 	t.Parallel()
 

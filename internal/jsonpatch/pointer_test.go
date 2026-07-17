@@ -200,6 +200,54 @@ func TestGet(t *testing.T) {
 	}
 }
 
+// TestGet_NavigationLocation covers W1 from the adversarial review of #131/#124:
+// array-index and type-mismatch navigation failures should report the prefix
+// actually navigated, not just the full submitted path — matching what
+// key-not-found errors already do (see TestGet's "nested miss" case above).
+func TestGet_NavigationLocation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		doc     any
+		path    string
+		wantMsg string
+	}{
+		{
+			name:    "nested array out of bounds reports parent prefix",
+			doc:     map[string]any{"triggers": []any{"a", "b"}},
+			path:    "/triggers/5",
+			wantMsg: `at "/triggers"`,
+		},
+		{
+			name:    "root-level array index reports document root",
+			doc:     []any{"a", "b"},
+			path:    "/5",
+			wantMsg: `document root (requested "/5")`,
+		},
+		{
+			name:    "indexing into a scalar reports its prefix",
+			doc:     map[string]any{"nested": map[string]any{"deep": "value"}},
+			path:    "/nested/deep/x",
+			wantMsg: `at "/nested/deep"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Get(tt.doc, tt.path)
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.wantMsg) {
+				t.Errorf("error = %q, want to contain %q", err.Error(), tt.wantMsg)
+			}
+		})
+	}
+}
+
 func TestEscapeSegment(t *testing.T) {
 	t.Parallel()
 
@@ -262,7 +310,7 @@ func TestParseIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := parseIndex(tt.seg, tt.length, "/test")
+			got, err := parseIndex(tt.seg, tt.length, "/test", nil)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("parseIndex(%q, %d) error = %v, wantErr %v", tt.seg, tt.length, err, tt.wantErr)
 			}

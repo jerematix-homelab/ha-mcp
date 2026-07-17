@@ -208,7 +208,7 @@ func setAtPath(doc any, segs []string, value any, insert bool, path string) (any
 	case []any:
 		return setInSlice(d, seg, rest, value, insert, path)
 	default:
-		return nil, fmt.Errorf("cannot navigate into %T at path %q", doc, path)
+		return nil, fmt.Errorf("cannot navigate into %T at %s", doc, describeLocation(path, rest))
 	}
 }
 
@@ -237,14 +237,14 @@ func setInSlice(d []any, seg string, rest []string, value any, insert bool, path
 	}
 
 	if len(rest) == 0 && insert {
-		idx, err := parseInsertIndex(seg, len(d), path)
+		idx, err := parseInsertIndex(seg, len(d), path, rest)
 		if err != nil {
 			return nil, err
 		}
 		return insertAt(d, idx, value), nil
 	}
 
-	idx, err := parseIndex(seg, len(d), path)
+	idx, err := parseIndex(seg, len(d), path, rest)
 	if err != nil {
 		return nil, err
 	}
@@ -287,7 +287,7 @@ func removeAtPath(doc any, segs []string, path string) (any, error) {
 	case []any:
 		return removeFromSlice(d, seg, rest, path)
 	default:
-		return nil, fmt.Errorf("cannot navigate into %T at path %q", doc, path)
+		return nil, fmt.Errorf("cannot navigate into %T at %s", doc, describeLocation(path, rest))
 	}
 }
 
@@ -310,7 +310,7 @@ func removeFromMap(d map[string]any, seg string, rest []string, path string) (an
 
 // removeFromSlice handles removing from a slice.
 func removeFromSlice(d []any, seg string, rest []string, path string) (any, error) {
-	idx, err := parseIndex(seg, len(d), path)
+	idx, err := parseIndex(seg, len(d), path, rest)
 	if err != nil {
 		return nil, err
 	}
