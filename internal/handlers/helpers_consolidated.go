@@ -859,7 +859,7 @@ func (h *ConsolidatedHelperHandlers) handleUpdate(ctx context.Context, client ho
 	} else {
 		// Unknown helper type (sensor/binary_sensor without metadata)
 		// These are Config Entry Flow helpers - build loose config
-		config = buildConfigEntryUpdateConfig(entityID, args)
+		config = buildConfigEntryUpdateConfig(platform, args)
 	}
 
 	// Create UpdateHelper request
@@ -868,7 +868,13 @@ func (h *ConsolidatedHelperHandlers) handleUpdate(ctx context.Context, client ho
 		Config:   config,
 	}
 
-	if err := client.UpdateHelper(ctx, helperID, updateConfig); err != nil {
+	// Pass the FULL entity_id, not the stripped helperID: HybridClient.UpdateHelper
+	// routes config-entry helpers (template, threshold, group, ...) to the Options
+	// Flow REST API by matching the registry's full entity_id. A bare id never
+	// matches, so the call silently falls through to the WS "<platform>/update"
+	// command, which config-entry domains (sensor, binary_sensor, ...) don't have
+	// and produces "unknown_command" (issue #135).
+	if err := client.UpdateHelper(ctx, entityID, updateConfig); err != nil {
 		return errorResult(fmt.Sprintf("error updating helper: %v", err)), nil
 	}
 
@@ -1654,7 +1660,7 @@ func (h *ConsolidatedHelperHandlers) handleGroupEntities(ctx context.Context, cl
 // Extracts all recognized Config Entry fields from args.
 //
 //nolint:gocyclo // Routing to type-specific builders requires switch over all helper types
-func buildConfigEntryUpdateConfig(_ string, args map[string]any) map[string]any {
+func buildConfigEntryUpdateConfig(platform string, args map[string]any) map[string]any {
 	config := make(map[string]any)
 
 	// Common fields
@@ -1663,7 +1669,6 @@ func buildConfigEntryUpdateConfig(_ string, args map[string]any) map[string]any 
 
 	// Template helper fields
 	addOptionalString(config, args, "state")
-	addOptionalString(config, args, "entity_id")
 	addOptionalString(config, args, "source")
 	addOptionalString(config, args, "unit_of_measurement")
 	addOptionalString(config, args, "device_class")
@@ -1699,7 +1704,7 @@ func buildConfigEntryUpdateConfig(_ string, args map[string]any) map[string]any 
 	}
 
 	// Add fields for extended helper types
-	addExtendedConfigEntryFields(config, args)
+	addExtendedConfigEntryFields(config, args, platform)
 
 	return config
 }
