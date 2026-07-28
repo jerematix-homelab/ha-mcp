@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -14,16 +17,20 @@ import (
 // mockAnalysisClient implements homeassistant.Client for analysis tests.
 type mockAnalysisClient struct {
 	homeassistant.Client
-	GetStateFn          func(ctx context.Context, entityID string) (*homeassistant.Entity, error)
-	ListAutomationsFn   func(ctx context.Context) ([]homeassistant.Automation, error)
-	GetAutomationFn     func(ctx context.Context, automationID string) (*homeassistant.Automation, error)
-	ListScriptsFn       func(ctx context.Context) ([]homeassistant.Entity, error)
-	ListScenesFn        func(ctx context.Context) ([]homeassistant.Entity, error)
-	GetStatesFn         func(ctx context.Context) ([]homeassistant.Entity, error)
-	GetEntityRegistryFn func(ctx context.Context) ([]homeassistant.EntityRegistryEntry, error)
-	GetDeviceRegistryFn func(ctx context.Context) ([]homeassistant.DeviceRegistryEntry, error)
-	GetAreaRegistryFn   func(ctx context.Context) ([]homeassistant.AreaRegistryEntry, error)
-	GetHistoryFn        func(ctx context.Context, entityID string, start, end time.Time) ([][]homeassistant.HistoryEntry, error)
+	GetStateFn              func(ctx context.Context, entityID string) (*homeassistant.Entity, error)
+	ListAutomationsFn       func(ctx context.Context) ([]homeassistant.Automation, error)
+	GetAutomationFn         func(ctx context.Context, automationID string) (*homeassistant.Automation, error)
+	ListScriptsFn           func(ctx context.Context) ([]homeassistant.Entity, error)
+	GetScriptFn             func(ctx context.Context, scriptID string) (*homeassistant.Script, error)
+	ListScenesFn            func(ctx context.Context) ([]homeassistant.Entity, error)
+	GetStatesFn             func(ctx context.Context) ([]homeassistant.Entity, error)
+	GetEntityRegistryFn     func(ctx context.Context) ([]homeassistant.EntityRegistryEntry, error)
+	GetDeviceRegistryFn     func(ctx context.Context) ([]homeassistant.DeviceRegistryEntry, error)
+	GetAreaRegistryFn       func(ctx context.Context) ([]homeassistant.AreaRegistryEntry, error)
+	GetHistoryFn            func(ctx context.Context, entityID string, start, end time.Time) ([][]homeassistant.HistoryEntry, error)
+	ListDashboardsFn        func(ctx context.Context) ([]homeassistant.DashboardEntry, error)
+	GetLovelaceConfigFn     func(ctx context.Context, urlPath string) (map[string]any, error)
+	GetConfigEntryOptionsFn func(ctx context.Context, entryID string) (map[string]any, error)
 }
 
 func (m *mockAnalysisClient) GetState(ctx context.Context, entityID string) (*homeassistant.Entity, error) {
@@ -52,6 +59,13 @@ func (m *mockAnalysisClient) ListScripts(ctx context.Context) ([]homeassistant.E
 		return m.ListScriptsFn(ctx)
 	}
 	return []homeassistant.Entity{}, nil
+}
+
+func (m *mockAnalysisClient) GetScript(ctx context.Context, scriptID string) (*homeassistant.Script, error) {
+	if m.GetScriptFn != nil {
+		return m.GetScriptFn(ctx, scriptID)
+	}
+	return nil, errors.New("not found")
 }
 
 func (m *mockAnalysisClient) ListScenes(ctx context.Context) ([]homeassistant.Entity, error) {
@@ -94,6 +108,27 @@ func (m *mockAnalysisClient) GetHistory(ctx context.Context, entityID string, st
 		return m.GetHistoryFn(ctx, entityID, start, end)
 	}
 	return [][]homeassistant.HistoryEntry{}, nil
+}
+
+func (m *mockAnalysisClient) ListDashboards(ctx context.Context) ([]homeassistant.DashboardEntry, error) {
+	if m.ListDashboardsFn != nil {
+		return m.ListDashboardsFn(ctx)
+	}
+	return []homeassistant.DashboardEntry{}, nil
+}
+
+func (m *mockAnalysisClient) GetLovelaceConfig(ctx context.Context, urlPath string) (map[string]any, error) {
+	if m.GetLovelaceConfigFn != nil {
+		return m.GetLovelaceConfigFn(ctx, urlPath)
+	}
+	return map[string]any{}, nil
+}
+
+func (m *mockAnalysisClient) GetConfigEntryOptions(ctx context.Context, entryID string) (map[string]any, error) {
+	if m.GetConfigEntryOptionsFn != nil {
+		return m.GetConfigEntryOptionsFn(ctx, entryID)
+	}
+	return map[string]any{}, nil
 }
 
 func TestNewAnalysisHandlers(t *testing.T) {
@@ -1829,13 +1864,16 @@ func TestAnalysisHandlers_ScriptSceneGroupReferences(t *testing.T) {
 		client := &mockAnalysisClient{
 			ListScriptsFn: func(_ context.Context) ([]homeassistant.Entity, error) {
 				return []homeassistant.Entity{
-					{
-						EntityID: "script.kitchen_scene",
-						Attributes: map[string]any{
-							"friendly_name": "Kitchen Scene",
-							"sequence": []any{
-								map[string]any{"entity_id": entityID, "action": "light.turn_on"},
-							},
+					{EntityID: "script.kitchen_scene"},
+				}, nil
+			},
+			GetScriptFn: func(_ context.Context, _ string) (*homeassistant.Script, error) {
+				return &homeassistant.Script{
+					EntityID:     "script.kitchen_scene",
+					FriendlyName: "Kitchen Scene",
+					Config: &homeassistant.ScriptConfig{
+						Sequence: []any{
+							map[string]any{"entity_id": entityID, "action": "light.turn_on"},
 						},
 					},
 				}, nil
@@ -1855,10 +1893,13 @@ func TestAnalysisHandlers_ScriptSceneGroupReferences(t *testing.T) {
 		if result.IsError {
 			t.Fatalf("unexpected error result: %v", result.Content)
 		}
-		// The analysis should find the script reference
+		// The analysis should find the script reference - fetched via GetScript
+		// (real Home Assistant does not expose "sequence" as a state attribute,
+		// so ListScripts' Attributes cannot be used here; see analysis.go's
+		// findScriptReferences).
 		content := result.Content[0].Text
-		if !strings.Contains(content, "script.kitchen_scene") && !strings.Contains(content, "1 scripts") {
-			t.Logf("result (may or may not mention script depending on threshold): %s", content[:min(500, len(content))])
+		if !strings.Contains(content, "Kitchen Scene") {
+			t.Errorf("expected script reference to be found, got: %s", content[:min(500, len(content))])
 		}
 	})
 
@@ -2474,14 +2515,14 @@ func TestHandleAnalyzeEntity_ScriptPathsInOutput(t *testing.T) {
 		},
 		ListScriptsFn: func(context.Context) ([]homeassistant.Entity, error) {
 			return []homeassistant.Entity{
-				{
-					EntityID: "script.example_script",
-					State:    "off",
-					Attributes: map[string]any{
-						"friendly_name": "Example Script",
-						"sequence":      sequence,
-					},
-				},
+				{EntityID: "script.example_script", State: "off"},
+			}, nil
+		},
+		GetScriptFn: func(_ context.Context, _ string) (*homeassistant.Script, error) {
+			return &homeassistant.Script{
+				EntityID:     "script.example_script",
+				FriendlyName: "Example Script",
+				Config:       &homeassistant.ScriptConfig{Sequence: sequence},
 			}, nil
 		},
 	}
@@ -2502,5 +2543,213 @@ func TestHandleAnalyzeEntity_ScriptPathsInOutput(t *testing.T) {
 	}
 	if !strings.Contains(text, "action: automation.turn_off") {
 		t.Errorf("output should contain action context, got:\n%s", text)
+	}
+}
+
+// TestHandleAnalyzeEntity_FindsDashboardOnlyReference is a regression test for
+// issue #140: analyze_entity used to report "No references found" for an entity
+// referenced only in a dashboard card/chip, since dashboards weren't scanned.
+func TestHandleAnalyzeEntity_FindsDashboardOnlyReference(t *testing.T) {
+	t.Parallel()
+
+	const entityID = "device_tracker.example_phone"
+
+	dashboardConfig := map[string]any{
+		"views": []any{
+			map[string]any{
+				"cards": []any{
+					map[string]any{"type": "entity", "entity": entityID},
+				},
+			},
+		},
+	}
+
+	client := &mockAnalysisClient{
+		GetStateFn: func(_ context.Context, eid string) (*homeassistant.Entity, error) {
+			return &homeassistant.Entity{EntityID: eid, State: "home"}, nil
+		},
+		ListDashboardsFn: func(context.Context) ([]homeassistant.DashboardEntry, error) {
+			return []homeassistant.DashboardEntry{{URLPath: "lovelace"}}, nil
+		},
+		GetLovelaceConfigFn: func(context.Context, string) (map[string]any, error) {
+			return dashboardConfig, nil
+		},
+	}
+
+	h := NewAnalysisHandlers()
+	args := map[string]any{"entity_id": entityID, "format": "natural"}
+	result, err := h.handleAnalyzeEntity(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("handleAnalyzeEntity() returned error result: %v", result.Content)
+	}
+
+	text := result.Content[0].Text
+	if strings.Contains(text, "No references found") {
+		t.Errorf("expected the dashboard reference to be found, got:\n%s", text)
+	}
+	if !strings.Contains(text, "dashboard(s)") {
+		t.Errorf("output should mention dashboard references, got:\n%s", text)
+	}
+}
+
+// TestHandleAnalyzeEntity_FindsHelperTemplateOnlyReference is a regression test
+// for issue #140: analyze_entity used to miss entities referenced only inside a
+// template-helper's Jinja state/availability template.
+func TestHandleAnalyzeEntity_FindsHelperTemplateOnlyReference(t *testing.T) {
+	t.Parallel()
+
+	const entityID = "device_tracker.example_phone"
+
+	client := &mockAnalysisClient{
+		GetStateFn: func(_ context.Context, eid string) (*homeassistant.Entity, error) {
+			return &homeassistant.Entity{EntityID: eid, State: "home"}, nil
+		},
+		GetEntityRegistryFn: func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+			return []homeassistant.EntityRegistryEntry{
+				{EntityID: "sensor.occupancy_count", Platform: "template", ConfigEntryID: "entry1"},
+			}, nil
+		},
+		GetConfigEntryOptionsFn: func(_ context.Context, entryID string) (map[string]any, error) {
+			if entryID != "entry1" {
+				t.Fatalf("unexpected entry id %q", entryID)
+			}
+			return map[string]any{
+				"state": "{{ is_state('" + entityID + "', 'home') }}",
+			}, nil
+		},
+	}
+
+	h := NewAnalysisHandlers()
+	args := map[string]any{"entity_id": entityID, "format": "natural"}
+	result, err := h.handleAnalyzeEntity(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("handleAnalyzeEntity() returned error result: %v", result.Content)
+	}
+
+	text := result.Content[0].Text
+	if strings.Contains(text, "No references found") {
+		t.Errorf("expected the helper-template reference to be found, got:\n%s", text)
+	}
+	if !strings.Contains(text, "sensor.occupancy_count") {
+		t.Errorf("output should mention the referencing helper, got:\n%s", text)
+	}
+}
+
+// TestHandleAnalyzeEntity_NoReferencesListsScannedSources verifies that when no
+// references exist, the output states which sources were scanned so the
+// "no references" result can be trusted (issue #140).
+func TestHandleAnalyzeEntity_NoReferencesListsScannedSources(t *testing.T) {
+	t.Parallel()
+
+	client := &mockAnalysisClient{}
+
+	h := NewAnalysisHandlers()
+	args := map[string]any{"entity_id": "light.unused", "format": "natural"}
+	result, err := h.handleAnalyzeEntity(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+
+	text := result.Content[0].Text
+	for _, source := range []string{"automations", "scripts", "scenes", "dashboards", "helper_templates"} {
+		if !strings.Contains(text, source) {
+			t.Errorf("expected scanned_sources to mention %q, got:\n%s", source, text)
+		}
+	}
+}
+
+// TestHandleAnalyzeEntity_FailedSourceReportedInFailedSourcesAndWarning is a
+// regression test for the adversarial-review finding that ScannedSources was
+// a hardcoded literal, not a measurement: if a source's fetch fails, it must
+// land in FailedSources and the natural-language output must warn about it -
+// even on the "no references found" path, which is the exact scenario a
+// silent failure would otherwise misrepresent as a confirmed negative.
+func TestHandleAnalyzeEntity_FailedSourceReportedInFailedSourcesAndWarning(t *testing.T) {
+	t.Parallel()
+
+	entityID := "light.test_entity"
+	client := &mockAnalysisClient{
+		GetStateFn: func(_ context.Context, id string) (*homeassistant.Entity, error) {
+			return &homeassistant.Entity{EntityID: id, State: "on"}, nil
+		},
+		ListDashboardsFn: func(context.Context) ([]homeassistant.DashboardEntry, error) {
+			return nil, errors.New("connection failed")
+		},
+	}
+
+	h := NewAnalysisHandlers()
+	args := map[string]any{"entity_id": entityID, "format": "natural"}
+	result, err := h.handleAnalyzeEntity(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("unexpected error result: %v", result.Content)
+	}
+
+	text := result.Content[0].Text
+	if !strings.Contains(text, "could not be scanned: dashboards") {
+		t.Errorf("expected a failed-source warning naming dashboards, got:\n%s", text)
+	}
+
+	jsonArgs := map[string]any{"entity_id": entityID, "format": "json"}
+	jsonResult, err := h.handleAnalyzeEntity(context.Background(), client, jsonArgs)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+	var analysis EntityAnalysis
+	if unmarshalErr := json.Unmarshal([]byte(jsonResult.Content[0].Text), &analysis); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON result: %v", unmarshalErr)
+	}
+	if !reflect.DeepEqual(analysis.References.FailedSources, []string{"dashboards"}) {
+		t.Errorf("FailedSources = %v, want [dashboards]", analysis.References.FailedSources)
+	}
+	for _, s := range analysis.References.ScannedSources {
+		if s == "dashboards" {
+			t.Errorf("ScannedSources should not include the failed source, got %v", analysis.References.ScannedSources)
+		}
+	}
+}
+
+// TestHandleAnalyzeEntity_NoReferencesListsScannedSources_AllSourcesFailIndependently
+// verifies FailedSources accumulates every failing source, not just the first.
+func TestHandleAnalyzeEntity_MultipleFailedSourcesAllReported(t *testing.T) {
+	t.Parallel()
+
+	entityID := "light.test_entity"
+	client := &mockAnalysisClient{
+		GetStateFn: func(_ context.Context, id string) (*homeassistant.Entity, error) {
+			return &homeassistant.Entity{EntityID: id, State: "on"}, nil
+		},
+		ListDashboardsFn: func(context.Context) ([]homeassistant.DashboardEntry, error) {
+			return nil, errors.New("connection failed")
+		},
+		GetEntityRegistryFn: func(context.Context) ([]homeassistant.EntityRegistryEntry, error) {
+			return nil, errors.New("registry unavailable")
+		},
+	}
+
+	h := NewAnalysisHandlers()
+	args := map[string]any{"entity_id": entityID, "format": "json"}
+	result, err := h.handleAnalyzeEntity(context.Background(), client, args)
+	if err != nil {
+		t.Fatalf("handleAnalyzeEntity() error = %v", err)
+	}
+
+	var analysis EntityAnalysis
+	if unmarshalErr := json.Unmarshal([]byte(result.Content[0].Text), &analysis); unmarshalErr != nil {
+		t.Fatalf("failed to unmarshal JSON result: %v", unmarshalErr)
+	}
+	got := append([]string{}, analysis.References.FailedSources...)
+	sort.Strings(got)
+	want := []string{"dashboards", "helper_templates"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("FailedSources = %v, want %v", got, want)
 	}
 }

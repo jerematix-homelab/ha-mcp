@@ -16,6 +16,7 @@ func TestAccessControlMapCompleteness(t *testing.T) {
 		"query_devices",
 		"get_entity_dependencies",
 		"analyze_entity",
+		"find_references",
 		"analyze_target",
 		"get_registry",
 		"get_logbook",
@@ -80,6 +81,7 @@ func TestPureReadTools(t *testing.T) {
 		"get_state",
 		"get_entity_dependencies",
 		"analyze_entity",
+		"find_references",
 		"get_datetime",
 		"validate_config",
 		"render_template",
@@ -218,8 +220,8 @@ func TestManagedToolsActions(t *testing.T) {
 		{
 			tool:         "manage_dashboard",
 			paramName:    "action",
-			readActions:  []string{"list", "get"},
-			writeActions: []string{"create", "update", "delete", "save_config"},
+			readActions:  []string{"list", "get", "find"},
+			writeActions: []string{"create", "update", "delete", "save_config", "patch"},
 		},
 		{
 			tool:         "manage_config_entry",

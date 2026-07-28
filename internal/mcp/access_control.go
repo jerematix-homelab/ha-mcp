@@ -58,6 +58,9 @@ func buildPureTools() map[string]ToolClassification {
 		"analyze_entity": {
 			PureCategory: CategoryRead,
 		},
+		"find_references": {
+			PureCategory: CategoryRead,
+		},
 		"get_datetime": {
 			PureCategory: CategoryRead,
 		},
@@ -165,7 +168,7 @@ func addSpecialManagementTools(result map[string]ToolClassification) {
 	result["manage_dashboard"] = ToolClassification{
 		ParamName: "action",
 		Actions: map[string]ActionCategory{
-			"list": CategoryRead, "get": CategoryRead,
+			"list": CategoryRead, "get": CategoryRead, "find": CategoryRead,
 			"create": CategoryWrite, "update": CategoryWrite, "delete": CategoryWrite, "save_config": CategoryWrite, "patch": CategoryWrite,
 		},
 	}
