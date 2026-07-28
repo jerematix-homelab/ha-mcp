@@ -32,6 +32,17 @@ func enrichConfigError(msg string, err error, hints []configErrorHint) string {
 
 //nolint:gochecknoglobals // static lookup tables for error enrichment
 
+// templateSyntaxErrorHint is shared by automation and script hint tables.
+const templateSyntaxErrorHint = "Jinja2 template syntax error. \"unexpected '}'\" " +
+	"(or similar) usually means an unbalanced brace — check that every '{{' has a " +
+	"matching '}}' and every '{%' a matching '%}', and look for a stray or missing " +
+	"brace. If the braces are balanced, the expression may be too complex for one " +
+	"block: split it into multiple '{% set %}' lines and keep the final '{{ ... }}' " +
+	"simple (chaining filters like from_json with and/or in one block can also trip " +
+	"the parser). Example: {% set days = states('input_text.x') %}" +
+	"{% set empty = days in ['unknown','unavailable',''] %}{{ empty }}. " +
+	"The data[...] path shown in the error above identifies which template failed."
+
 var automationErrorHints = []configErrorHint{
 	{
 		// Specific match before the generic "extra keys not allowed" catch-all.
@@ -55,6 +66,11 @@ var automationErrorHints = []configErrorHint{
 		suggestion: "The service name in 'action' may be wrong. Use 'domain.service' format, e.g. 'light.turn_on', 'notify.mobile_app'. Check available services with call_service tool.",
 	},
 	{
+		// Specific match before the generic "invalid template" catch-all below.
+		pattern:    "templatesyntaxerror",
+		suggestion: templateSyntaxErrorHint,
+	},
+	{
 		pattern:    "invalid template",
 		suggestion: "Template syntax error. HA uses Jinja2: {{ states('sensor.x') }}, {{ is_state('entity', 'on') }}, etc.",
 	},
@@ -68,6 +84,11 @@ var scriptErrorHints = []configErrorHint{
 	{
 		pattern:    "required key not provided",
 		suggestion: "A required field is missing from the script config. Each sequence step needs an 'action' key.",
+	},
+	{
+		// Specific match before the generic "invalid template" catch-all below.
+		pattern:    "templatesyntaxerror",
+		suggestion: templateSyntaxErrorHint,
 	},
 	{
 		pattern:    "invalid template",
