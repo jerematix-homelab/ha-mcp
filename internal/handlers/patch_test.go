@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/zorak1103/ha-mcp/internal/homeassistant"
+	"github.com/zorak1103/ha-mcp/internal/jsonpatch"
 )
 
 func TestParseOperations(t *testing.T) {
@@ -321,7 +324,7 @@ func TestParseOperations_RoundTrip(t *testing.T) {
 		"conditions": []any{map[string]any{"condition": "time"}},
 	}
 
-	resultMap, applyErr := applyPatchWithSemantics(doc, ops)
+	resultMap, _, applyErr := applyPatchWithSemantics(doc, ops)
 	if applyErr != nil {
 		t.Fatalf("applyPatchWithSemantics() error = %v", applyErr)
 	}
@@ -442,7 +445,7 @@ func TestParseOperations_DeepValueObject(t *testing.T) {
 			map[string]any{"action": "light.turn_off"},
 		},
 	}
-	result, err := applyPatchWithSemantics(doc, ops)
+	result, _, err := applyPatchWithSemantics(doc, ops)
 	if err != nil {
 		t.Fatalf("applyPatchWithSemantics error: %v", err)
 	}
@@ -454,4 +457,200 @@ func TestParseOperations_DeepValueObject(t *testing.T) {
 	if _, ok := inserted["choose"]; !ok {
 		t.Errorf("inserted action missing 'choose' key; got: %v", inserted)
 	}
+}
+
+// dryRunPatchResult tests (issue #142: dry_run must return a compact diff,
+// not the entire patched config)
+
+func TestDryRunPatchResult_CompactDiff(t *testing.T) {
+	t.Parallel()
+
+	original := map[string]any{
+		"mode":              "single",
+		"unrelated_field":   "should-not-appear-in-diff-output",
+		"another_unrelated": map[string]any{"nested": "also-should-not-appear"},
+		"triggers":          []any{map[string]any{"platform": "time", "at": "07:00"}},
+	}
+	resolved := []jsonpatch.Operation{
+		{Op: "replace", Path: "/mode", Value: "queued"},
+	}
+
+	result, err := dryRunPatchResult(original, resolved, "automation", "morning_routine", len(resolved))
+	if err != nil {
+		t.Fatalf("dryRunPatchResult() error = %v", err)
+	}
+	text := result.Content[0].Text
+
+	if !strings.Contains(text, "/mode") {
+		t.Errorf("output missing affected path /mode: %s", text)
+	}
+	if !strings.Contains(text, "single") {
+		t.Errorf("output missing before value 'single': %s", text)
+	}
+	if !strings.Contains(text, "queued") {
+		t.Errorf("output missing after value 'queued': %s", text)
+	}
+	if strings.Contains(text, "should-not-appear-in-diff-output") {
+		t.Errorf("output leaked untouched field value: %s", text)
+	}
+	if strings.Contains(text, "also-should-not-appear") {
+		t.Errorf("output leaked untouched nested field value: %s", text)
+	}
+}
+
+func TestDryRunPatchResult_RemoveShowsRemoved(t *testing.T) {
+	t.Parallel()
+
+	original := map[string]any{
+		"triggers": []any{map[string]any{"platform": "state", "entity_id": "binary_sensor.door"}},
+	}
+	resolved := []jsonpatch.Operation{
+		{Op: "remove", Path: "/triggers/0"},
+	}
+
+	result, err := dryRunPatchResult(original, resolved, "automation", "test_id", len(resolved))
+	if err != nil {
+		t.Fatalf("dryRunPatchResult() error = %v", err)
+	}
+	text := result.Content[0].Text
+
+	if !strings.Contains(text, "(removed)") {
+		t.Errorf("output missing '(removed)' marker: %s", text)
+	}
+	if !strings.Contains(text, "binary_sensor.door") {
+		t.Errorf("output missing removed element's before value: %s", text)
+	}
+}
+
+func TestDryRunPatchResult_TruncatesLongValues(t *testing.T) {
+	t.Parallel()
+
+	longValue := strings.Repeat("x", 1000)
+	original := map[string]any{"field": "short"}
+	resolved := []jsonpatch.Operation{
+		{Op: "replace", Path: "/field", Value: longValue},
+	}
+
+	result, err := dryRunPatchResult(original, resolved, "script", "test_id", len(resolved))
+	if err != nil {
+		t.Fatalf("dryRunPatchResult() error = %v", err)
+	}
+	text := result.Content[0].Text
+
+	if strings.Contains(text, longValue) {
+		t.Errorf("output contains untruncated 1000-char value")
+	}
+	if !strings.Contains(text, "…") {
+		t.Errorf("output missing truncation marker: %s", text)
+	}
+}
+
+// TestDryRunPatchResult_TruncatesAtRuneBoundary verifies truncation never cuts
+// a multi-byte UTF-8 rune in half (N1) — HA entity/friendly names in this
+// project's primarily German-locale deployments commonly contain umlauts.
+func TestDryRunPatchResult_TruncatesAtRuneBoundary(t *testing.T) {
+	t.Parallel()
+
+	// The marshaled JSON is `"` + 198 x's + ü's + `"`; dryRunValueTruncateLen
+	// (200) bytes in lands on the leading byte of the first "ü" (a 2-byte
+	// UTF-8 rune), so a naive byte-slice truncation splits it in half.
+	longValue := strings.Repeat("x", 198) + strings.Repeat("ü", 50)
+	original := map[string]any{"field": "short"}
+	resolved := []jsonpatch.Operation{
+		{Op: "replace", Path: "/field", Value: longValue},
+	}
+
+	result, err := dryRunPatchResult(original, resolved, "script", "test_id", len(resolved))
+	if err != nil {
+		t.Fatalf("dryRunPatchResult() error = %v", err)
+	}
+	text := result.Content[0].Text
+
+	if !utf8.ValidString(text) {
+		t.Errorf("output contains invalid UTF-8 (rune cut in half): %q", text)
+	}
+	if strings.Contains(text, longValue) {
+		t.Errorf("output contains untruncated value")
+	}
+	if !strings.Contains(text, "…") {
+		t.Errorf("output missing truncation marker: %s", text)
+	}
+}
+
+func TestDryRunPatchResult_LargeConfigStaysCompact(t *testing.T) {
+	t.Parallel()
+
+	// Simulate a large dashboard: many views, each with padding content
+	// unrelated to the patch (issue #142 reproduction).
+	views := make([]any, 200)
+	for i := range views {
+		views[i] = map[string]any{
+			"title": "padding",
+			"cards": []any{
+				map[string]any{"type": "entities", "entities": strings.Repeat("e", 500)},
+			},
+		}
+	}
+	original := map[string]any{"views": views}
+
+	fullConfigSize := len(mustMarshal(t, original))
+
+	resolved := []jsonpatch.Operation{
+		{Op: "replace", Path: "/views/0/title", Value: "updated"},
+	}
+
+	result, err := dryRunPatchResult(original, resolved, "dashboard", "lovelace", len(resolved))
+	if err != nil {
+		t.Fatalf("dryRunPatchResult() error = %v", err)
+	}
+	text := result.Content[0].Text
+
+	if len(text) >= fullConfigSize {
+		t.Errorf("dry-run diff (%d bytes) is not smaller than the full config (%d bytes)", len(text), fullConfigSize)
+	}
+	if len(text) > 1000 {
+		t.Errorf("dry-run diff for a single-field change is unexpectedly large: %d bytes", len(text))
+	}
+}
+
+// TestDryRunPatchResult_MultiOpSequential verifies before/after values reflect
+// true sequential application: when two ops touch the same path, the second
+// op's "before" must equal the first op's "after" — not the pristine
+// pre-patch snapshot (W2: a snapshot-based diff misrepresents chained ops).
+func TestDryRunPatchResult_MultiOpSequential(t *testing.T) {
+	t.Parallel()
+
+	original := map[string]any{"mode": "single"}
+	resolved := []jsonpatch.Operation{
+		{Op: "replace", Path: "/mode", Value: "restart"},
+		{Op: "replace", Path: "/mode", Value: "queued"},
+	}
+
+	result, err := dryRunPatchResult(original, resolved, "automation", "morning_routine", len(resolved))
+	if err != nil {
+		t.Fatalf("dryRunPatchResult() error = %v", err)
+	}
+	text := result.Content[0].Text
+
+	const op1Block = `1. replace /mode
+   before: "single"
+   after:  "restart"`
+	const op2Block = `2. replace /mode
+   before: "restart"
+   after:  "queued"`
+	if !strings.Contains(text, op1Block) {
+		t.Errorf("op 1's before value should be the pristine pre-patch value (\"single\"), got:\n%s", text)
+	}
+	if !strings.Contains(text, op2Block) {
+		t.Errorf("op 2's before value should be op 1's after value (\"restart\"), not the pristine snapshot, got:\n%s", text)
+	}
+}
+
+func mustMarshal(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	return b
 }

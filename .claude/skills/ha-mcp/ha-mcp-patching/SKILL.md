@@ -46,9 +46,19 @@ Use when array indexes are unreliable — re-ordered, unknown position, or after
 | Field         | Purpose                                                                      |
 | ------------- | ---------------------------------------------------------------------------- |
 | `match`       | Key-value pairs identifying the target element(s) in the section             |
-| `section`     | Array to search: `triggers`, `conditions`, `actions`, `sequence`, `views`, … |
+| `section`     | Array to search: `triggers`, `conditions`, `actions`, `sequence`, `views`, … Recurses into nested arrays/objects within it — not just the section's direct elements. |
 | `field`       | Field within the matched element; omit for `remove` (deletes whole element)  |
 | `match_index` | 0-based index when multiple elements match (default: first match)            |
+
+<EXTREMELY-IMPORTANT>
+`match`+`section` without `match_index` resolves to **every** matching element,
+including ones nested arbitrarily deep below `section` (a `replace`/`remove` is
+not scoped to the top-level array only). If your match criteria could plausibly
+hit more than one element — e.g. the same `entity_id` used at both a top level
+action and inside a nested `choose`/`if` block, or the same card type reused
+across dashboard views — run with `dry_run: true` first and check how many
+resolved paths come back before submitting for real.
+</EXTREMELY-IMPORTANT>
 
 ```json
 [
@@ -64,9 +74,12 @@ Use when array indexes are unreliable — re-ordered, unknown position, or after
 
 ## Nested Action Structures
 
-`section` in Semantic Ops only addresses **top-level** arrays (`triggers`, `conditions`,
-`actions`, …). Editing inside a `choose`/`if`/`repeat` action block requires a standard
-`path` op that descends into the nested structure — and the nesting is easy to get wrong:
+`section` in Semantic Ops recurses into nested arrays/objects — a `match`
+inside a `choose`/`if`/`repeat` action block, or a dashboard card/chip nested several
+levels below `views`, is found the same way a top-level element is; you no longer need
+a `path` op just to reach it. A standard `path` op is still useful when you need to
+target one specific occurrence deterministically (e.g. disambiguating without relying
+on `match_index`), and the nesting shown below is easy to get wrong when writing one by hand:
 
 | Block    | Structure                                                        | Example path                       |
 | -------- | ----------------------------------------------------------------- | ----------------------------------- |
@@ -77,7 +90,7 @@ Use when array indexes are unreliable — re-ordered, unknown position, or after
 
 <EXTREMELY-IMPORTANT>
 `then`/`else` are siblings of `if` at the same level — they are NOT inside the `if` array.
-`/actions/0/if/0/then/0` is wrong (issue #124); the correct path is `/actions/0/then/0`.
+`/actions/0/if/0/then/0` is wrong; the correct path is `/actions/0/then/0`.
 </EXTREMELY-IMPORTANT>
 
 If a path op fails with "key not found", the error now reports the prefix it actually
@@ -116,10 +129,23 @@ navigated (not your full submitted path) plus a hint when the missing key is one
 [{"op": "replace", "match": {"entity_id": "light.old"}, "section": "actions", "field": "entity_id", "value": "light.new"}]
 ```
 
+**Replace an entity nested inside a dashboard card/chip (recursive match):**
+```json
+[{"op": "replace", "match": {"content": "Example", "entity": "device_tracker.example_phone"}, "section": "views", "field": "entity", "value": "device_tracker.example_phone_new"}]
+```
+
+## Dry Run
+
+Pass `dry_run: true` to preview a patch without saving. The result is a compact diff —
+each affected path with its truncated before/after value — not the entire patched config,
+so it stays small even for a large dashboard.
+
 ## Atomicity & Ordering
 
 - All operations run as a unit — first failure rolls back all changes.
-- Semantic `remove` ops are automatically sorted descending by index per section — safe to submit multiple removes without index shifting.
+- Semantic `remove` ops are automatically ordered so nested matches are removed before
+  their ancestors, and siblings within the same array are removed highest-index-first —
+  safe to submit multiple removes (including nested ones) without index shifting.
 - For standard `path`-based removes, sort descending manually when issuing multiple removes in one call.
 
 ## Anti-Patterns

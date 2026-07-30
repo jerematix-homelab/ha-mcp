@@ -184,15 +184,17 @@ Tool actions and parameters are defined in the handler schemas. Non-obvious aspe
 - **Standard ops** follow RFC 6902: `{"op": "replace", "path": "/mode", "value": "queued"}`
 - **Semantic ops** use property-based addressing: `{"op": "add", "match": {"entity_id": "binary_sensor.door"}, "section": "triggers", "field": "for", "value": "00:05:00"}`
   - `match`: key-value pairs to identify element(s) — mutually exclusive with `path`
-  - `section`: array to search (`triggers`, `conditions`, `actions`, `sequence`, `views`, …)
+  - `section`: array to search (`triggers`, `conditions`, `actions`, `sequence`, `views`, …). Matching recurses into nested arrays/objects within the section — not just its direct elements — so a dashboard card/chip nested several levels below `views`, or a nested action block, is found the same way a top-level element is
   - `field`: field within matched element(s) — required for `add`/`replace`/`test`; omit for `remove` (deletes whole element)
-  - `match_index`: optional 0-based index to select specific match when multiple elements match
-  - Semantic remove ops are automatically sorted descending per section to prevent index shifting
+  - `match_index`: optional 0-based index to select specific match when multiple elements match (ordering is DFS pre-order: within each section element in array order, that element's own match precedes matches nested inside it — a nested match under an earlier element can therefore come before a later top-level element's match, it is NOT "all top-level matches, then all nested ones")
+  - Semantic remove ops are sorted so deeper (nested) matches are removed before their ancestors, and siblings within the same array are removed highest-index-first, so applying them sequentially never invalidates a not-yet-processed match
+  - `match`+`section` without `match_index` resolves to *every* matching element including nested ones — a `replace`/`remove` is not implicitly scoped to top-level elements only; use `dry_run` to check the resolved set when match criteria could plausibly hit more than one element
 - Supported ops: `add`, `remove`, `replace`, `test` (standard: also `move`, `copy`)
 - Atomic: if any operation fails, the config is not modified
 - Standard paths use RFC 6901 JSON Pointer syntax: `/triggers/0/entity_id`, `/actions/-` (append)
-- **Nested action blocks (issue #124):** `then`/`else` are siblings of `if`, NOT nested inside it — `/actions/0/then/0`, not `/actions/0/if/0/then/0`. `choose` nests `conditions`/`sequence` per option (`/actions/0/choose/0/sequence/-`); `default` is a sibling of `choose` (`/actions/0/default/-`). `section` in semantic ops only addresses top-level arrays — nested blocks require standard `path` ops. See `.claude/skills/ha-mcp/ha-mcp-patching/SKILL.md` ("Nested Action Structures").
-- Implemented in `internal/jsonpatch/` (RFC 6902 engine) + `internal/handlers/patch_semantic.go` (semantic layer). A `key not found` error reports the prefix actually navigated (not the full submitted path) plus a structural hint for `then`/`else`/`sequence`/`default` misses (`internal/jsonpatch/pointer.go`: `navigatedPrefix`, `actionBlockKeyHint`, `keyNotFoundError`)
+- **`dry_run: true`** previews a patch without saving. The result is a compact diff — only the resolved paths with truncated before/after values — not the entire patched config, so it stays small even for a large dashboard
+- **Nested action blocks:** `then`/`else` are siblings of `if`, NOT nested inside it — `/actions/0/then/0`, not `/actions/0/if/0/then/0`. `choose` nests `conditions`/`sequence` per option (`/actions/0/choose/0/sequence/-`); `default` is a sibling of `choose` (`/actions/0/default/-`). See `.claude/skills/ha-mcp/ha-mcp-patching/SKILL.md` ("Nested Action Structures").
+- Implemented in `internal/jsonpatch/` (RFC 6902 engine) + `internal/handlers/patch_semantic.go` (semantic layer: `findMatchingPaths` recursion, `removeBeforePaths` remove ordering) + `internal/handlers/patch.go` (`dryRunPatchResult` diff rendering). A `key not found` error reports the prefix actually navigated (not the full submitted path) plus a structural hint for `then`/`else`/`sequence`/`default` misses (`internal/jsonpatch/pointer.go`: `navigatedPrefix`, `actionBlockKeyHint`, `keyNotFoundError`)
 
 **Access Control & Tool Filtering:**
 
