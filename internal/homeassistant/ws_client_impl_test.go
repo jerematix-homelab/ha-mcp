@@ -598,6 +598,187 @@ func (t *testableWSClientImplV2) GetAreaRegistry(ctx context.Context) ([]AreaReg
 	return entries, nil
 }
 
+// TestWSClientImpl_ZonePersonCommands guards the exact WebSocket command
+// strings for the zone and person collection APIs against the real
+// wsClientImpl (not a test re-implementation). Home Assistant registers these
+// under the bare domain prefix (zone/list, person/list, ...) via its
+// collection helper - NOT under config/ like the entity/device/area
+// registries. A regression to a config/-prefixed command fails against every
+// HA version with unknown_command, so this runs in normal CI without a live
+// Home Assistant.
+func TestWSClientImpl_ZonePersonCommands(t *testing.T) {
+	t.Parallel()
+
+	const (
+		zoneID   = "home"
+		personID = "abc123"
+	)
+
+	tests := []struct {
+		name       string
+		wantCmd    string
+		wantParams map[string]any // subset that must be present; nil to skip
+		mockResult any
+		invoke     func(ctx context.Context, c *wsClientImpl) error
+	}{
+		{
+			name:       "GetZones",
+			wantCmd:    "zone/list",
+			mockResult: []ZoneRegistryEntry{{ID: zoneID, Name: "Home"}},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				_, err := c.GetZones(ctx)
+				return err
+			},
+		},
+		{
+			name:       "CreateZone",
+			wantCmd:    "zone/create",
+			mockResult: ZoneRegistryEntry{ID: zoneID, Name: "Home"},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				_, err := c.CreateZone(ctx, ZoneConfig{Name: "Home"})
+				return err
+			},
+		},
+		{
+			name:       "UpdateZone",
+			wantCmd:    "zone/update",
+			wantParams: map[string]any{"zone_id": zoneID},
+			mockResult: ZoneRegistryEntry{ID: zoneID, Name: "Home"},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				_, err := c.UpdateZone(ctx, zoneID, ZoneConfig{Name: "Home"})
+				return err
+			},
+		},
+		{
+			name:       "DeleteZone",
+			wantCmd:    "zone/delete",
+			wantParams: map[string]any{"zone_id": zoneID},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				return c.DeleteZone(ctx, zoneID)
+			},
+		},
+		{
+			name:    "GetPersons",
+			wantCmd: "person/list",
+			// Home Assistant's person/list command returns an object with
+			// separate "storage" and "config" (YAML) arrays, not a bare
+			// list, unlike zone/list.
+			mockResult: map[string]any{
+				"storage": []PersonRegistryEntry{{ID: personID, Name: "Alice"}},
+				"config":  []PersonRegistryEntry{},
+			},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				_, err := c.GetPersons(ctx)
+				return err
+			},
+		},
+		{
+			name:       "CreatePerson",
+			wantCmd:    "person/create",
+			mockResult: PersonRegistryEntry{ID: personID, Name: "Alice"},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				_, err := c.CreatePerson(ctx, PersonConfig{Name: "Alice"})
+				return err
+			},
+		},
+		{
+			name:       "UpdatePerson",
+			wantCmd:    "person/update",
+			wantParams: map[string]any{"person_id": personID},
+			mockResult: PersonRegistryEntry{ID: personID, Name: "Alice"},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				_, err := c.UpdatePerson(ctx, personID, PersonConfig{Name: "Alice"})
+				return err
+			},
+		},
+		{
+			name:       "DeletePerson",
+			wantCmd:    "person/delete",
+			wantParams: map[string]any{"person_id": personID},
+			invoke: func(ctx context.Context, c *wsClientImpl) error {
+				return c.DeletePerson(ctx, personID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				gotCmd    string
+				gotParams map[string]any
+			)
+			c := &wsClientImpl{ws: &mockWSClientSender{
+				sendCommandFunc: func(_ context.Context, cmdType string, params map[string]any) (*WSResultMessage, error) {
+					gotCmd = cmdType
+					gotParams = params
+					return makeWSResultMsg(tt.mockResult), nil
+				},
+			}}
+
+			if err := tt.invoke(context.Background(), c); err != nil {
+				t.Fatalf("%s returned error: %v", tt.name, err)
+			}
+
+			if gotCmd != tt.wantCmd {
+				t.Errorf("%s sent command %q, want %q (a config/-prefixed value is the regression)", tt.name, gotCmd, tt.wantCmd)
+			}
+
+			for k, want := range tt.wantParams {
+				got, ok := gotParams[k]
+				if !ok {
+					t.Errorf("%s params missing %q", tt.name, k)
+					continue
+				}
+				if got != want {
+					t.Errorf("%s params[%q] = %v, want %v", tt.name, k, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestWSClientImpl_GetPersons_MergesStorageAndConfig guards against a second,
+// distinct bug in the person WebSocket API discovered once the command
+// prefix fix let requests actually reach Home Assistant: person/list uses a
+// custom collection handler that responds with {"storage": [...], "config":
+// [...]} - separating storage-managed persons from YAML-configured ones -
+// unlike zone/list and the other collection APIs, which return a plain
+// array. Naively unmarshalling the response into []PersonRegistryEntry fails
+// with a JSON type error. GetPersons must merge both sources so YAML-defined
+// persons are still visible to callers.
+func TestWSClientImpl_GetPersons_MergesStorageAndConfig(t *testing.T) {
+	t.Parallel()
+
+	c := &wsClientImpl{ws: &mockWSClientSender{
+		sendCommandFunc: func(_ context.Context, _ string, _ map[string]any) (*WSResultMessage, error) {
+			return makeWSResultMsg(map[string]any{
+				"storage": []PersonRegistryEntry{{ID: "storage1", Name: "Alice"}},
+				"config":  []PersonRegistryEntry{{ID: "config1", Name: "Bob"}},
+			}), nil
+		},
+	}}
+
+	entries, err := c.GetPersons(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(entries) != 2 {
+		t.Fatalf("got %d entries, want 2 (1 storage + 1 config): %+v", len(entries), entries)
+	}
+
+	var gotIDs []string
+	for _, e := range entries {
+		gotIDs = append(gotIDs, e.ID)
+	}
+	want := []string{"storage1", "config1"}
+	if diff := cmp.Diff(want, gotIDs); diff != "" {
+		t.Errorf("person IDs mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func TestWSClientImpl_SignPath(t *testing.T) {
 	t.Parallel()
 
