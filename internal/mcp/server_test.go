@@ -363,6 +363,10 @@ func (m *mockHAClient) GetConfigEntryOptions(context.Context, string) (map[strin
 	return map[string]any{}, nil
 }
 
+func (m *mockHAClient) DeleteConfigEntry(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 func (m *mockHAClient) SendHACSCommand(_ context.Context, _ string, _ map[string]any) (any, error) {
 	return nil, nil
 }
