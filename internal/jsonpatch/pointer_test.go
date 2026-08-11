@@ -399,6 +399,48 @@ func TestGet_ActionBlockHints(t *testing.T) {
 			path:      "/actions/0/notarealkey",
 			wantNoMsg: []string{"sibling", "nested inside"},
 		},
+		{
+			name: "root-level miss on unloaded automation config gives unloaded-config hint",
+			doc: map[string]any{
+				"id":    "1",
+				"alias": "Example",
+			},
+			path:    "/triggers/0/entity_id",
+			wantMsg: []string{"missing all of", "get"},
+		},
+		{
+			name: "root-level miss on unloaded script config (sequence) gives unloaded-config hint, not the choose/repeat hint",
+			doc: map[string]any{
+				"alias": "Example Script",
+			},
+			path:      "/sequence/0",
+			wantMsg:   []string{"missing all of"},
+			wantNoMsg: []string{`"choose"`, `"repeat"`},
+		},
+		{
+			name: "root-level miss on a structural key is suppressed when a DIFFERENT structural key is already present",
+			doc: map[string]any{
+				// "triggers" is present (a loaded, if minimal, automation config) - the missing
+				// "actions" key here is far more likely a genuinely empty/omitted actions list
+				// or a real typo than an unloaded config, so the hint must NOT fire.
+				"triggers": []any{map[string]any{"platform": "state"}},
+			},
+			path:      "/actions/0",
+			wantNoMsg: []string{"missing all of"},
+		},
+		{
+			name: "root-level miss on 'actions' for a dashboard-shaped document still fires but stays hedged, not asserting automation/script",
+			doc: map[string]any{
+				// A dashboard config ("views") has no structural overlap with
+				// automation/script - "actions" is still one of the four generic structural
+				// keys unloadedConfigHint watches for, so the hint fires, but its wording must
+				// stay conditional ("if this is an automation or script") rather than assert
+				// the document is one, since here it plainly is not.
+				"views": []any{map[string]any{"title": "Home"}},
+			},
+			path:    "/actions/0",
+			wantMsg: []string{"missing all of", "if this is an automation or script"},
+		},
 	}
 
 	for _, tt := range tests {
