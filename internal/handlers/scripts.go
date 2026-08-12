@@ -547,10 +547,10 @@ func (h *ScriptHandlers) handleUpdate(ctx context.Context, client homeassistant.
 		return successResult(fmt.Sprintf("Script %s: no changes detected, skipping write (reload avoided)", target)), nil
 	}
 
-	// Refuse to write YAML-defined scripts: the config API silently creates a duplicate
-	// orphan entity instead of updating them (#122).
+	// Refuse to write a script whose id is not present in scripts.yaml: the config API
+	// silently creates a duplicate orphan entity instead of updating it (#122, #164).
 	checkEntityID := resolveWriteCheckEntityID(entityID, current.EntityID)
-	if guardErr := yamlWriteGuardError(ctx, client, "script", "update", scriptID, checkEntityID); guardErr != nil {
+	if guardErr := configWriteGuardError(ctx, client, "script", "update", scriptID, checkEntityID, configID); guardErr != nil {
 		return guardErr, nil
 	}
 
@@ -707,9 +707,9 @@ func (h *ScriptHandlers) handlePatch(ctx context.Context, client homeassistant.C
 
 // applyPatchedScriptWrite writes the patched config to HA and returns the success result. It
 // skips the write entirely when configMap and patchedMap are deep-equal — otherwise every no-op
-// patch would trigger a needless script.reload — and refuses to write YAML-defined scripts,
-// which the config API would otherwise silently duplicate into an orphan entity (#122). Mirrors
-// applyPatchedAutomationWrite in automations.go.
+// patch would trigger a needless script.reload — and refuses to write a script whose id is
+// absent from scripts.yaml, which the config API would otherwise silently duplicate into an
+// orphan entity (#122, #164). Mirrors applyPatchedAutomationWrite in automations.go.
 func applyPatchedScriptWrite(
 	ctx context.Context,
 	client homeassistant.Client,
@@ -722,7 +722,7 @@ func applyPatchedScriptWrite(
 		return successResult(fmt.Sprintf("Script %s: no changes detected, skipping write (reload avoided)", target)), nil
 	}
 
-	if guardErr := yamlWriteGuardError(ctx, client, "script", "patch", scriptID, entityID); guardErr != nil {
+	if guardErr := configWriteGuardError(ctx, client, "script", "patch", scriptID, entityID, configID); guardErr != nil {
 		return guardErr, nil
 	}
 
