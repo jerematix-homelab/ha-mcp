@@ -1,0 +1,27 @@
+FROM --platform=$BUILDPLATFORM golang:1.26.3-alpine AS build
+
+ARG TARGETARCH
+ARG TARGETOS
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 GOARCH=$TARGETARCH GOOS=$TARGETOS \
+    go build -trimpath -ldflags="-s -w" -o /out/ha-mcp ./cmd/ha-mcp
+
+FROM alpine:3.24
+
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -g 1000 hamcp \
+    && adduser -D -u 1000 -G hamcp hamcp
+
+COPY --from=build /out/ha-mcp /usr/local/bin/ha-mcp
+
+USER hamcp
+
+EXPOSE 8080
+
+ENTRYPOINT ["ha-mcp"]

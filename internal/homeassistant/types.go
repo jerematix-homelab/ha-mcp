@@ -713,7 +713,7 @@ type CalendarEvent struct {
 	Description  string           `json:"description,omitempty"`
 	Location     string           `json:"location,omitempty"`
 	UID          string           `json:"uid,omitempty"`
-	RecurrenceID string           `json:"recurrence_id,omitempty"`
+	RecurrenceID json.RawMessage  `json:"recurrence_id,omitempty"`
 }
 
 // CalendarDateTime represents a calendar date/time value.

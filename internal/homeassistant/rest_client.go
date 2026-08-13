@@ -1304,7 +1304,13 @@ func (c *RESTClient) GetCalendars(ctx context.Context) ([]CalendarEntry, error) 
 // GetCalendarEvents retrieves events for a specific calendar within a date range.
 // Endpoint: GET /api/calendars/{entity_id}?start={start}&end={end}
 func (c *RESTClient) GetCalendarEvents(ctx context.Context, entityID, start, end string) ([]CalendarEvent, error) {
-	url := fmt.Sprintf("%s/api/calendars/%s?start=%s&end=%s", c.baseURL, neturl.PathEscape(entityID), start, end)
+	url := fmt.Sprintf(
+		"%s/api/calendars/%s?start=%s&end=%s",
+		c.baseURL,
+		neturl.PathEscape(entityID),
+		neturl.QueryEscape(start),
+		neturl.QueryEscape(end),
+	)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {

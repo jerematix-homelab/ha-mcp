@@ -1774,6 +1774,66 @@ func TestRESTClient_UpdateScene(t *testing.T) {
 	}
 }
 
+func TestRESTClient_GetCalendarEventsEscapesDateRange(t *testing.T) {
+	t.Parallel()
+
+	const (
+		start = "2026-04-20T10:00:00+02:00"
+		end   = "2026-04-20T11:00:00+02:00"
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("start"); got != start {
+			t.Errorf("start query = %q, want %q", got, start)
+		}
+		if got := r.URL.Query().Get("end"); got != end {
+			t.Errorf("end query = %q, want %q", got, end)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("[]"))
+	}))
+	defer server.Close()
+
+	client := NewRESTClient(server.URL, "test-token")
+	if _, err := client.GetCalendarEvents(context.Background(), "calendar.work", start, end); err != nil {
+		t.Fatalf("GetCalendarEvents() error = %v", err)
+	}
+}
+
+func TestRESTClient_GetCalendarEventsAcceptsObjectRecurrenceID(t *testing.T) {
+	t.Parallel()
+
+	const response = `[{
+		"start":{"dateTime":"2026-04-20T10:00:00+02:00"},
+		"end":{"dateTime":"2026-04-20T11:00:00+02:00"},
+		"summary":"Recurring event",
+		"recurrence_id":{"range":"THISANDFUTURE","dateTime":"2026-04-20T10:00:00+02:00"}
+	}]`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(response))
+	}))
+	defer server.Close()
+
+	client := NewRESTClient(server.URL, "test-token")
+	events, err := client.GetCalendarEvents(
+		context.Background(),
+		"calendar.work",
+		"2026-04-20T00:00:00+02:00",
+		"2026-04-21T00:00:00+02:00",
+	)
+	if err != nil {
+		t.Fatalf("GetCalendarEvents() error = %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("len(events) = %d, want 1", len(events))
+	}
+	if got, want := string(events[0].RecurrenceID), `{"range":"THISANDFUTURE","dateTime":"2026-04-20T10:00:00+02:00"}`; got != want {
+		t.Errorf("RecurrenceID = %s, want %s", got, want)
+	}
+}
+
 // TestRESTClient_EscapesIdentifiersInURLPath is a security regression test (adversarial review
 // W6): a caller-supplied identifier containing "/" or ".." previously reached the HA API request
 // line unescaped, so a scene_id of "../automation/config/1" would let manage_scene:update write
