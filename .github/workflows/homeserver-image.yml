@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   image:
-    uses: jerematix-homelab/kubernetes-homeserver/.github/workflows/build-local-image.yaml@main
+    uses: jerematix-homelab/homeserver-actions/.github/workflows/build-local-image.yaml@v1
     with:
       dockerfile: Dockerfile.ghcr
       image: homeserver/ha-mcp
