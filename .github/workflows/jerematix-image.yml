@@ -37,10 +37,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/jerematix/ha-mcp:${{ github.ref_name }}
-            ghcr.io/jerematix/ha-mcp:sha-${{ github.sha }}
+            ghcr.io/jerematix-homelab/ha-mcp:${{ github.ref_name }}
+            ghcr.io/jerematix-homelab/ha-mcp:sha-${{ github.sha }}
           labels: |
-            org.opencontainers.image.source=https://github.com/Jerematix/ha-mcp
+            org.opencontainers.image.source=https://github.com/jerematix-homelab/ha-mcp
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.licenses=GPL-3.0
           provenance: mode=max
